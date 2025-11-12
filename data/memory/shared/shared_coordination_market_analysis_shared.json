@@ -1,0 +1,24 @@
+{
+  "namespace": "shared:coordination:market_analysis",
+  "safe_namespace": "shared_coordination_market_analysis",
+  "timestamp": "2025-11-11T20:46:54.003037",
+  "version": "1.0",
+  "data": {
+    "data": {
+      "coordination_signal": "Market analysis complete",
+      "shared_insight": "Bullish momentum detected",
+      "timestamp": "2025-11-11T20:46:53.835307"
+    },
+    "timestamp": "2025-11-11T20:46:53.835307",
+    "memory_type": "shared",
+    "metadata": {
+      "shared_by": "test_agent",
+      "namespace": "coordination",
+      "shared_at": "2025-11-11T20:46:53.835307",
+      "access_level": "shared",
+      "original_data_type": "dict"
+    },
+    "user": null,
+    "size": 141
+  }
+}

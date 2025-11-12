@@ -1,0 +1,632 @@
+{
+  "dependencies": {
+    "pandas": {
+      "status": "PASS",
+      "timestamp": "2025-11-11T10:58:45.553340",
+      "details": {
+        "version": "2.3.3",
+        "required": true
+      }
+    },
+    "numpy": {
+      "status": "PASS",
+      "timestamp": "2025-11-11T10:58:45.553340",
+      "details": {
+        "version": "2.3.4",
+        "required": true
+      }
+    },
+    "asyncio": {
+      "status": "PASS",
+      "timestamp": "2025-11-11T10:58:45.553340",
+      "details": {
+        "version": "unknown",
+        "required": true
+      }
+    },
+    "yfinance": {
+      "status": "PASS",
+      "timestamp": "2025-11-11T10:58:45.717582",
+      "details": {
+        "version": "0.2.66",
+        "required": true
+      }
+    },
+    "requests": {
+      "status": "PASS",
+      "timestamp": "2025-11-11T10:58:45.758713",
+      "details": {
+        "version": "2.32.5",
+        "required": true
+      }
+    },
+    "aiohttp": {
+      "status": "PASS",
+      "timestamp": "2025-11-11T10:58:45.865640",
+      "details": {
+        "version": "3.13.2",
+        "required": true
+      }
+    },
+    "streamlit": {
+      "status": "PASS",
+      "timestamp": "2025-11-11T10:58:46.181078",
+      "details": {
+        "version": "1.51.0",
+        "required": true
+      }
+    },
+    "plotly": {
+      "status": "PASS",
+      "timestamp": "2025-11-11T10:58:46.183445",
+      "details": {
+        "version": "5.24.1",
+        "required": true
+      }
+    },
+    "matplotlib": {
+      "status": "PASS",
+      "timestamp": "2025-11-11T10:58:46.278323",
+      "details": {
+        "version": "3.10.7",
+        "required": true
+      }
+    },
+    "seaborn": {
+      "status": "PASS",
+      "timestamp": "2025-11-11T10:58:47.086447",
+      "details": {
+        "version": "0.13.2",
+        "required": true
+      }
+    },
+    "scikit-learn": {
+      "status": "FAIL",
+      "timestamp": "2025-11-11T10:58:47.086447",
+      "details": {
+        "error": "No module named 'scikit-learn'",
+        "required": true
+      }
+    },
+    "tensorflow": {
+      "status": "PASS",
+      "timestamp": "2025-11-11T10:58:49.267222",
+      "details": {
+        "version": "2.20.0",
+        "required": true
+      }
+    },
+    "torch": {
+      "status": "PASS",
+      "timestamp": "2025-11-11T10:58:50.900301",
+      "details": {
+        "version": "2.9.0+cpu",
+        "required": true
+      }
+    },
+    "transformers": {
+      "status": "PASS",
+      "timestamp": "2025-11-11T10:58:51.590638",
+      "details": {
+        "version": "4.57.1",
+        "required": true
+      }
+    },
+    "openai": {
+      "status": "PASS",
+      "timestamp": "2025-11-11T10:58:52.099090",
+      "details": {
+        "version": "1.109.1",
+        "required": true
+      }
+    },
+    "anthropic": {
+      "status": "PASS",
+      "timestamp": "2025-11-11T10:58:52.296738",
+      "details": {
+        "version": "0.72.0",
+        "required": true
+      }
+    },
+    "redis": {
+      "status": "PASS",
+      "timestamp": "2025-11-11T10:58:52.351082",
+      "details": {
+        "version": "5.3.1",
+        "required": true
+      }
+    },
+    "pymongo": {
+      "status": "PASS",
+      "timestamp": "2025-11-11T10:58:52.432512",
+      "details": {
+        "version": "4.15.3",
+        "required": true
+      }
+    },
+    "sqlalchemy": {
+      "status": "PASS",
+      "timestamp": "2025-11-11T10:58:52.515897",
+      "details": {
+        "version": "2.0.44",
+        "required": true
+      }
+    },
+    "fastapi": {
+      "status": "PASS",
+      "timestamp": "2025-11-11T10:58:52.637207",
+      "details": {
+        "version": "0.121.1",
+        "required": true
+      }
+    },
+    "uvicorn": {
+      "status": "PASS",
+      "timestamp": "2025-11-11T10:58:52.651267",
+      "details": {
+        "version": "0.38.0",
+        "required": true
+      }
+    },
+    "pydantic": {
+      "status": "PASS",
+      "timestamp": "2025-11-11T10:58:52.651722",
+      "details": {
+        "version": "2.12.4",
+        "required": true
+      }
+    },
+    "python-dotenv": {
+      "status": "FAIL",
+      "timestamp": "2025-11-11T10:58:52.651722",
+      "details": {
+        "error": "No module named 'python-dotenv'",
+        "required": true
+      }
+    },
+    "pytest": {
+      "status": "PASS",
+      "timestamp": "2025-11-11T10:58:52.701086",
+      "details": {
+        "version": "8.4.2",
+        "required": true
+      }
+    },
+    "pytest-asyncio": {
+      "status": "FAIL",
+      "timestamp": "2025-11-11T10:58:52.701485",
+      "details": {
+        "error": "No module named 'pytest-asyncio'",
+        "required": true
+      }
+    },
+    "ta": {
+      "status": "MISSING",
+      "timestamp": "2025-11-11T10:58:52.701485",
+      "details": {
+        "error": "No module named 'ta'",
+        "required": false
+      }
+    },
+    "financedatabase": {
+      "status": "PASS",
+      "timestamp": "2025-11-11T10:58:52.701485",
+      "details": {
+        "version": "unknown",
+        "required": false
+      }
+    },
+    "alpha_vantage": {
+      "status": "PASS",
+      "timestamp": "2025-11-11T10:58:52.701485",
+      "details": {
+        "version": "unknown",
+        "required": false
+      }
+    },
+    "newsapi": {
+      "status": "PASS",
+      "timestamp": "2025-11-11T10:58:52.708859",
+      "details": {
+        "version": "unknown",
+        "required": false
+      }
+    },
+    "tweepy": {
+      "status": "PASS",
+      "timestamp": "2025-11-11T10:58:52.751324",
+      "details": {
+        "version": "4.16.0",
+        "required": false
+      }
+    },
+    "textblob": {
+      "status": "PASS",
+      "timestamp": "2025-11-11T10:58:52.988682",
+      "details": {
+        "version": "unknown",
+        "required": false
+      }
+    },
+    "vaderSentiment": {
+      "status": "MISSING",
+      "timestamp": "2025-11-11T10:58:52.988682",
+      "details": {
+        "error": "No module named 'vaderSentiment'",
+        "required": false
+      }
+    },
+    "spacy": {
+      "status": "MISSING",
+      "timestamp": "2025-11-11T10:58:52.988682",
+      "details": {
+        "error": "No module named 'spacy'",
+        "required": false
+      }
+    },
+    "nltk": {
+      "status": "PASS",
+      "timestamp": "2025-11-11T10:58:52.988682",
+      "details": {
+        "version": "3.9.2",
+        "required": false
+      }
+    },
+    "beautifulsoup4": {
+      "status": "MISSING",
+      "timestamp": "2025-11-11T10:58:52.988682",
+      "details": {
+        "error": "No module named 'beautifulsoup4'",
+        "required": false
+      }
+    },
+    "selenium": {
+      "status": "MISSING",
+      "timestamp": "2025-11-11T10:58:52.988682",
+      "details": {
+        "error": "No module named 'selenium'",
+        "required": false
+      }
+    },
+    "webdriver_manager": {
+      "status": "MISSING",
+      "timestamp": "2025-11-11T10:58:52.988682",
+      "details": {
+        "error": "No module named 'webdriver_manager'",
+        "required": false
+      }
+    }
+  },
+  "imports": {
+    "src.agents.base": {
+      "status": "FAIL",
+      "timestamp": "2025-11-11T10:58:53.766796",
+      "details": {
+        "error": "No module named 'langchain.memory'"
+      }
+    },
+    "src.agents.data": {
+      "status": "FAIL",
+      "timestamp": "2025-11-11T10:58:53.766796",
+      "details": {
+        "error": "No module named 'langchain.memory'"
+      }
+    },
+    "src.agents.risk": {
+      "status": "ERROR",
+      "timestamp": "2025-11-11T10:58:53.766796",
+      "details": {
+        "error": "unterminated string literal (detected at line 88) (risk.py, line 88)"
+      }
+    },
+    "src.agents.strategy": {
+      "status": "FAIL",
+      "timestamp": "2025-11-11T10:58:53.766796",
+      "details": {
+        "error": "No module named 'langchain.memory'"
+      }
+    },
+    "src.agents.execution": {
+      "status": "FAIL",
+      "timestamp": "2025-11-11T10:58:53.766796",
+      "details": {
+        "error": "No module named 'langchain.memory'"
+      }
+    },
+    "src.agents.learning": {
+      "status": "FAIL",
+      "timestamp": "2025-11-11T10:58:53.778921",
+      "details": {
+        "error": "No module named 'langchain.memory'"
+      }
+    },
+    "src.agents.reflection": {
+      "status": "FAIL",
+      "timestamp": "2025-11-11T10:58:53.780930",
+      "details": {
+        "error": "No module named 'langchain.memory'"
+      }
+    },
+    "src.agents.portfolio_dashboard": {
+      "status": "ERROR",
+      "timestamp": "2025-11-11T10:58:53.782931",
+      "details": {
+        "error": "[Errno 2] No such file or directory: '..\\\\config\\\\risk-constraints.yaml'"
+      }
+    },
+    "src.utils.historical_simulation_engine": {
+      "status": "FAIL",
+      "timestamp": "2025-11-11T10:58:53.783533",
+      "details": {
+        "error": "No module named 'src.utils.historical_simulation_engine'"
+      }
+    },
+    "src.utils.shared_memory": {
+      "status": "FAIL",
+      "timestamp": "2025-11-11T10:58:53.784404",
+      "details": {
+        "error": "No module named 'src.utils.shared_memory'"
+      }
+    },
+    "src.utils.a2a_protocol": {
+      "status": "PASS",
+      "timestamp": "2025-11-11T10:58:53.786579",
+      "details": {
+        "module": "<module 'src.utils.a2a_protocol' from 'C:\\\\Users\\\\nvick\\\\Documents\\\\Grok-IBKR\\\\src\\\\utils\\\\a2a_protocol.py'>"
+      }
+    },
+    "src.utils.utils": {
+      "status": "FAIL",
+      "timestamp": "2025-11-11T10:58:53.786812",
+      "details": {
+        "error": "No module named 'langchain.prompts'"
+      }
+    },
+    "src.integrations.ibkr_connector": {
+      "status": "FAIL",
+      "timestamp": "2025-11-11T10:58:53.786812",
+      "details": {
+        "error": "No module named 'src.integrations'"
+      }
+    }
+  },
+  "agents": {
+    "DataAgent": {
+      "status": "FAIL",
+      "timestamp": "2025-11-11T10:58:53.789249",
+      "details": {
+        "error": "No module named 'langchain.memory'",
+        "class": "DataAgent",
+        "module": "src.agents.data"
+      }
+    },
+    "RiskAgent": {
+      "status": "FAIL",
+      "timestamp": "2025-11-11T10:58:53.791130",
+      "details": {
+        "error": "unterminated string literal (detected at line 88) (risk.py, line 88)",
+        "class": "RiskAgent",
+        "module": "src.agents.risk"
+      }
+    },
+    "StrategyAgent": {
+      "status": "FAIL",
+      "timestamp": "2025-11-11T10:58:53.791130",
+      "details": {
+        "error": "No module named 'langchain.memory'",
+        "class": "StrategyAgent",
+        "module": "src.agents.strategy"
+      }
+    },
+    "ExecutionAgent": {
+      "status": "FAIL",
+      "timestamp": "2025-11-11T10:58:53.791130",
+      "details": {
+        "error": "No module named 'langchain.memory'",
+        "class": "ExecutionAgent",
+        "module": "src.agents.execution"
+      }
+    },
+    "LearningAgent": {
+      "status": "FAIL",
+      "timestamp": "2025-11-11T10:58:53.796522",
+      "details": {
+        "error": "No module named 'langchain.memory'",
+        "class": "LearningAgent",
+        "module": "src.agents.learning"
+      }
+    },
+    "ReflectionAgent": {
+      "status": "FAIL",
+      "timestamp": "2025-11-11T10:58:53.798714",
+      "details": {
+        "error": "No module named 'langchain.memory'",
+        "class": "ReflectionAgent",
+        "module": "src.agents.reflection"
+      }
+    }
+  },
+  "integrations": {
+    "redis": {
+      "status": "FAIL",
+      "timestamp": "2025-11-11T10:58:55.825315",
+      "details": {
+        "error": "Timeout connecting to server",
+        "note": "Redis server may not be running"
+      }
+    },
+    "api_key_openai_api_key": {
+      "status": "PASS",
+      "timestamp": "2025-11-11T10:58:55.825315",
+      "details": {
+        "configured": true
+      }
+    },
+    "api_key_anthropic_api_key": {
+      "status": "MISSING",
+      "timestamp": "2025-11-11T10:58:55.825315",
+      "details": {
+        "configured": false,
+        "note": "API key not set or too short"
+      }
+    },
+    "api_key_grok_api_key": {
+      "status": "MISSING",
+      "timestamp": "2025-11-11T10:58:55.825315",
+      "details": {
+        "configured": false,
+        "note": "API key not set or too short"
+      }
+    },
+    "api_key_alpha_vantage_api_key": {
+      "status": "MISSING",
+      "timestamp": "2025-11-11T10:58:55.825315",
+      "details": {
+        "configured": false,
+        "note": "API key not set or too short"
+      }
+    },
+    "api_key_newsapi_key": {
+      "status": "MISSING",
+      "timestamp": "2025-11-11T10:58:55.825315",
+      "details": {
+        "configured": false,
+        "note": "API key not set or too short"
+      }
+    },
+    "api_key_twitter_bearer_token": {
+      "status": "MISSING",
+      "timestamp": "2025-11-11T10:58:55.825315",
+      "details": {
+        "configured": false,
+        "note": "API key not set or too short"
+      }
+    },
+    "api_key_finnhub_api_key": {
+      "status": "MISSING",
+      "timestamp": "2025-11-11T10:58:55.825315",
+      "details": {
+        "configured": false,
+        "note": "API key not set or too short"
+      }
+    },
+    "api_key_ibkr_account_id": {
+      "status": "MISSING",
+      "timestamp": "2025-11-11T10:58:55.825315",
+      "details": {
+        "configured": false,
+        "note": "API key not set or too short"
+      }
+    },
+    "api_key_ibkr_password": {
+      "status": "MISSING",
+      "timestamp": "2025-11-11T10:58:55.825315",
+      "details": {
+        "configured": false,
+        "note": "API key not set or too short"
+      }
+    },
+    "api_key_redis_url": {
+      "status": "OPTIONAL_MISSING",
+      "timestamp": "2025-11-11T10:58:55.825315",
+      "details": {
+        "configured": false,
+        "note": "Optional API key not set"
+      }
+    },
+    "api_key_mongodb_url": {
+      "status": "OPTIONAL_MISSING",
+      "timestamp": "2025-11-11T10:58:55.825315",
+      "details": {
+        "configured": false,
+        "note": "Optional API key not set"
+      }
+    },
+    "api_key_database_url": {
+      "status": "OPTIONAL_MISSING",
+      "timestamp": "2025-11-11T10:58:55.825315",
+      "details": {
+        "configured": false,
+        "note": "Optional API key not set"
+      }
+    },
+    "dir_src": {
+      "status": "PASS",
+      "timestamp": "2025-11-11T10:58:55.825315",
+      "details": {}
+    },
+    "dir_src_agents": {
+      "status": "PASS",
+      "timestamp": "2025-11-11T10:58:55.825315",
+      "details": {}
+    },
+    "dir_src_utils": {
+      "status": "PASS",
+      "timestamp": "2025-11-11T10:58:55.825315",
+      "details": {}
+    },
+    "dir_src_integrations": {
+      "status": "FAIL",
+      "timestamp": "2025-11-11T10:58:55.825315",
+      "details": {
+        "error": "Directory not found: C:\\Users\\nvick\\ABC-Application-ABC-main\\ABC-Application-main\\src\\integrations"
+      }
+    },
+    "dir_config": {
+      "status": "PASS",
+      "timestamp": "2025-11-11T10:58:55.825315",
+      "details": {}
+    },
+    "dir_data": {
+      "status": "PASS",
+      "timestamp": "2025-11-11T10:58:55.825315",
+      "details": {}
+    },
+    "dir_examples": {
+      "status": "PASS",
+      "timestamp": "2025-11-11T10:58:55.825315",
+      "details": {}
+    },
+    "dir_docs": {
+      "status": "PASS",
+      "timestamp": "2025-11-11T10:58:55.825315",
+      "details": {}
+    },
+    "file_requirements_txt": {
+      "status": "PASS",
+      "timestamp": "2025-11-11T10:58:55.825315",
+      "details": {}
+    },
+    "file_README_md": {
+      "status": "PASS",
+      "timestamp": "2025-11-11T10:58:55.825315",
+      "details": {}
+    },
+    "file_config_risk-constraints_yaml": {
+      "status": "PASS",
+      "timestamp": "2025-11-11T10:58:55.825315",
+      "details": {}
+    },
+    "file_config_profitability-targets_yaml": {
+      "status": "PASS",
+      "timestamp": "2025-11-11T10:58:55.825315",
+      "details": {}
+    }
+  },
+  "performance": {
+    "data_agent_basic": {
+      "status": "ERROR",
+      "timestamp": "2025-11-11T10:58:55.837514",
+      "details": {
+        "error": "No module named 'langchain.memory'"
+      }
+    },
+    "simulation_engine_basic": {
+      "status": "ERROR",
+      "timestamp": "2025-11-11T10:58:55.839906",
+      "details": {
+        "error": "No module named 'src.utils.historical_simulation_engine'"
+      }
+    }
+  }
+}

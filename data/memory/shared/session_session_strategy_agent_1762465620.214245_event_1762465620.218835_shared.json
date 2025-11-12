@@ -1,0 +1,16 @@
+{
+  "namespace": "session:session_strategy_agent_1762465620.214245:event:1762465620.218835",
+  "safe_namespace": "session_session_strategy_agent_1762465620.214245_event_1762465620.218835",
+  "timestamp": "2025-11-06T15:47:00.218835",
+  "version": "1.0",
+  "data": {
+    "agent": "agent_1",
+    "timestamp": "2025-11-06T15:47:00.218835",
+    "insight": {
+      "type": "test",
+      "content": "Insight 1",
+      "confidence": 0.8
+    },
+    "validated_by": []
+  }
+}

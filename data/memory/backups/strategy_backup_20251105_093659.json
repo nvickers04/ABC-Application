@@ -1,0 +1,13 @@
+{
+  "agent_role": "strategy",
+<<<<<<< HEAD
+  "timestamp": "2025-11-05T07:13:09.025743",
+=======
+  "timestamp": "2025-11-04T18:28:34.892288",
+>>>>>>> c1d1d11fa48053818b884ae5cb25e8f7f2c07b5f
+  "version": "1.0",
+  "data": {
+    "batch_directives": {},
+    "negotiation_history": []
+  }
+}

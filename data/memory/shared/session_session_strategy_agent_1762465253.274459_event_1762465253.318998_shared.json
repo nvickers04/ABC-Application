@@ -1,0 +1,18 @@
+{
+  "namespace": "session:session_strategy_agent_1762465253.274459:event:1762465253.318998",
+  "safe_namespace": "session_session_strategy_agent_1762465253.274459_event_1762465253.318998",
+  "timestamp": "2025-11-06T15:40:53.318998",
+  "version": "1.0",
+  "data": {
+    "agent": "data_agent",
+    "timestamp": "2025-11-06T15:40:53.318998",
+    "insight": {
+      "type": "market_analysis",
+      "content": "SPY showing bullish divergence on RSI",
+      "confidence": 0.85,
+      "evidence": "Technical indicators analysis",
+      "timestamp": "2025-11-06T15:40:53.318998"
+    },
+    "validated_by": []
+  }
+}

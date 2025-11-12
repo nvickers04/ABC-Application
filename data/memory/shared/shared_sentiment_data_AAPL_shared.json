@@ -1,0 +1,38 @@
+{
+  "namespace": "shared:sentiment_data:AAPL",
+  "safe_namespace": "shared_sentiment_data_AAPL",
+  "timestamp": "2025-11-11T20:55:39.019264",
+  "version": "1.0",
+  "data": {
+    "data": {
+      "sentiment_score": 0.5333333333333333,
+      "sentiment": {
+        "sources": "{'news': \"{'source': 'news', 'articles_analyzed': 0, 'sentiment_scores': [], 'key_themes': [], 'timestamp': '2025-11-11T20:55:38.942102', 'aggregate_score': 0.5, 'confidence': 0.0}\", 'social_media': \"{'source': 'social_media', 'platforms': {'twitter': {'tweets_analyzed': 0, 'sentiment_scores': [], 'aggregate_score': 0.5}, 'reddit': {'subreddits_analyzed': 0, 'posts_analyzed': 0, 'aggregate_score': 0.5, 'confidence': 0.0, 'note': 'Reddit API integration not implemented'}}, 'timestamp': '2025-11-11T20:55:38.942102', 'aggregate_score': np.float64(0.5), 'confidence': 0.6}\", 'market_data': \"{'source': 'market_data', 'indicators': {'put_call_ratio': {'value': 0.8, 'sentiment': 'neutral', 'description': 'Put/Call ratio from options data'}, 'vix_level': {'value': 18.5, 'sentiment': 'neutral', 'description': 'VIX volatility index'}, 'advance_decline': {'value': 1.2, 'sentiment': 'bullish', 'description': 'Advance-decline line ratio'}}, 'timestamp': '2025-11-11T20:55:38.942102', 'aggregate_score': np.float64(0.5666666666666667), 'confidence': 0.6}\"}",
+        "timestamp": "2025-11-11T20:55:38.938506",
+        "focus_areas": "['news', 'social_media', 'market_data']",
+        "symbols": "['SPY', 'AAPL']",
+        "time_horizon": "current",
+        "sentiment_narrative": "news sentiment is neutral with low confidence. social_media sentiment is neutral with moderate confidence. market_data sentiment is neutral with moderate confidence",
+        "consistency_analysis": "{'consistency': 'high', 'consistency_score': '0.9', 'coefficient_of_variation': '0.06017930052651467', 'score_mean': '0.5222222222222223', 'score_std': '0.03142696805273544', 'sources_compared': '3', 'source_names': \"['news', 'social_media', 'market_data']\"}",
+        "market_prediction": "{'expected_move': 'neutral', 'timeframe': '1-3 days', 'confidence': '0.5'}",
+        "anomalies": "[]",
+        "llm_analysis_timestamp": "2025-11-11T20:55:39.013887",
+        "composite_sentiment": "{'score': '0.5333333333333333', 'label': 'neutral', 'confidence': '0.36', 'sources_contributed': '3'}",
+        "market_impact": "{'overall_impact': 'neutral', 'strength': 'moderate', 'time_horizon': 'short_term', 'asset_classes_affected': '[]'}",
+        "collaborative_insights": "[\"{'target_agent': 'economic_data', 'insight_type': 'sentiment_consistency', 'content': 'High sentiment consistency may correlate with economic data trends', 'confidence': 0.6, 'relevance': 'medium'}\"]"
+      },
+      "timestamp": "2025-11-11T20:55:39.015260"
+    },
+    "timestamp": "2025-11-11T20:55:39.015260",
+    "memory_type": "shared",
+    "metadata": {
+      "shared_by": "sentiment_data",
+      "namespace": "sentiment_data",
+      "shared_at": "2025-11-11T20:55:39.015260",
+      "access_level": "shared",
+      "original_data_type": "dict"
+    },
+    "user": null,
+    "size": 2465
+  }
+}

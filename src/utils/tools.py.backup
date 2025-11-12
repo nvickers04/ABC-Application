@@ -1,0 +1,3940 @@
+# src/utils/tools.py
+# Purpose: Defines Langchain-compatible tools for agent tool calling.
+# Tools include data fetching, sentiment analysis, risk calculations, etc.
+# Integrates with Langchain's tool system for agent execution.
+
+from langchain.tools import tool
+import pandas as pd
+import numpy as np
+from typing import Dict, Any
+import requests
+from .config import get_marketdataapp_api_key, get_grok_api_key, get_kalshi_api_key, get_kalshi_access_key_id
+import time
+import threading
+from functools import wraps
+import logging
+from cryptography.hazmat.primitives import serialization, hashes
+from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.backends import default_backend
+import base64
+from .api_health_monitor import get_api_health_summary, check_api_health_now, start_health_monitoring, stop_health_monitoring
+
+logger = logging.getLogger(__name__)
+
+# Circuit Breaker Implementation for API Resilience
+class CircuitBreaker:
+    """
+    Circuit breaker pattern implementation to prevent cascading failures
+    and provide resilience against API outages.
+    """
+
+    def __init__(self, failure_threshold=5, recovery_timeout=60, expected_exception=Exception):
+        self.failure_threshold = failure_threshold
+        self.recovery_timeout = recovery_timeout
+        self.expected_exception = expected_exception
+        self.failure_count = 0
+        self.last_failure_time = None
+        self.state = 'CLOSED'  # CLOSED, OPEN, HALF_OPEN
+        self._lock = threading.Lock()
+
+    def _can_attempt_reset(self):
+        """Check if enough time has passed to attempt a reset"""
+        if self.last_failure_time is None:
+            return True
+        return time.time() - self.last_failure_time >= self.recovery_timeout
+
+    def _record_success(self):
+        """Record a successful call"""
+        with self._lock:
+            self.failure_count = 0
+            self.state = 'CLOSED'
+
+    def _record_failure(self):
+        """Record a failed call"""
+        with self._lock:
+            self.failure_count += 1
+            self.last_failure_time = time.time()
+            if self.failure_count >= self.failure_threshold:
+                self.state = 'OPEN'
+
+    def call(self, func, *args, **kwargs):
+        """Execute function with circuit breaker protection"""
+        if self.state == 'OPEN':
+            if self._can_attempt_reset():
+                self.state = 'HALF_OPEN'
+            else:
+                raise CircuitBreakerOpenException(
+                    f"Circuit breaker is OPEN for {func.__name__}. "
+                    f"Failure count: {self.failure_count}/{self.failure_threshold}. "
+                    f"Next retry in {self.recovery_timeout - (time.time() - self.last_failure_time):.0f} seconds."
+                )
+
+        try:
+            result = func(*args, **kwargs)
+            self._record_success()
+            return result
+        except self.expected_exception as e:
+            self._record_failure()
+            raise e
+
+class CircuitBreakerOpenException(Exception):
+    """Exception raised when circuit breaker is open"""
+    pass
+
+# Global circuit breakers for critical APIs
+_circuit_breakers = {}
+
+def get_circuit_breaker(name: str, failure_threshold: int = 3, recovery_timeout: int = 300) -> CircuitBreaker:
+    """Get or create a circuit breaker for a specific API"""
+    global _circuit_breakers
+    if name not in _circuit_breakers:
+        _circuit_breakers[name] = CircuitBreaker(
+            failure_threshold=failure_threshold,
+            recovery_timeout=recovery_timeout
+        )
+    return _circuit_breakers[name]
+
+def circuit_breaker(api_name: str, failure_threshold: int = 3, recovery_timeout: int = 300):
+    """
+    Decorator to apply circuit breaker pattern to API functions
+
+    Args:
+        api_name: Name identifier for the API
+        failure_threshold: Number of failures before opening circuit
+        recovery_timeout: Seconds to wait before attempting recovery
+    """
+    def decorator(func):
+        breaker = get_circuit_breaker(api_name, failure_threshold, recovery_timeout)
+
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            try:
+                return breaker.call(func, *args, **kwargs)
+            except CircuitBreakerOpenException as e:
+                # Return a safe fallback response instead of raising
+                return {
+                    "error": str(e),
+                    "circuit_breaker": "OPEN",
+                    "api_name": api_name,
+                    "safe_fallback": True,
+                    "recommendation": "Do not execute trades - critical data unavailable"
+                }
+        return wrapper
+    return decorator
+
+def get_circuit_breaker_status() -> Dict[str, Any]:
+    """Get status of all circuit breakers"""
+    global _circuit_breakers
+    status = {}
+    for name, breaker in _circuit_breakers.items():
+        status[name] = {
+            "state": breaker.state,
+            "failure_count": breaker.failure_count,
+            "last_failure": breaker.last_failure_time,
+            "can_trade": breaker.state == 'CLOSED'
+        }
+    return status
+
+@tool
+@circuit_breaker("yfinance", failure_threshold=3, recovery_timeout=300)
+def yfinance_data_tool(symbol: str, period: str = "2y") -> str:
+    """
+    Fetch stock data using yfinance.
+    Args:
+        symbol: Stock symbol (e.g., 'SPY').
+        period: Period for data (e.g., '1d', '5d', '1mo', '3mo', '6mo', '1y', '2y', '5y', '10y', 'ytd', 'max').
+    Returns:
+        JSON string of the data.
+    """
+    try:
+        import yfinance as yf
+        # Use yfinance for data fetching with extended period for robust analysis
+        data = yf.download(symbol, period=period, interval="1d")
+
+        # Handle MultiIndex columns properly - flatten completely
+        if isinstance(data.columns, pd.MultiIndex):
+            # Create new column names by joining levels
+            new_columns = []
+            for col in data.columns:
+                if isinstance(col, tuple):
+                    # Join non-empty parts
+                    parts = [str(part) for part in col if str(part) != '']
+                    new_columns.append('_'.join(parts))
+                else:
+                    new_columns.append(str(col))
+            data.columns = new_columns
+
+        df = data.copy()
+
+        # Add comprehensive technical indicators
+        close_col = 'Close_SPY' if 'Close_SPY' in df.columns else ('Close_' + symbol if 'Close_' + symbol in df.columns else 'Close')
+        volume_col = 'Volume_SPY' if 'Volume_SPY' in df.columns else ('Volume_' + symbol if 'Volume_' + symbol in df.columns else 'Volume')
+        
+        close_prices = df[close_col]
+        df['RSI'] = close_prices.pct_change().rolling(14).mean()  # Simple RSI approximation
+        df['SMA_20'] = close_prices.rolling(20).mean()
+        df['SMA_50'] = close_prices.rolling(50).mean()
+        df['SMA_200'] = close_prices.rolling(200).mean()
+        df['EMA_12'] = close_prices.ewm(span=12).mean()
+        df['EMA_26'] = close_prices.ewm(span=26).mean()
+        df['Volatility'] = close_prices.pct_change().rolling(20).std() * (252 ** 0.5)  # Annualized
+        df['Volume_SMA_20'] = df[volume_col].rolling(20).mean()
+
+        # Add momentum indicators
+        df['ROC_10'] = close_prices.pct_change(10)  # Rate of change
+        df['Momentum'] = close_prices - close_prices.shift(10)
+
+        return df.to_json()
+    except Exception as e:
+        return f"Error fetching data: {e}"
+
+@tool
+@circuit_breaker("sentiment_analysis", failure_threshold=5, recovery_timeout=600)
+def sentiment_analysis_tool(text: str) -> Dict[str, Any]:
+    """
+    Analyze sentiment using xAI/Grok API (no OpenAI dependency).
+    Args:
+        text: Text to analyze (news headlines, social media posts, etc.)
+    Returns:
+        Dict with score, source, and impact analysis.
+    """
+    import requests
+
+    # Use xAI/Grok API directly (no OpenAI fallback)
+    grok_key = get_grok_api_key()
+    if grok_key:
+        try:
+            import logging
+            logger = logging.getLogger(__name__)
+
+            # Try the correct xAI API endpoint
+            url = "https://api.x.ai/v1/chat/completions"
+            headers = {
+                "Authorization": f"Bearer {grok_key}",
+                "Content-Type": "application/json"
+            }
+
+            prompt = f"""Analyze the sentiment of this financial/market text and provide a score from 0.0 (extremely bearish) to 1.0 (extremely bullish), plus a brief impact description:
+
+Text: "{text}"
+
+Respond in JSON format with keys: "score" (float), "impact" (string describing market impact), "confidence" (float 0-1)."""
+
+            payload = {
+                "model": "grok-3",
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                "max_tokens": 150,
+                "temperature": 0.3
+            }
+
+            logger.info(f"Making xAI API call to {url}")
+            response = requests.post(url, headers=headers, json=payload, timeout=15)
+            logger.info(f"xAI API response status: {response.status_code}")
+
+            if response.status_code == 200:
+                data = response.json()
+                logger.info(f"xAI API response: {data}")
+
+                if 'choices' in data and data['choices']:
+                    content = data['choices'][0]['message']['content']
+
+                    try:
+                        import json
+                        result = json.loads(content)
+                        score = float(result.get('score', 0.5))
+                        impact = result.get('impact', 'Neutral market sentiment')
+                        confidence = float(result.get('confidence', 0.8))
+
+                        return {
+                            "score": max(0.0, min(1.0, score)),
+                            "source": "xai_grok",
+                            "impact": impact,
+                            "confidence": confidence
+                        }
+                    except (json.JSONDecodeError, ValueError, KeyError) as e:
+                        logger.warning(f"Failed to parse xAI response as JSON: {e}, content: {content}")
+                        # Parse from text if JSON fails
+                        content_lower = content.lower()
+                        if 'bullish' in content_lower or 'positive' in content_lower:
+                            score = 0.7
+                            impact = "Bullish sentiment detected"
+                        elif 'bearish' in content_lower or 'negative' in content_lower:
+                            score = 0.3
+                            impact = "Bearish sentiment detected"
+                        else:
+                            score = 0.5
+                            impact = "Neutral sentiment"
+
+                        return {
+                            "score": score,
+                            "source": "xai_grok_text",
+                            "impact": impact,
+                            "confidence": 0.6
+                        }
+                else:
+                    logger.warning(f"Unexpected xAI response structure: {data}")
+            else:
+                logger.warning(f"xAI API error: {response.status_code}, {response.text}")
+
+        except Exception as e:
+            logger.error(f"xAI API call failed: {e}")
+
+    # Final fallback to stub (no OpenAI)
+    score = np.random.uniform(0.4, 0.9)
+    impact = "Bearish on tariffs" if score < 0.6 else "Bullish on growth"
+    return {
+        "score": score,
+        "source": "stub_fallback_no_openai",
+        "impact": impact,
+        "error": "xAI/Grok API failed - sentiment analysis unavailable. Check GROK_API_KEY and API endpoint."
+    }
+
+    # Final fallback to stub (no OpenAI)
+    score = np.random.uniform(0.4, 0.9)
+    impact = "Bearish on tariffs" if score < 0.6 else "Bullish on growth"
+    return {
+        "score": score,
+        "source": "stub_fallback_no_openai",
+        "impact": impact,
+        "error": "xAI/Grok API failed - sentiment analysis unavailable. Add GROK_API_KEY to .env file."
+    }
+
+@tool
+def risk_calculation_tool(data: str) -> Dict[str, Any]:
+    """
+    Calculate risk metrics from data.
+    Args:
+        data: JSON string of DataFrame.
+    Returns:
+        Dict with risk metrics.
+    """
+    try:
+        df = pd.read_json(data)
+        volatility = df['Close'].pct_change().std()
+        sharpe = df['Close'].pct_change().mean() / volatility if volatility > 0 else 0
+        return {"volatility": volatility, "sharpe_ratio": sharpe}
+    except Exception as e:
+        return {"error": str(e)}
+
+@tool
+def strategy_proposal_tool(data: str, sentiment: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Generate strategy proposal based on data and sentiment.
+    Args:
+        data: JSON string of DataFrame.
+        sentiment: Sentiment dict.
+    Returns:
+        Dict with proposal.
+    """
+    # Stub logic
+    score = sentiment.get('score', 0.5)
+    if score > 0.7:
+        action = "Buy"
+    elif score < 0.5:
+        action = "Sell"
+    else:
+        action = "Hold"
+    return {"action": action, "confidence": score, "reason": f"Based on sentiment score {score}"}
+
+@tool
+@circuit_breaker("news_api", failure_threshold=5, recovery_timeout=600)
+def news_data_tool(query: str = "stock market", language: str = "en", page_size: int = 10) -> Dict[str, Any]:
+    """
+    Fetch news articles from NewsAPI (free tier: 100 requests/day).
+    Args:
+        query: Search query (e.g., 'AAPL' or 'stock market').
+        language: Language code (default 'en').
+        page_size: Number of articles to fetch (max 100, default 10).
+    Returns:
+        Dict with news articles.
+    """
+    import os
+    api_key = os.getenv('NEWS_API_KEY')
+    if not api_key:
+        return {
+            "error": "NewsAPI key not found. Get free key at https://newsapi.org/register",
+            "free_tier": "100 requests/day, 1 month history",
+            "setup": "Add NEWS_API_KEY=your_key_here to .env file"
+        }
+    
+    base_url = "https://newsapi.org/v2/everything"
+    
+    try:
+        params = {
+            "q": query,
+            "language": language,
+            "pageSize": min(page_size, 100),
+            "sortBy": "publishedAt",
+            "apiKey": api_key
+        }
+        
+        response = requests.get(base_url, params=params, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        
+        if data.get("status") != "ok":
+            return {"error": data.get("message", "NewsAPI request failed")}
+        
+        articles = data.get("articles", [])
+        
+        # Process articles
+        processed_articles = []
+        for article in articles[:page_size]:
+            processed_articles.append({
+                "title": article.get("title", ""),
+                "description": article.get("description", ""),
+                "url": article.get("url", ""),
+                "source": article.get("source", {}).get("name", ""),
+                "published_at": article.get("publishedAt", ""),
+                "author": article.get("author", "")
+            })
+        
+        return {
+            "query": query,
+            "total_results": data.get("totalResults", 0),
+            "articles_returned": len(processed_articles),
+            "articles": processed_articles,
+            "source": "newsapi",
+            "free_tier_limit": "100 requests/day"
+        }
+        
+    except Exception as e:
+        return {"error": f"NewsAPI error: {str(e)}", "query": query}
+
+@tool
+@circuit_breaker("economic_data", failure_threshold=3, recovery_timeout=3600)
+def economic_data_tool(series_ids: str = "UNRATE,GDP,PCEPI,FEDFUNDS") -> Dict[str, Any]:
+    """
+    Fetch economic indicators from FRED API (free API key required).
+    Args:
+        series_ids: Comma-separated FRED series IDs (default: UNRATE,GDP,PCEPI,FEDFUNDS).
+    Returns:
+        Dict with latest economic data.
+    """
+    import os
+    api_key = os.getenv('FRED_API_KEY')
+    if not api_key:
+        return {
+            "error": "FRED API key not found. Get free key at https://fred.stlouisfed.org/docs/api/api_key.html",
+            "free_tier": "Free API key provides 2,000 requests/month",
+            "setup": "Add FRED_API_KEY=your_key_here to .env file",
+            "note": "FRED provides comprehensive US economic data"
+        }
+    
+    base_url = "https://api.stlouisfed.org/fred/series/observations"
+    
+    try:
+        indicators = {}
+        series_list = series_ids.split(',')
+        
+        for series_id in series_list:
+            series_id = series_id.strip()
+            params = {
+                "series_id": series_id,
+                "api_key": api_key,
+                "file_type": "json",
+                "limit": 1,  # Get latest observation
+                "sort_order": "desc"
+            }
+            
+            response = requests.get(base_url, params=params, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            
+            if "observations" in data and data["observations"]:
+                latest = data["observations"][0]
+                value = latest.get("value")
+                date = latest.get("date")
+                
+                # Convert to float if possible
+                try:
+                    value = float(value) if value != "." else None
+                except (ValueError, TypeError):
+                    pass
+                
+                indicators[series_id] = {
+                    "value": value,
+                    "date": date,
+                    "units": data.get("units", "Unknown")
+                }
+        
+        return {
+            "indicators": indicators,
+            "source": "fred_api",
+            "series_requested": series_list,
+            "note": "FRED API provides free economic data. Some series may have delayed updates."
+        }
+        
+    except Exception as e:
+        return {"error": f"FRED API error: {str(e)}", "series_requested": series_ids}
+
+@tool
+@circuit_breaker("marketdataapp_api", failure_threshold=3, recovery_timeout=300)
+def marketdataapp_api_tool(symbol: str, data_type: str = "quotes") -> Dict[str, Any]:
+    """
+    Fetch premium market data from MarketDataApp API.
+    Note: API endpoints may need verification - currently using educated guesses based on typical patterns.
+    Args:
+        symbol: Stock symbol (e.g., 'AAPL').
+        data_type: Type of data to fetch ('quotes', 'trades', 'options', 'dark_pool').
+    Returns:
+        Dict with premium market data or error information.
+    """
+    api_key = get_marketdataapp_api_key()
+    if not api_key:
+        return {"error": "MarketDataApp API key not found. Please set MARKETDATAAPP_API_KEY in .env file."}
+
+    # Note: Using MarketDataApp API endpoints
+    base_urls = [
+        "https://api.marketdata.app",
+        "https://marketdata.app/api",
+        "https://api.marketdataapp.com"
+    ]  # Try multiple possible base URLs
+
+    try:
+        if data_type == "quotes":
+            # MarketDataApp quotes endpoint - from official docs
+            url = f"https://api.marketdata.app/v1/stocks/quotes/{symbol}/"
+            params = {"token": api_key}
+            
+            try:
+                response = requests.get(url, params=params, timeout=10)
+                response.raise_for_status()
+                data = response.json()
+
+                # Handle MarketDataApp quotes response structure
+                if data.get("s") == "ok" and "symbol" in data:
+                    return {
+                        "symbol": symbol,
+                        "bid": data.get("bid", [0])[0] if data.get("bid") else 0,
+                        "ask": data.get("ask", [0])[0] if data.get("ask") else 0,
+                        "last_trade": data.get("last", [0])[0] if data.get("last") else 0,
+                        "volume": data.get("volume", [0])[0] if data.get("volume") else 0,
+                        "change": data.get("change", [0])[0] if data.get("change") else 0,
+                        "change_percent": data.get("changepct", [0])[0] if data.get("changepct") else 0,
+                        "source": "marketdataapp_rest_quotes",
+                        "endpoint_used": url
+                    }
+                else:
+                    return {
+                        "error": f"No quote data found for {symbol}. Response: {data}",
+                        "symbol": symbol,
+                        "data_type": data_type,
+                        "suggestion": "Check if symbol is valid or API token has access to real-time data"
+                    }
+            except requests.exceptions.RequestException as e:
+                return {
+                    "error": f"MarketDataApp quotes API error: {str(e)}",
+                    "symbol": symbol,
+                    "data_type": data_type,
+                    "endpoint_used": url,
+                    "suggestion": "Check network connection and API token validity"
+                }
+
+        elif data_type == "trades":
+            # MarketDataApp doesn't have a dedicated trades endpoint like Massive
+            # Use 1-minute candles as proxy for recent trade activity
+            url = f"https://api.marketdata.app/v1/stocks/candles/1/{symbol}/"
+            params = {"token": api_key, "countback": 10}  # Get last 10 1-minute candles
+            
+            try:
+                response = requests.get(url, params=params, timeout=10)
+                response.raise_for_status()
+                data = response.json()
+
+                # Handle MarketDataApp candles response structure
+                if data.get("s") == "ok" and "c" in data:
+                    closes = data.get("c", [])
+                    volumes = data.get("v", [])
+                    times = data.get("t", [])
+                    
+                    # Convert to trade-like format
+                    recent_trades = []
+                    for i in range(min(len(closes), 10)):
+                        recent_trades.append({
+                            "price": closes[i],
+                            "volume": volumes[i] if i < len(volumes) else 0,
+                            "timestamp": times[i] if i < len(times) else None
+                        })
+                    
+                    return {
+                        "symbol": symbol,
+                        "recent_trades": recent_trades,
+                        "source": "marketdataapp_candles_proxy",
+                        "endpoint_used": url,
+                        "note": "MarketDataApp provides candles data, not individual trades. Using 1-minute candles as proxy."
+                    }
+                else:
+                    return {
+                        "error": f"No candle data found for {symbol}. Response: {data}",
+                        "symbol": symbol,
+                        "data_type": data_type,
+                        "suggestion": "MarketDataApp may not have trades endpoint. Try quotes for real-time data."
+                    }
+            except requests.exceptions.RequestException as e:
+                return {
+                    "error": f"MarketDataApp candles API error: {str(e)}",
+                    "symbol": symbol,
+                    "data_type": data_type,
+                    "endpoint_used": url,
+                    "suggestion": "MarketDataApp may not support individual trade data. Use quotes endpoint instead."
+                }
+
+        else:
+            return {"error": f"Unsupported data_type: {data_type}. Use 'quotes' or 'trades' for REST API."}
+
+    except Exception as e:
+        return {"error": f"MarketDataApp REST API processing error: {str(e)}", "symbol": symbol, "data_type": data_type}
+
+@tool
+def marketdataapp_websocket_tool(symbol: str, data_type: str = "quotes", duration_seconds: int = 30) -> Dict[str, Any]:
+    """
+    Fetch real-time market data from MarketDataApp using WebSocket API.
+    Args:
+        symbol: Stock symbol (e.g., 'AAPL').
+        data_type: Type of data ('quotes', 'trades', 'aggregates').
+        duration_seconds: How long to collect data (default 30 seconds).
+    Returns:
+        Dict with collected real-time market data.
+    """
+    import asyncio
+    import websockets
+    import json
+    import time
+    from datetime import datetime
+
+    api_key = get_marketdataapp_api_key()
+    if not api_key:
+        return {"error": "MarketDataApp API key not found. Please set MARKETDATAAPP_API_KEY in .env file."}
+
+    collected_data = []
+    connection_status = {"connected": False, "authenticated": False, "subscribed": False}
+
+    async def websocket_handler():
+        try:
+            # Connect to MarketDataApp WebSocket (real-time data)
+            uri = "wss://api.marketdata.app/realtime"  # Updated for MarketDataApp
+
+            async with websockets.connect(uri) as websocket:
+                connection_status["connected"] = True
+
+                # Authenticate
+                auth_message = {"action": "auth", "key": api_key}
+                await websocket.send(json.dumps(auth_message))
+
+                # Wait for auth response
+                auth_response = await websocket.recv()
+                auth_data = json.loads(auth_response)
+                if auth_data.get("status") == "success":
+                    connection_status["authenticated"] = True
+
+                    # Subscribe to data
+                    if data_type == "quotes":
+                        subscription = {
+                            "action": "subscribe",
+                            "channel": "quotes",
+                            "symbols": [symbol]
+                        }
+                    elif data_type == "trades":
+                        subscription = {
+                            "action": "subscribe",
+                            "channel": "trades",
+                            "symbols": [symbol]
+                        }
+                    elif data_type == "aggregates":
+                        subscription = {
+                            "action": "subscribe",
+                            "channel": "AM",  # Aggregate minute bars
+                            "symbols": [symbol]
+                        }
+                    else:
+                        return {"error": f"Unsupported data_type: {data_type}"}
+
+                    await websocket.send(json.dumps(subscription))
+                    connection_status["subscribed"] = True
+
+                    # Collect data for specified duration
+                    start_time = time.time()
+                    while time.time() - start_time < duration_seconds:
+                        try:
+                            message = await asyncio.wait_for(websocket.recv(), timeout=1.0)
+                            data = json.loads(message)
+
+                            # Handle different message types
+                            if isinstance(data, list):
+                                # Multiple events bundled
+                                for event in data:
+                                    if event.get("sym") == symbol:
+                                        collected_data.append({
+                                            "timestamp": datetime.now().isoformat(),
+                                            "event_type": event.get("ev"),
+                                            "symbol": event.get("sym"),
+                                            "data": event
+                                        })
+                            elif isinstance(data, dict) and data.get("sym") == symbol:
+                                collected_data.append({
+                                    "timestamp": datetime.now().isoformat(),
+                                    "event_type": data.get("ev"),
+                                    "symbol": data.get("sym"),
+                                    "data": data
+                                })
+
+                        except asyncio.TimeoutError:
+                            continue  # No data received, continue waiting
+
+                else:
+                    return {"error": f"Authentication failed: {auth_data}"}
+
+        except Exception as e:
+            return {"error": f"WebSocket connection failed: {str(e)}"}
+
+    # Run the async WebSocket handler
+    try:
+        asyncio.run(websocket_handler())
+    except Exception as e:
+        return {"error": f"Async execution failed: {str(e)}"}
+
+    # Process collected data
+    if not collected_data:
+        return {
+            "error": "No data collected",
+            "connection_status": connection_status,
+            "duration_seconds": duration_seconds,
+            "symbol": symbol,
+            "data_type": data_type
+        }
+
+    # Summarize the data
+    summary = {
+        "symbol": symbol,
+        "data_type": data_type,
+        "collection_duration": duration_seconds,
+        "total_messages": len(collected_data),
+        "connection_status": connection_status,
+        "latest_data": collected_data[-1] if collected_data else None,
+        "data_sample": collected_data[:5],  # First 5 messages
+        "source": "marketdataapp_websocket"
+    }
+
+    # Add specific metrics based on data type
+    if data_type == "quotes" and collected_data:
+        latest_quote = collected_data[-1]["data"]
+        summary.update({
+            "bid": latest_quote.get("bid"),
+            "ask": latest_quote.get("ask"),
+            "last_trade": latest_quote.get("last"),
+            "volume": latest_quote.get("volume")
+        })
+    elif data_type == "trades" and collected_data:
+        summary["recent_trades"] = [msg["data"] for msg in collected_data[-10:]]
+    elif data_type == "aggregates" and collected_data:
+        latest_agg = collected_data[-1]["data"]
+        summary.update({
+            "open": latest_agg.get("o"),
+            "high": latest_agg.get("h"),
+            "low": latest_agg.get("l"),
+            "close": latest_agg.get("c"),
+            "volume": latest_agg.get("v"),
+            "vwap": latest_agg.get("a")
+        })
+
+    return summary
+
+@tool
+def audit_poll_tool(question: str, agents_to_poll: list = None) -> Dict[str, Any]:
+    """
+    Poll agents for audit/bonus decisions.
+    Args:
+        question: The question to poll agents about.
+        agents_to_poll: List of agent names to poll (optional).
+    Returns:
+        Dict with poll results and consensus.
+    """
+    # Stub: Simulate polling multiple agents
+    agents = agents_to_poll or ["strategy", "risk", "data", "learning"]
+    votes = {}
+
+    for agent in agents:
+        # Simulate agent responses
+        if "bonus" in question.lower():
+            vote = np.random.choice(["yes", "no"], p=[0.7, 0.3])  # Bias toward yes for bonuses
+        elif "audit" in question.lower():
+            vote = np.random.choice(["approve", "review", "reject"], p=[0.7, 0.2, 0.1])
+        else:
+            vote = np.random.choice(["agree", "disagree"], p=[0.65, 0.35])
+
+        votes[agent] = vote
+
+    # Calculate consensus
+    vote_counts = {}
+    for vote in votes.values():
+        vote_counts[vote] = vote_counts.get(vote, 0) + 1
+
+    consensus = max(vote_counts, key=vote_counts.get)
+    confidence = vote_counts[consensus] / len(agents)
+
+    return {
+        "question": question,
+        "votes": votes,
+        "consensus": consensus,
+        "confidence": confidence,
+        "total_agents": len(agents),
+        "timestamp": pd.Timestamp.now().isoformat()
+    }
+@tool
+def pyfolio_metrics_tool(data: str, benchmark_symbol: str = "SPY") -> Dict[str, Any]:
+    """
+    Calculate comprehensive portfolio metrics using pyfolio-style analysis.
+    Args:
+        data: JSON string of portfolio returns DataFrame.
+        benchmark_symbol: Benchmark symbol for comparison.
+    Returns:
+        Dict with comprehensive metrics.
+    """
+    try:
+        df = pd.read_json(data)
+        returns = df['Close'].pct_change().dropna()
+
+        # Basic metrics
+        total_return = (df['Close'].iloc[-1] / df['Close'].iloc[0]) - 1
+        volatility = returns.std() * np.sqrt(252)  # Annualized
+        sharpe_ratio = returns.mean() / returns.std() * np.sqrt(252) if returns.std() > 0 else 0
+
+        # Risk metrics
+        max_drawdown = (df['Close'] / df['Close'].cummax() - 1).min()
+        var_95 = np.percentile(returns, 5)  # 95% VaR
+        cvar_95 = returns[returns <= var_95].mean()  # 95% CVaR
+
+        # Benchmark comparison (stub)
+        benchmark_return = total_return * 0.8  # Assume benchmark is 80% of portfolio return
+        alpha = total_return - benchmark_return
+
+        return {
+            "total_return": total_return,
+            "annualized_volatility": volatility,
+            "sharpe_ratio": sharpe_ratio,
+            "max_drawdown": max_drawdown,
+            "value_at_risk_95": var_95,
+            "conditional_var_95": cvar_95,
+            "alpha_vs_benchmark": alpha,
+            "benchmark_symbol": benchmark_symbol,
+            "period_days": len(df),
+            "win_rate": (returns > 0).mean(),
+            "profit_factor": abs(returns[returns > 0].mean() / returns[returns < 0].mean()) if len(returns[returns < 0]) > 0 else float('inf')
+        }
+    except Exception as e:
+        return {"error": f"Metrics calculation failed: {str(e)}"}
+
+@tool
+def zipline_backtest_tool(strategy_code: str, start_date: str, end_date: str, capital: float = 100000) -> Dict[str, Any]:
+    """
+    Run backtest using Zipline-style analysis.
+    Args:
+        strategy_code: Strategy code to backtest.
+        start_date: Start date (YYYY-MM-DD).
+        end_date: End date (YYYY-MM-DD).
+        capital: Starting capital.
+    Returns:
+        Dict with backtest results.
+    """
+    # Stub: Simulate backtest results
+    try:
+        days = (pd.Timestamp(end_date) - pd.Timestamp(start_date)).days
+        total_return = np.random.uniform(0.05, 0.25)  # 5-25% return
+        volatility = np.random.uniform(0.15, 0.35)
+        sharpe = total_return / volatility
+
+        # Generate synthetic returns
+        returns = np.random.normal(total_return/days, volatility/np.sqrt(252), days)
+
+        return {
+            "total_return": total_return,
+            "annualized_volatility": volatility,
+            "sharpe_ratio": sharpe,
+            "max_drawdown": np.random.uniform(0.05, 0.25),
+            "win_rate": np.random.uniform(0.45, 0.65),
+            "total_trades": np.random.randint(50, 200),
+            "start_date": start_date,
+            "end_date": end_date,
+            "starting_capital": capital,
+            "ending_capital": capital * (1 + total_return),
+            "returns_series": returns.tolist()[:10],  # First 10 days
+            "backtest_engine": "zipline_stub"
+        }
+    except Exception as e:
+        return {"error": f"Backtest failed: {str(e)}"}
+
+@tool
+def twitter_sentiment_tool(query: str, max_tweets: int = 100) -> Dict[str, Any]:
+    """
+    Analyze sentiment from Twitter/X posts using Twitter API v2.
+    Args:
+        query: Search query for tweets (e.g., 'AAPL stock' or '$AAPL').
+        max_tweets: Maximum number of tweets to analyze (default 100).
+    Returns:
+        Dict with sentiment analysis from Twitter data.
+    """
+    import tweepy
+    import re
+    from textblob import TextBlob
+    import os
+
+    # Get Twitter API credentials
+    from .config import get_twitter_bearer_token
+    bearer_token = get_twitter_bearer_token()
+    api_key = os.getenv('TWITTER_API_KEY')
+    api_secret = os.getenv('TWITTER_API_SECRET')
+    access_token = os.getenv('TWITTER_ACCESS_TOKEN')
+    access_secret = os.getenv('TWITTER_ACCESS_SECRET')
+
+    if not bearer_token:
+        return {
+            "error": "Twitter API credentials not found. Please set TWITTER_BEARER_TOKEN in .env file.",
+            "setup_instructions": {
+                "step_1": "Go to https://developer.twitter.com/en/portal/dashboard",
+                "step_2": "Create a new project/app",
+                "step_3": "Get your Bearer Token from the app settings",
+                "step_4": "Add TWITTER_BEARER_TOKEN=your_token_here to .env file",
+                "free_tier": "Free tier allows 100 posts/month reads",
+                "basic_tier": "Basic tier ($200/month) allows 15,000 posts/month"
+            }
+        }
+
+    try:
+        # Initialize Tweepy client
+        client = tweepy.Client(bearer_token=bearer_token)
+
+        # Search for recent tweets
+        tweets = client.search_recent_tweets(
+            query=query,
+            max_results=max(10, min(max_tweets, 100)),  # Twitter API requires minimum 10, max 100
+            tweet_fields=['created_at', 'public_metrics', 'text', 'author_id']
+        )
+
+        if not tweets.data:
+            return {
+                "query": query,
+                "total_tweets": 0,
+                "error": "No tweets found for the given query",
+                "sentiment": {"score": 0.5, "label": "neutral", "confidence": 0.0}
+            }
+
+        # Analyze sentiment of tweets
+        sentiments = []
+        tweet_texts = []
+
+        for tweet in tweets.data:
+            text = tweet.text
+            tweet_texts.append(text)
+
+            # Clean tweet text
+            clean_text = re.sub(r'http\S+|@\S+|#\S+', '', text)  # Remove URLs, mentions, hashtags
+            clean_text = re.sub(r'[^\w\s]', '', clean_text)  # Remove punctuation
+
+            if clean_text.strip():
+                # Use TextBlob for sentiment analysis
+                blob = TextBlob(clean_text)
+                polarity = blob.sentiment.polarity  # -1 to 1
+                subjectivity = blob.sentiment.subjectivity  # 0 to 1
+
+                sentiments.append({
+                    "text": text[:100] + "..." if len(text) > 100 else text,
+                    "polarity": polarity,
+                    "subjectivity": subjectivity,
+                    "created_at": tweet.created_at.isoformat() if tweet.created_at else None,
+                    "likes": tweet.public_metrics.get('like_count', 0) if tweet.public_metrics else 0,
+                    "retweets": tweet.public_metrics.get('retweet_count', 0) if tweet.public_metrics else 0
+                })
+
+        # Calculate aggregate sentiment
+        if sentiments:
+            avg_polarity = sum(s['polarity'] for s in sentiments) / len(sentiments)
+            avg_subjectivity = sum(s['subjectivity'] for s in sentiments) / len(sentiments)
+
+            # Convert polarity to 0-1 scale for consistency with other tools
+            sentiment_score = (avg_polarity + 1) / 2  # Convert -1,1 to 0,1
+
+            # Determine sentiment label
+            if sentiment_score > 0.6:
+                label = "bullish"
+                impact = "Positive market sentiment detected on Twitter"
+            elif sentiment_score < 0.4:
+                label = "bearish"
+                impact = "Negative market sentiment detected on Twitter"
+            else:
+                label = "neutral"
+                impact = "Neutral market sentiment on Twitter"
+
+            # Calculate confidence based on agreement and sample size
+            polarity_variance = sum((s['polarity'] - avg_polarity) ** 2 for s in sentiments) / len(sentiments)
+            confidence = min(1.0, len(sentiments) / 50.0) * (1 - min(polarity_variance, 1.0))
+
+            return {
+                "query": query,
+                "total_tweets": len(sentiments),
+                "sentiment": {
+                    "score": sentiment_score,
+                    "label": label,
+                    "confidence": confidence,
+                    "avg_polarity": avg_polarity,
+                    "avg_subjectivity": avg_subjectivity
+                },
+                "impact": impact,
+                "source": "twitter_api",
+                "sample_tweets": sentiments[:5],  # Show first 5 tweets
+                "sentiment_distribution": {
+                    "bullish": len([s for s in sentiments if s['polarity'] > 0.1]),
+                    "bearish": len([s for s in sentiments if s['polarity'] < -0.1]),
+                    "neutral": len([s for s in sentiments if -0.1 <= s['polarity'] <= 0.1])
+                }
+            }
+        else:
+            return {
+                "query": query,
+                "total_tweets": 0,
+                "sentiment": {"score": 0.5, "label": "neutral", "confidence": 0.0},
+                "error": "No valid tweets found for sentiment analysis"
+            }
+
+    except tweepy.TweepyException as e:
+        return {
+            "error": f"Twitter API error: {str(e)}",
+            "query": query,
+            "setup_instructions": {
+                "check_credentials": "Verify your TWITTER_BEARER_TOKEN is correct",
+                "rate_limits": "Check if you've exceeded free tier limits (100 posts/month)",
+                "api_access": "Ensure your app has read permissions"
+            }
+        }
+    except Exception as e:
+        return {"error": f"Twitter sentiment analysis failed: {str(e)}", "query": query}
+
+@tool
+def currents_news_tool(query: str = "", language: str = "en", page_size: int = 10) -> Dict[str, Any]:
+    """
+    Fetch real-time news from CurrentsAPI (free tier: 600 requests/day).
+    Args:
+        query: Search keywords (optional, leave empty for latest news).
+        language: Language code (default 'en').
+        page_size: Number of articles to fetch (max 200, default 10).
+    Returns:
+        Dict with latest news articles.
+    """
+    import os
+    api_key = os.getenv('CURRENTS_API_KEY')
+    if not api_key:
+        return {
+            "error": "CurrentsAPI key not found. Get free key at https://currentsapi.services/en",
+            "free_tier": "600 requests/day, real-time news",
+            "setup": "Add CURRENTS_API_KEY=your_key_here to .env file"
+        }
+    
+    base_url = "https://api.currentsapi.services/v1/latest-news"
+    
+    try:
+        params = {
+            "apiKey": api_key,
+            "language": language,
+            "page_size": min(page_size, 200)
+        }
+        
+        if query:
+            params["keywords"] = query
+        
+        response = requests.get(base_url, params=params, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        
+        if data.get("status") != "ok":
+            return {"error": data.get("message", "CurrentsAPI request failed")}
+        
+        articles = data.get("news", [])
+        
+        # Process articles
+        processed_articles = []
+        for article in articles[:page_size]:
+            processed_articles.append({
+                "title": article.get("title", ""),
+                "description": article.get("description", ""),
+                "url": article.get("url", ""),
+                "source": article.get("author", ""),
+                "published_at": article.get("published", ""),
+                "category": article.get("category", []),
+                "image": article.get("image", "")
+            })
+        
+        return {
+            "query": query or "latest",
+            "total_results": len(articles),
+            "articles_returned": len(processed_articles),
+            "articles": processed_articles,
+            "source": "currents_api",
+            "free_tier_limit": "600 requests/day"
+        }
+        
+    except Exception as e:
+        return {"error": f"CurrentsAPI error: {str(e)}", "query": query}
+    """
+    Fetch market data from Alpha Vantage API (free tier backup).
+    Note: Requires ALPHA_VANTAGE_API_KEY in .env file.
+    Args:
+        symbol: Stock symbol (e.g., 'AAPL').
+        function: API function ('GLOBAL_QUOTE', 'TIME_SERIES_DAILY', etc.).
+    Returns:
+        Dict with market data or error information.
+    """
+    import os
+    api_key = os.getenv('ALPHA_VANTAGE_API_KEY')
+    if not api_key:
+        return {"error": "Alpha Vantage API key not found. Get free key at https://www.alphavantage.co/support/#api-key"}
+
+    base_url = "https://www.alphavantage.co/query"
+    
+    try:
+        params = {
+            "function": function,
+            "symbol": symbol,
+            "apikey": api_key
+        }
+        
+        response = requests.get(base_url, params=params, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+
+        if "Error Message" in data:
+            return {"error": data["Error Message"]}
+        elif "Note" in data:
+            return {"error": data["Note"]}  # Rate limit message
+        elif function == "GLOBAL_QUOTE" and "Global Quote" in data:
+            quote = data["Global Quote"]
+            return {
+                "symbol": symbol,
+                "price": float(quote.get("05. price", 0)),
+                "change": float(quote.get("09. change", 0)),
+                "change_percent": quote.get("10. change percent", "0%"),
+                "volume": int(quote.get("06. volume", 0)),
+                "latest_trading_day": quote.get("07. latest trading day"),
+                "source": "alpha_vantage_global_quote"
+            }
+        elif function == "TIME_SERIES_DAILY" and "Time Series (Daily)" in data:
+            time_series = data["Time Series (Daily)"]
+            # Return last 5 days
+            dates = sorted(time_series.keys(), reverse=True)[:5]
+            daily_data = []
+            for date in dates:
+                day_data = time_series[date]
+                daily_data.append({
+                    "date": date,
+                    "open": float(day_data["1. open"]),
+                    "high": float(day_data["2. high"]),
+                    "low": float(day_data["3. low"]),
+                    "close": float(day_data["4. close"]),
+                    "volume": int(day_data["5. volume"])
+                })
+            return {
+                "symbol": symbol,
+                "daily_data": daily_data,
+                "source": "alpha_vantage_time_series_daily"
+            }
+        else:
+            return {"error": f"Unexpected response format for function {function}", "data": data}
+            
+    except Exception as e:
+        return {"error": f"Alpha Vantage API error: {str(e)}"}
+
+@tool
+def thirteen_f_filings_tool(cik: str = None, symbol: str = None, limit: int = 10) -> Dict[str, Any]:
+    """
+    Fetch 13F institutional holdings data from Whale Wisdom API (free tier available).
+    Args:
+        cik: SEC CIK number of the institution (e.g., '0001067983' for Berkshire Hathaway).
+        symbol: Stock symbol to find institutions holding it (alternative to CIK).
+        limit: Maximum number of filings to return (default 10).
+    Returns:
+        Dict with institutional holdings data.
+    """
+    import os
+    api_key = os.getenv('WHALE_WISDOM_API_KEY')
+    
+    if not api_key:
+        return {
+            "error": "Whale Wisdom API key not found. Get free key at https://whalewisdom.com/",
+            "free_tier": "Free tier available with rate limits",
+            "setup": "Add WHALE_WISDOM_API_KEY=your_key_here to .env file",
+            "note": "Whale Wisdom provides comprehensive 13F institutional holdings data"
+        }
+    
+    base_url = "https://whalewisdom.com/api/v2"
+    
+    try:
+        if cik:
+            # Get holdings for a specific institution
+            endpoint = f"{base_url}/institutional-holdings"
+            params = {
+                "cik": cik,
+                "limit": min(limit, 100),
+                "api_key": api_key
+            }
+        elif symbol:
+            # Find institutions holding a specific stock
+            endpoint = f"{base_url}/stock-holdings"
+            params = {
+                "symbol": symbol.upper(),
+                "limit": min(limit, 100),
+                "api_key": api_key
+            }
+        else:
+            return {
+                "error": "Either 'cik' (institution CIK) or 'symbol' (stock symbol) must be provided",
+                "examples": {
+                    "berkshire_hathaway": "cik='0001067983'",
+                    "apple_holdings": "symbol='AAPL'"
+                }
+            }
+        
+        response = requests.get(endpoint, params=params, timeout=15)
+        response.raise_for_status()
+        data = response.json()
+        
+        if "error" in data:
+            return {"error": data["error"], "endpoint": endpoint}
+        
+        # Process holdings data
+        holdings = []
+        if "holdings" in data:
+            for holding in data["holdings"][:limit]:
+                holdings.append({
+                    "institution_name": holding.get("institution_name", ""),
+                    "cik": holding.get("cik", ""),
+                    "symbol": holding.get("symbol", ""),
+                    "company_name": holding.get("company_name", ""),
+                    "shares": holding.get("shares", 0),
+                    "market_value": holding.get("market_value", 0),
+                    "percent_portfolio": holding.get("percent_portfolio", 0),
+                    "quarter": holding.get("quarter", ""),
+                    "filing_date": holding.get("filing_date", "")
+                })
+        
+        return {
+            "query_type": "cik" if cik else "symbol",
+            "query_value": cik or symbol,
+            "total_holdings": len(holdings),
+            "holdings": holdings,
+            "source": "whale_wisdom_api",
+            "note": "13F filings show institutional holdings over $100M AUM, filed quarterly"
+        }
+        
+    except Exception as e:
+        return {"error": f"Whale Wisdom API error: {str(e)}", "cik": cik, "symbol": symbol}
+
+@tool
+def sec_edgar_13f_tool(cik: str, recent_only: bool = True) -> Dict[str, Any]:
+    """
+    Fetch 13F filings directly from SEC EDGAR API (free, no API key required).
+    Args:
+        cik: SEC CIK number of the institution (e.g., '0001067983').
+        recent_only: If True, return only the most recent filing (default True).
+    Returns:
+        Dict with 13F filing information.
+    """
+    try:
+        # SEC EDGAR API for company filings
+        base_url = "https://data.sec.gov/api/xbrl/companyfacts"
+        
+        headers = {
+            "User-Agent": "GROK-IBKR/1.0 (contact@example.com)"  # Required by SEC
+        }
+        
+        # Get company facts (includes 13F holdings)
+        url = f"{base_url}/CIK{cik.zfill(10)}.json"
+        response = requests.get(url, headers=headers, timeout=15)
+        response.raise_for_status()
+        data = response.json()
+        
+        # Extract 13F holdings if available
+        holdings = []
+        if "facts" in data and "dei" in data["facts"]:
+            # Look for 13F related data
+            dei_data = data["facts"]["dei"]
+            
+            # This is a simplified extraction - real 13F data is more complex
+            if "EntityCommonStockSharesOutstanding" in dei_data:
+                # Get basic company info
+                company_info = {
+                    "cik": cik,
+                    "name": data.get("entityName", "Unknown"),
+                    "filings_url": f"https://www.sec.gov/edgar/searchedgar/companies.htm?CIK={cik}"
+                }
+                
+                return {
+                    "company_info": company_info,
+                    "source": "sec_edgar_api",
+                    "note": "SEC EDGAR provides raw filing data. For detailed holdings analysis, use Whale Wisdom API.",
+                    "data_available": bool(dei_data),
+                    "recommendation": "Use whale_wisdom_13f_tool() for detailed institutional holdings"
+                }
+        
+        return {
+            "error": "13F data not readily available from SEC EDGAR API",
+            "cik": cik,
+            "alternative": "Use whale_wisdom_13f_tool() for comprehensive 13F holdings data",
+            "sec_url": f"https://www.sec.gov/edgar/searchedgar/companies.htm?CIK={cik}"
+        }
+        
+    except Exception as e:
+        return {"error": f"SEC EDGAR API error: {str(e)}", "cik": cik}
+
+@tool
+def institutional_holdings_analysis_tool(symbol: str, min_shares: int = 100000) -> Dict[str, Any]:
+    """
+    Analyze institutional holdings for a stock using multiple data sources.
+    Args:
+        symbol: Stock symbol to analyze (e.g., 'AAPL').
+        min_shares: Minimum shares threshold for inclusion (default 100,000).
+    Returns:
+        Dict with comprehensive institutional analysis.
+    """
+    try:
+        results = {
+            "symbol": symbol,
+            "analysis_timestamp": pd.Timestamp.now().isoformat(),
+            "data_sources": []
+        }
+        
+        # Try Whale Wisdom first
+        whale_data = thirteen_f_filings_tool.invoke({"symbol": symbol, "limit": 20})
+        if "holdings" in whale_data and whale_data["holdings"]:
+            # Filter by minimum shares
+            filtered_holdings = [
+                h for h in whale_data["holdings"] 
+                if h.get("shares", 0) >= min_shares
+            ]
+            
+            results["whale_wisdom_data"] = {
+                "total_institutions": len(filtered_holdings),
+                "top_holdings": filtered_holdings[:10],
+                "total_shares": sum(h.get("shares", 0) for h in filtered_holdings),
+                "avg_holding": sum(h.get("shares", 0) for h in filtered_holdings) / len(filtered_holdings) if filtered_holdings else 0
+            }
+            results["data_sources"].append("whale_wisdom")
+        
+        # Calculate concentration metrics
+        if "whale_wisdom_data" in results:
+            holdings = results["whale_wisdom_data"]["top_holdings"]
+            if holdings:
+                # Calculate Herfindahl-Hirschman Index (HHI) for concentration
+                total_shares = sum(h.get("shares", 0) for h in holdings)
+                hhi = sum((h.get("shares", 0) / total_shares) ** 2 for h in holdings) if total_shares > 0 else 0
+                
+                # Institutional ownership concentration
+                if hhi > 0.25:
+                    concentration = "Highly Concentrated"
+                elif hhi > 0.15:
+                    concentration = "Moderately Concentrated"
+                else:
+                    concentration = "Diversely Held"
+                
+                results["concentration_analysis"] = {
+                    "herfindahl_index": hhi,
+                    "concentration_level": concentration,
+                    "top_institution_share": (holdings[0].get("shares", 0) / total_shares) if holdings else 0,
+                    "institutions_with_1pct_plus": len([h for h in holdings if h.get("percent_portfolio", 0) >= 1.0])
+                }
+        
+        # Add market intelligence
+        if results.get("data_sources"):
+            results["market_intelligence"] = {
+                "institutional_interest": "High" if len(results.get("whale_wisdom_data", {}).get("top_holdings", [])) > 5 else "Moderate",
+                "smart_money_signal": "Bullish" if results.get("concentration_analysis", {}).get("herfindahl_index", 0) < 0.2 else "Neutral",
+                "note": "13F filings show positions as of quarter-end, may not reflect current holdings"
+            }
+        else:
+            results["error"] = "No institutional data available. Check API keys or try different symbol."
+            results["setup_help"] = "Add WHALE_WISDOM_API_KEY to .env file for comprehensive 13F data"
+        
+        return results
+        
+    except Exception as e:
+        return {"error": f"Institutional analysis failed: {str(e)}", "symbol": symbol}
+    """
+    Fetch news from Mediastack (free tier: 500 requests/month).
+    Args:
+        query: Search keywords (optional).
+        language: Language code (default 'en').
+        page_size: Number of articles to fetch (max 100, default 10).
+    Returns:
+        Dict with news articles.
+    """
+    import os
+    api_key = os.getenv('MEDIASTACK_API_KEY')
+    if not api_key:
+        return {
+            "error": "Mediastack API key not found. Get free key at https://mediastack.com/",
+            "free_tier": "500 requests/month, global news coverage",
+            "setup": "Add MEDIASTACK_API_KEY=your_key_here to .env file"
+        }
+    
+    base_url = "http://api.mediastack.com/v1/news"
+    
+    try:
+        params = {
+            "access_key": api_key,
+            "languages": language,
+            "limit": min(page_size, 100)
+        }
+        
+        if query:
+            params["keywords"] = query
+        
+        response = requests.get(base_url, params=params, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        
+        if "error" in data:
+            return {"error": data["error"]["message"]}
+        
+        articles = data.get("data", [])
+        
+        # Process articles
+        processed_articles = []
+        for article in articles[:page_size]:
+            processed_articles.append({
+                "title": article.get("title", ""),
+                "description": article.get("description", ""),
+                "url": article.get("url", ""),
+                "source": article.get("source", ""),
+                "published_at": article.get("published_at", ""),
+                "category": article.get("category", ""),
+                "author": article.get("author", ""),
+                "image": article.get("image", "")
+            })
+        
+        return {
+            "query": query or "latest",
+            "total_results": len(articles),
+            "articles_returned": len(processed_articles),
+            "articles": processed_articles,
+            "source": "mediastack_api",
+            "free_tier_limit": "500 requests/month"
+        }
+        
+    except Exception as e:
+        return {"error": f"Mediastack API error: {str(e)}", "query": query}
+
+@tool
+def circuit_breaker_status_tool() -> Dict[str, Any]:
+    """
+    Check the status of all API circuit breakers to determine system health.
+    Returns status of critical APIs and whether trading should be allowed.
+    """
+    status = get_circuit_breaker_status()
+
+    # Determine overall system health
+    critical_apis = ['yfinance', 'marketdataapp_api']
+    all_critical_closed = all(
+        status.get(api, {}).get('can_trade', False)
+        for api in critical_apis
+    )
+
+    # Count open circuits
+    open_circuits = sum(1 for s in status.values() if s.get('state') == 'OPEN')
+
+    return {
+        "circuit_breaker_status": status,
+        "system_health": {
+            "can_trade": all_critical_closed,
+            "critical_apis_available": all_critical_closed,
+            "open_circuits": open_circuits,
+            "total_apis_monitored": len(status)
+        },
+        "recommendations": {
+            "trading_allowed": all_critical_closed,
+            "data_quality": "HIGH" if all_critical_closed else "DEGRADED" if open_circuits < len(status) else "CRITICAL",
+            "action_required": "Monitor API status" if open_circuits > 0 else "All systems operational"
+        },
+        "timestamp": pd.Timestamp.now().isoformat()
+    }
+
+@tool
+@circuit_breaker("fundamental_data", failure_threshold=3, recovery_timeout=3600)
+def fundamental_data_tool(symbol: str, data_type: str = "overview") -> Dict[str, Any]:
+    """
+    Fetch comprehensive fundamental data including financial statements, valuation ratios, and key metrics.
+    Args:
+        symbol: Stock symbol (e.g., 'AAPL').
+        data_type: Type of fundamental data ('overview', 'income_statement', 'balance_sheet', 'cash_flow', 'earnings', 'ratios').
+    Returns:
+        Dict with fundamental financial data.
+    """
+    import os
+    alpha_vantage_key = os.getenv('ALPHA_VANTAGE_API_KEY')
+
+    results = {
+        "symbol": symbol,
+        "data_type": data_type,
+        "timestamp": pd.Timestamp.now().isoformat(),
+        "sources": []
+    }
+
+    try:
+        # Try Alpha Vantage first for comprehensive fundamentals
+        if alpha_vantage_key:
+            base_url = "https://www.alphavantage.co/query"
+
+            if data_type == "overview":
+                # Company Overview
+                params = {
+                    "function": "OVERVIEW",
+                    "symbol": symbol,
+                    "apikey": alpha_vantage_key
+                }
+                response = requests.get(base_url, params=params, timeout=15)
+                response.raise_for_status()
+                data = response.json()
+
+                if "Symbol" in data:
+                    results["company_overview"] = {
+                        "name": data.get("Name", ""),
+                        "description": data.get("Description", ""),
+                        "sector": data.get("Sector", ""),
+                        "industry": data.get("Industry", ""),
+                        "market_cap": float(data.get("MarketCapitalization", 0)),
+                        "pe_ratio": float(data.get("PERatio", 0)) if data.get("PERatio") != "None" else None,
+                        "pb_ratio": float(data.get("PriceToBookRatio", 0)) if data.get("PriceToBookRatio") != "None" else None,
+                        "peg_ratio": float(data.get("PEGRatio", 0)) if data.get("PEGRatio") != "None" else None,
+                        "dividend_yield": float(data.get("DividendYield", 0)) if data.get("DividendYield") != "None" else None,
+                        "eps": float(data.get("EPS", 0)) if data.get("EPS") != "None" else None,
+                        "roe": float(data.get("ReturnOnEquityTTM", 0)) if data.get("ReturnOnEquityTTM") != "None" else None,
+                        "roa": float(data.get("ReturnOnAssetsTTM", 0)) if data.get("ReturnOnAssetsTTM") != "None" else None,
+                        "profit_margin": float(data.get("ProfitMargin", 0)) if data.get("ProfitMargin") != "None" else None,
+                        "beta": float(data.get("Beta", 0)) if data.get("Beta") != "None" else None,
+                        "52_week_high": float(data.get("52WeekHigh", 0)) if data.get("52WeekHigh") != "None" else None,
+                        "52_week_low": float(data.get("52WeekLow", 0)) if data.get("52WeekLow") != "None" else None
+                    }
+                    results["sources"].append("alpha_vantage_overview")
+
+            elif data_type in ["income_statement", "balance_sheet", "cash_flow"]:
+                # Financial Statements
+                function_map = {
+                    "income_statement": "INCOME_STATEMENT",
+                    "balance_sheet": "BALANCE_SHEET",
+                    "cash_flow": "CASH_FLOW"
+                }
+
+                params = {
+                    "function": function_map[data_type],
+                    "symbol": symbol,
+                    "apikey": alpha_vantage_key
+                }
+                response = requests.get(base_url, params=params, timeout=15)
+                response.raise_for_status()
+                data = response.json()
+
+                if "annualReports" in data:
+                    # Process annual reports
+                    reports = data["annualReports"][:4]  # Last 4 years
+                    processed_reports = []
+
+                    for report in reports:
+                        processed_report = {
+                            "fiscal_date_ending": report.get("fiscalDateEnding", ""),
+                            "reported_currency": report.get("reportedCurrency", "")
+                        }
+
+                        # Extract key metrics based on statement type
+                        if data_type == "income_statement":
+                            processed_report.update({
+                                "total_revenue": float(report.get("totalRevenue", 0)),
+                                "cost_of_revenue": float(report.get("costOfRevenue", 0)),
+                                "gross_profit": float(report.get("grossProfit", 0)),
+                                "operating_income": float(report.get("operatingIncome", 0)),
+                                "net_income": float(report.get("netIncome", 0)),
+                                "ebit": float(report.get("ebit", 0)),
+                                "ebitda": float(report.get("ebitda", 0))
+                            })
+                        elif data_type == "balance_sheet":
+                            processed_report.update({
+                                "total_assets": float(report.get("totalAssets", 0)),
+                                "total_liabilities": float(report.get("totalLiabilities", 0)),
+                                "total_shareholder_equity": float(report.get("totalShareholderEquity", 0)),
+                                "cash_and_equivalents": float(report.get("cashAndCashEquivalentsAtCarryingValue", 0)),
+                                "inventory": float(report.get("inventory", 0)),
+                                "current_assets": float(report.get("totalCurrentAssets", 0)),
+                                "current_liabilities": float(report.get("totalCurrentLiabilities", 0))
+                            })
+                        elif data_type == "cash_flow":
+                            processed_report.update({
+                                "operating_cashflow": float(report.get("operatingCashflow", 0)),
+                                "investing_cashflow": float(report.get("investingCashflow", 0)),
+                                "financing_cashflow": float(report.get("financingCashflow", 0)),
+                                "net_cashflow": float(report.get("cashflowFromInvestment", 0)),  # Note: Alpha Vantage field name
+                                "capital_expenditures": float(report.get("capitalExpenditures", 0))
+                            })
+
+                        processed_reports.append(processed_report)
+
+                    results[f"{data_type}_annual"] = processed_reports
+                    results["sources"].append(f"alpha_vantage_{data_type}")
+
+            elif data_type == "earnings":
+                # Earnings data
+                params = {
+                    "function": "EARNINGS",
+                    "symbol": symbol,
+                    "apikey": alpha_vantage_key
+                }
+                response = requests.get(base_url, params=params, timeout=15)
+                response.raise_for_status()
+                data = response.json()
+
+                if "annualEarnings" in data:
+                    earnings = data["annualEarnings"][:4]  # Last 4 years
+                    processed_earnings = []
+
+                    for earning in earnings:
+                        processed_earnings.append({
+                            "fiscal_date_ending": earning.get("fiscalDateEnding", ""),
+                            "reported_eps": float(earning.get("reportedEPS", 0))
+                        })
+
+                    results["annual_earnings"] = processed_earnings
+                    results["sources"].append("alpha_vantage_earnings")
+
+        # Fallback to yfinance for additional fundamental data
+        try:
+            import yfinance as yf
+            ticker = yf.Ticker(symbol)
+
+            # Get additional info from yfinance
+            info = ticker.info
+            if info:
+                yf_fundamentals = {
+                    "market_cap": info.get("marketCap"),
+                    "enterprise_value": info.get("enterpriseValue"),
+                    "trailing_pe": info.get("trailingPE"),
+                    "forward_pe": info.get("forwardPE"),
+                    "peg_ratio": info.get("pegRatio"),
+                    "price_to_book": info.get("priceToBook"),
+                    "enterprise_to_revenue": info.get("enterpriseToRevenue"),
+                    "enterprise_to_ebitda": info.get("enterpriseToEbitda"),
+                    "return_on_equity": info.get("returnOnEquity"),
+                    "return_on_assets": info.get("returnOnAssets"),
+                    "profit_margins": info.get("profitMargins"),
+                    "operating_margins": info.get("operatingMargins"),
+                    "gross_margins": info.get("grossMargins"),
+                    "revenue_growth": info.get("revenueGrowth"),
+                    "earnings_growth": info.get("earningsGrowth"),
+                    "dividend_rate": info.get("dividendRate"),
+                    "dividend_yield": info.get("dividendYield"),
+                    "payout_ratio": info.get("payoutRatio"),
+                    "beta": info.get("beta"),
+                    "52_week_change": info.get("52WeekChange"),
+                    "short_ratio": info.get("shortRatio"),
+                    "short_percent_of_float": info.get("shortPercentOfFloat")
+                }
+
+                # Remove None values
+                yf_fundamentals = {k: v for k, v in yf_fundamentals.items() if v is not None}
+
+                if yf_fundamentals:
+                    results["yfinance_fundamentals"] = yf_fundamentals
+                    results["sources"].append("yfinance_fundamentals")
+
+        except Exception as e:
+            results["yfinance_error"] = str(e)
+
+        # Calculate derived ratios if we have the data
+        if "company_overview" in results and results["company_overview"]:
+            overview = results["company_overview"]
+
+            # Calculate additional valuation metrics
+            derived_ratios = {}
+
+            if overview.get("market_cap") and overview.get("eps") and overview["eps"] > 0:
+                derived_ratios["market_cap_to_eps"] = overview["market_cap"] / overview["eps"]
+
+            if overview.get("pe_ratio") and overview.get("pb_ratio"):
+                derived_ratios["price_to_book_from_pe_pb"] = overview["pe_ratio"] / overview["pb_ratio"] if overview["pb_ratio"] > 0 else None
+
+            if derived_ratios:
+                results["derived_ratios"] = derived_ratios
+
+        if not results.get("sources"):
+            results["error"] = "No fundamental data sources available. Check API keys for Alpha Vantage and ensure yfinance is accessible."
+            results["setup_help"] = "Add ALPHA_VANTAGE_API_KEY to .env file for comprehensive fundamental data"
+
+        return results
+
+    except Exception as e:
+        return {
+            "error": f"Fundamental data fetch failed: {str(e)}",
+            "symbol": symbol,
+            "data_type": data_type,
+            "suggestion": "Check API keys and network connectivity"
+        }
+
+@tool
+@circuit_breaker("microstructure_analysis", failure_threshold=3, recovery_timeout=300)
+def microstructure_analysis_tool(symbol: str, analysis_type: str = "comprehensive") -> Dict[str, Any]:
+    """
+    Analyze market microstructure for optimal execution timing and pricing.
+    Args:
+        symbol: Stock symbol (e.g., 'AAPL').
+        analysis_type: Type of analysis ('comprehensive', 'liquidity', 'spread', 'volume_profile', 'order_flow').
+    Returns:
+        Dict with microstructure analysis and execution recommendations.
+    """
+    import numpy as np
+
+    results = {
+        "symbol": symbol,
+        "analysis_type": analysis_type,
+        "timestamp": pd.Timestamp.now().isoformat(),
+        "analysis": {},
+        "execution_recommendations": {}
+    }
+
+    try:
+        # Get real-time market data from MarketDataApp API for microstructure analysis
+        marketdataapp_quotes = marketdataapp_api_tool.invoke({"symbol": symbol, "data_type": "quotes"})
+        marketdataapp_trades = marketdataapp_api_tool.invoke({"symbol": symbol, "data_type": "trades"})
+
+        # Get recent price data for analysis
+        yfinance_data = yfinance_data_tool.invoke({"symbol": symbol, "period": "5d"})
+
+        if "error" in marketdataapp_quotes and "error" in yfinance_data:
+            results["error"] = "No market data available for microstructure analysis"
+            return results
+
+        # Analyze bid-ask spread
+        if "bid" in marketdataapp_quotes and "ask" in marketdataapp_quotes:
+            bid = marketdataapp_quotes.get("bid", 0)
+            ask = marketdataapp_quotes.get("ask", 0)
+
+            if bid > 0 and ask > 0:
+                spread = ask - bid
+                spread_pct = (spread / ((bid + ask) / 2)) * 100
+                midpoint = (bid + ask) / 2
+
+                results["analysis"]["spread_analysis"] = {
+                    "bid": bid,
+                    "ask": ask,
+                    "spread": spread,
+                    "spread_percent": spread_pct,
+                    "midpoint": midpoint,
+                    "liquidity_assessment": "high" if spread_pct < 0.05 else "medium" if spread_pct < 0.15 else "low"
+                }
+
+                # Execution recommendations based on spread
+                if spread_pct < 0.05:
+                    results["execution_recommendations"]["market_order"] = "Excellent - tight spread allows aggressive execution"
+                elif spread_pct < 0.15:
+                    results["execution_recommendations"]["market_order"] = "Good - moderate spread, monitor for volatility"
+                else:
+                    results["execution_recommendations"]["limit_order"] = "Recommended - wide spread suggests using limit orders"
+
+        # Analyze volume profile and order flow
+        if "daily_data" in yfinance_data:
+            daily_data = yfinance_data["daily_data"]
+            if daily_data and len(daily_data) > 0:
+                volumes = [day.get("volume", 0) for day in daily_data]
+                prices = [day.get("close", 0) for day in daily_data]
+
+                if volumes and prices:
+                    avg_volume = np.mean(volumes)
+                    volume_std = np.std(volumes)
+                    current_volume = volumes[-1] if volumes else 0
+
+                    # Volume analysis
+                    volume_zscore = (current_volume - avg_volume) / volume_std if volume_std > 0 else 0
+
+                    results["analysis"]["volume_analysis"] = {
+                        "average_volume": avg_volume,
+                        "current_volume": current_volume,
+                        "volume_zscore": volume_zscore,
+                        "volume_trend": "high" if volume_zscore > 1.5 else "normal" if volume_zscore > -1.5 else "low"
+                    }
+
+                    # Price-volume relationship
+                    returns = np.diff(prices) / prices[:-1] if len(prices) > 1 else []
+                    volume_returns_corr = np.corrcoef(volumes[1:], np.abs(returns))[0,1] if len(returns) > 1 else 0
+
+                    results["analysis"]["price_volume_correlation"] = volume_returns_corr
+
+                    # Execution recommendations based on volume
+                    if volume_zscore > 1.5:
+                        results["execution_recommendations"]["timing"] = "High volume - execute immediately for best fill"
+                    elif volume_zscore < -1.5:
+                        results["execution_recommendations"]["timing"] = "Low volume - consider limit orders or smaller sizes"
+                    else:
+                        results["execution_recommendations"]["timing"] = "Normal volume - standard execution appropriate"
+
+        # Analyze recent trades for order flow
+        if "recent_trades" in marketdataapp_trades:
+            trades = marketdataapp_trades["recent_trades"]
+            if trades and len(trades) > 10:
+                # Analyze trade direction and size
+                buy_volume = 0
+                sell_volume = 0
+                large_trades = []
+
+                for trade in trades:
+                    # Extract trade data (MarketDataApp
+                    size = trade.get("size", trade.get("volume", trade.get("v", 0)))
+                    price = trade.get("price", trade.get("last", trade.get("c", 0)))
+                    direction = trade.get("direction", "unknown")
+
+                    if direction == "buy":
+                        buy_volume += size
+                    elif direction == "sell":
+                        sell_volume += size
+
+                    # Identify large trades (>1000 shares)
+                    if size > 1000:
+                        large_trades.append({
+                            "size": size,
+                            "price": price,
+                            "direction": direction
+                        })
+
+                total_volume = buy_volume + sell_volume
+                buy_ratio = buy_volume / total_volume if total_volume > 0 else 0.5
+
+                results["analysis"]["order_flow"] = {
+                    "buy_volume": buy_volume,
+                    "sell_volume": sell_volume,
+                    "buy_ratio": buy_ratio,
+                    "large_trades_count": len(large_trades),
+                    "momentum": "bullish" if buy_ratio > 0.6 else "bearish" if buy_ratio < 0.4 else "neutral"
+                }
+
+                # Execution recommendations based on order flow
+                if buy_ratio > 0.6:
+                    results["execution_recommendations"]["momentum"] = "Bullish order flow - consider buying"
+                elif buy_ratio < 0.4:
+                    results["execution_recommendations"]["momentum"] = "Bearish order flow - consider selling"
+                else:
+                    results["execution_recommendations"]["momentum"] = "Neutral order flow - wait for clearer direction"
+
+        # Calculate optimal slippage model
+        base_slippage = 0.0005  # 0.05% base slippage
+
+        # Adjust slippage based on analysis
+        slippage_multiplier = 1.0
+
+        if results["analysis"].get("spread_analysis", {}).get("spread_percent", 0) > 0.1:
+            slippage_multiplier *= 1.5  # Increase slippage for wide spreads
+
+        if results["analysis"].get("volume_analysis", {}).get("volume_zscore", 0) < -1.0:
+            slippage_multiplier *= 1.3  # Increase slippage for low volume
+
+        if results["analysis"].get("order_flow", {}).get("buy_ratio", 0.5) > 0.6:
+            slippage_multiplier *= 0.8  # Decrease slippage for favorable momentum
+
+        optimal_slippage = base_slippage * slippage_multiplier
+
+        results["analysis"]["slippage_model"] = {
+            "base_slippage": base_slippage,
+            "multiplier": slippage_multiplier,
+            "optimal_slippage": optimal_slippage,
+            "expected_fill_quality": "excellent" if optimal_slippage < 0.001 else "good" if optimal_slippage < 0.002 else "fair"
+        }
+
+        # Overall market condition assessment
+        conditions = []
+
+        if results["analysis"].get("spread_analysis", {}).get("liquidity_assessment") == "high":
+            conditions.append("high_liquidity")
+
+        if results["analysis"].get("volume_analysis", {}).get("volume_trend") == "high":
+            conditions.append("high_volume")
+
+        if results["analysis"].get("order_flow", {}).get("momentum") == "bullish":
+            conditions.append("bullish_momentum")
+
+        market_condition = "favorable" if len(conditions) >= 2 else "neutral" if len(conditions) >= 1 else "challenging"
+
+        results["analysis"]["market_condition"] = market_condition
+        results["execution_recommendations"]["overall"] = f"Market conditions are {market_condition} for execution"
+
+        return results
+
+    except Exception as e:
+        return {
+            "error": f"Microstructure analysis failed: {str(e)}",
+            "symbol": symbol,
+            "analysis_type": analysis_type,
+            "suggestion": "Check data sources and try again"
+        }
+
+@tool
+@circuit_breaker("fundamental_analysis", failure_threshold=3, recovery_timeout=3600)
+def fundamental_analysis_tool(fundamental_data: Dict[str, Any], analysis_type: str = "comprehensive") -> Dict[str, Any]:
+    """
+    Perform comprehensive fundamental analysis using financial statements and valuation metrics.
+    Args:
+        fundamental_data: Dict containing fundamental data from fundamental_data_tool
+        analysis_type: Type of analysis ('comprehensive', 'valuation', 'quality', 'growth', 'financial_health')
+    Returns:
+        Dict with fundamental analysis results and investment recommendations.
+    """
+    import numpy as np
+
+    results = {
+        "analysis_type": analysis_type,
+        "timestamp": pd.Timestamp.now().isoformat(),
+        "factors": {},
+        "scores": {},
+        "recommendation": {},
+        "warnings": []
+    }
+
+    try:
+        if "error" in fundamental_data:
+            results["error"] = f"Cannot perform analysis: {fundamental_data['error']}"
+            return results
+
+        symbol = fundamental_data.get("symbol", "UNKNOWN")
+
+        # Extract key data
+        overview = fundamental_data.get("company_overview", {})
+        analysis = fundamental_data.get("analysis", {})
+        income_annual = fundamental_data.get("income_statement_annual", [])
+        balance_annual = fundamental_data.get("balance_sheet_annual", [])
+        cashflow_annual = fundamental_data.get("cash_flow_annual", [])
+
+        # Valuation Analysis
+        if analysis_type in ["comprehensive", "valuation"]:
+            valuation_factors = {}
+
+            # P/E Ratio Analysis
+            pe_ratio = overview.get("pe_ratio")
+            if pe_ratio:
+                if pe_ratio < 15:
+                    pe_score = 90  # Undervalued
+                    pe_assessment = "undervalued"
+                elif pe_ratio < 25:
+                    pe_score = 70  # Fairly valued
+                    pe_assessment = "fairly_valued"
+                elif pe_ratio < 35:
+                    pe_score = 40  # Overvalued
+                    pe_assessment = "overvalued"
+                else:
+                    pe_score = 20  # Significantly overvalued
+                    pe_assessment = "significantly_overvalued"
+
+                valuation_factors["pe_ratio"] = {
+                    "value": pe_ratio,
+                    "score": pe_score,
+                    "assessment": pe_assessment
+                }
+
+            # P/B Ratio Analysis
+            pb_ratio = overview.get("pb_ratio")
+            if pb_ratio:
+                if pb_ratio < 1.5:
+                    pb_score = 85
+                    pb_assessment = "undervalued"
+                elif pb_ratio < 3.0:
+                    pb_score = 65
+                    pb_assessment = "fairly_valued"
+                elif pb_ratio < 5.0:
+                    pb_score = 35
+                    pb_assessment = "overvalued"
+                else:
+                    pb_score = 15
+                    pb_assessment = "significantly_overvalued"
+
+                valuation_factors["pb_ratio"] = {
+                    "value": pb_ratio,
+                    "score": pb_score,
+                    "assessment": pb_assessment
+                }
+
+            # PEG Ratio Analysis (growth-adjusted P/E)
+            peg_ratio = overview.get("peg_ratio")
+            if peg_ratio:
+                if peg_ratio < 1.0:
+                    peg_score = 80
+                    peg_assessment = "attractive"
+                elif peg_ratio < 1.5:
+                    peg_score = 60
+                    peg_assessment = "reasonable"
+                elif peg_ratio < 2.5:
+                    peg_score = 40
+                    peg_assessment = "expensive"
+                else:
+                    peg_score = 20
+                    peg_assessment = "very_expensive"
+
+                valuation_factors["peg_ratio"] = {
+                    "value": peg_ratio,
+                    "score": peg_score,
+                    "assessment": peg_assessment
+                }
+
+            results["factors"]["valuation"] = valuation_factors
+
+        # Quality Analysis
+        if analysis_type in ["comprehensive", "quality"]:
+            quality_factors = {}
+
+            # ROE Analysis
+            roe = analysis.get("quality_metrics", {}).get("roe")
+            if roe:
+                if roe > 0.15:  # 15%
+                    roe_score = 90
+                    roe_assessment = "excellent"
+                elif roe > 0.10:  # 10%
+                    roe_score = 75
+                    roe_assessment = "good"
+                elif roe > 0.05:  # 5%
+                    roe_score = 50
+                    roe_assessment = "adequate"
+                else:
+                    roe_score = 20
+                    roe_assessment = "poor"
+
+                quality_factors["roe"] = {
+                    "value": roe,
+                    "score": roe_score,
+                    "assessment": roe_assessment
+                }
+
+            # ROA Analysis
+            roa = analysis.get("quality_metrics", {}).get("roa")
+            if roa:
+                if roa > 0.08:  # 8%
+                    roa_score = 85
+                    roa_assessment = "excellent"
+                elif roa > 0.05:  # 5%
+                    roa_score = 70
+                    roa_assessment = "good"
+                elif roa > 0.02:  # 2%
+                    roa_score = 45
+                    roa_assessment = "adequate"
+                else:
+                    roa_score = 15
+                    roa_assessment = "poor"
+
+                quality_factors["roa"] = {
+                    "value": roa,
+                    "score": roa_score,
+                    "assessment": roa_assessment
+                }
+
+            # Profit Margin Analysis
+            profit_margin = analysis.get("quality_metrics", {}).get("profit_margin")
+            if profit_margin:
+                if profit_margin > 0.20:  # 20%
+                    margin_score = 85
+                    margin_assessment = "excellent"
+                elif profit_margin > 0.10:  # 10%
+                    margin_score = 70
+                    margin_assessment = "good"
+                elif profit_margin > 0.05:  # 5%
+                    margin_score = 50
+                    margin_assessment = "adequate"
+                elif profit_margin > 0.02:  # 2%
+                    margin_score = 30
+                    margin_assessment = "thin"
+                else:
+                    margin_score = 10
+                    margin_assessment = "poor"
+
+                quality_factors["profit_margin"] = {
+                    "value": profit_margin,
+                    "score": margin_score,
+                    "assessment": margin_assessment
+                }
+
+            results["factors"]["quality"] = quality_factors
+
+        # Growth Analysis
+        if analysis_type in ["comprehensive", "growth"]:
+            growth_factors = {}
+
+            # Revenue Growth
+            revenue_growth = analysis.get("growth_metrics", {}).get("revenue_growth_annual")
+            if revenue_growth:
+                if revenue_growth > 0.15:  # 15%
+                    growth_score = 90
+                    growth_assessment = "excellent"
+                elif revenue_growth > 0.10:  # 10%
+                    growth_score = 75
+                    growth_assessment = "strong"
+                elif revenue_growth > 0.05:  # 5%
+                    growth_score = 55
+                    growth_assessment = "moderate"
+                elif revenue_growth > 0.02:  # 2%
+                    growth_score = 35
+                    growth_assessment = "slow"
+                else:
+                    growth_score = 15
+                    growth_assessment = "declining"
+
+                growth_factors["revenue_growth"] = {
+                    "value": revenue_growth,
+                    "score": growth_score,
+                    "assessment": growth_assessment
+                }
+
+            # Earnings Growth
+            earnings_growth = analysis.get("growth_metrics", {}).get("earnings_growth_annual")
+            if earnings_growth:
+                if earnings_growth > 0.15:
+                    earnings_score = 85
+                    earnings_assessment = "excellent"
+                elif earnings_growth > 0.10:
+                    earnings_score = 70
+                    earnings_assessment = "strong"
+                elif earnings_growth > 0.05:
+                    earnings_score = 50
+                    earnings_assessment = "moderate"
+                elif earnings_growth > 0.02:
+                    earnings_score = 30
+                    earnings_assessment = "slow"
+                else:
+                    earnings_score = 10
+                    earnings_assessment = "declining"
+
+                growth_factors["earnings_growth"] = {
+                    "value": earnings_growth,
+                    "score": earnings_score,
+                    "assessment": earnings_assessment
+                }
+
+            results["factors"]["growth"] = growth_factors
+
+        # Financial Health Analysis
+        if analysis_type in ["comprehensive", "financial_health"]:
+            health_factors = {}
+
+            # Debt-to-Equity Ratio
+            dte = analysis.get("financial_health", {}).get("debt_to_equity")
+            if dte is not None:
+                if dte < 0.5:  # Conservative
+                    dte_score = 85
+                    dte_assessment = "conservative"
+                elif dte < 1.0:  # Moderate
+                    dte_score = 65
+                    dte_assessment = "moderate"
+                elif dte < 2.0:  # Aggressive
+                    dte_score = 35
+                    dte_assessment = "aggressive"
+                else:
+                    dte_score = 15
+                    dte_assessment = "highly_leveraged"
+
+                health_factors["debt_to_equity"] = {
+                    "value": dte,
+                    "score": dte_score,
+                    "assessment": dte_assessment
+                }
+
+            # Current Ratio
+            current_ratio = analysis.get("financial_health", {}).get("current_ratio")
+            if current_ratio:
+                if current_ratio > 2.0:  # Strong liquidity
+                    liquidity_score = 90
+                    liquidity_assessment = "excellent"
+                elif current_ratio > 1.5:  # Good liquidity
+                    liquidity_score = 75
+                    liquidity_assessment = "good"
+                elif current_ratio > 1.0:  # Adequate liquidity
+                    liquidity_score = 50
+                    liquidity_assessment = "adequate"
+                else:
+                    liquidity_score = 20
+                    liquidity_assessment = "poor"
+
+                health_factors["current_ratio"] = {
+                    "value": current_ratio,
+                    "score": liquidity_score,
+                    "assessment": liquidity_assessment
+                }
+
+            results["factors"]["financial_health"] = health_factors
+
+        # Calculate Composite Scores
+        factor_scores = []
+
+        for category, factors in results["factors"].items():
+            category_scores = [factor["score"] for factor in factors.values() if "score" in factor]
+            if category_scores:
+                results["scores"][f"{category}_score"] = sum(category_scores) / len(category_scores)
+
+                # Add individual factor scores
+                for factor_name, factor_data in factors.items():
+                    results["scores"][f"{factor_name}_score"] = factor_data["score"]
+                    factor_scores.append(factor_data["score"])
+
+        # Overall Fundamental Score
+        if factor_scores:
+            overall_score = sum(factor_scores) / len(factor_scores)
+            results["scores"]["overall_fundamental_score"] = overall_score
+
+            # Generate Investment Recommendation
+            if overall_score >= 80:
+                recommendation = "strong_buy"
+                confidence = "high"
+                rationale = "Excellent fundamentals across valuation, quality, growth, and financial health"
+            elif overall_score >= 65:
+                recommendation = "buy"
+                confidence = "medium"
+                rationale = "Good fundamentals with some attractive factors"
+            elif overall_score >= 50:
+                recommendation = "hold"
+                confidence = "medium"
+                rationale = "Average fundamentals - neither compelling nor concerning"
+            elif overall_score >= 35:
+                recommendation = "weak_sell"
+                confidence = "medium"
+                rationale = "Below-average fundamentals with notable concerns"
+            else:
+                recommendation = "strong_sell"
+                confidence = "high"
+                rationale = "Poor fundamentals across multiple categories"
+
+            results["recommendation"] = {
+                "action": recommendation,
+                "confidence": confidence,
+                "rationale": rationale,
+                "score": overall_score
+            }
+
+        # Add warnings for incomplete data
+        data_completeness = 0
+        total_factors = 0
+
+        for category in ["valuation", "quality", "growth", "financial_health"]:
+            if category in results["factors"]:
+                total_factors += len(results["factors"][category])
+
+        if total_factors < 8:
+            results["warnings"].append("Limited fundamental data available - analysis may be incomplete")
+
+        # Check for negative factors
+        for category, factors in results["factors"].items():
+            for factor_name, factor_data in factors.items():
+                if factor_data.get("score", 50) < 30:
+                    results["warnings"].append(f"Concerning {factor_name}: {factor_data.get('assessment', 'poor')}")
+
+        return results
+
+    except Exception as e:
+        return {
+            "error": f"Fundamental analysis failed: {str(e)}",
+            "analysis_type": analysis_type,
+            "suggestion": "Check fundamental data quality and try again"
+        }
+
+@tool
+@circuit_breaker("multi_factor_strategy", failure_threshold=3, recovery_timeout=3600)
+def multi_factor_strategy_tool(symbol: str, strategy_type: str = "comprehensive", risk_tolerance: str = "moderate") -> Dict[str, Any]:
+    """
+    Generate multi-factor investment strategy combining technical, fundamental, and microstructure analysis.
+    Args:
+        symbol: Stock symbol (e.g., 'AAPL').
+        strategy_type: Type of strategy ('comprehensive', 'growth', 'value', 'momentum', 'quality').
+        risk_tolerance: Risk tolerance level ('conservative', 'moderate', 'aggressive').
+    Returns:
+        Dict with multi-factor strategy analysis and recommendations.
+    """
+    import numpy as np
+
+    results = {
+        "symbol": symbol,
+        "strategy_type": strategy_type,
+        "risk_tolerance": risk_tolerance,
+        "timestamp": pd.Timestamp.now().isoformat(),
+        "factors": {},
+        "scores": {},
+        "recommendation": {},
+        "position_sizing": {},
+        "risk_management": {}
+    }
+
+    try:
+        # Get data from all three analysis types
+        fundamental_data = fundamental_data_tool.invoke({"symbol": symbol, "data_type": "overview"})
+        microstructure_data = microstructure_analysis_tool.invoke({"symbol": symbol, "analysis_type": "comprehensive"})
+        technical_data = yfinance_data_tool.invoke({"symbol": symbol, "period": "1y"})
+
+        if "error" in fundamental_data and "error" in microstructure_data and "error" in technical_data:
+            results["error"] = "No data available from any analysis source"
+            return results
+
+        # TECHNICAL FACTORS (40% weight)
+        technical_score = 50  # Neutral default
+        technical_factors = {}
+
+        if technical_data and "error" not in technical_data:
+            try:
+                # Parse technical data
+                df_str = technical_data
+                if isinstance(df_str, str):
+                    df = pd.read_json(df_str)
+                else:
+                    df = technical_data
+
+                if hasattr(df, 'shape') and df.shape[0] > 20:
+                    # Calculate technical indicators
+                    close_prices = df['Close']
+                    volumes = df['Volume']
+
+                    # RSI
+                    rsi = close_prices.pct_change().rolling(14).mean() * 100  # Simplified RSI
+                    current_rsi = rsi.iloc[-1] if len(rsi) > 0 else 50
+
+                    # Moving averages
+                    sma_20 = close_prices.rolling(20).mean()
+                    sma_50 = close_prices.rolling(50).mean()
+                    current_price = close_prices.iloc[-1]
+
+                    # Trend analysis
+                    ma_trend = "bullish" if current_price > sma_20.iloc[-1] > sma_50.iloc[-1] else "bearish" if current_price < sma_20.iloc[-1] < sma_50.iloc[-1] else "neutral"
+
+                    # Volume analysis
+                    avg_volume = volumes.rolling(20).mean()
+                    current_volume = volumes.iloc[-1] if volumes else 0
+                    volume_trend = "high" if current_volume > avg_volume.iloc[-1] * 1.2 else "low" if current_volume < avg_volume.iloc[-1] * 0.8 else "normal"
+
+                    # Momentum
+                    momentum = (current_price - close_prices.iloc[-10]) / close_prices.iloc[-10] if len(close_prices) > 10 else 0
+
+                    technical_factors = {
+                        "rsi": current_rsi,
+                        "trend": ma_trend,
+                        "volume_trend": volume_trend,
+                        "momentum_10d": momentum,
+                        "current_price": current_price,
+                        "sma_20": sma_20.iloc[-1],
+                        "sma_50": sma_50.iloc[-1]
+                    }
+
+                    # Technical scoring
+                    rsi_score = 80 if 30 <= current_rsi <= 70 else 40 if current_rsi < 30 or current_rsi > 70 else 60
+                    trend_score = 90 if ma_trend == "bullish" else 30 if ma_trend == "bearish" else 50
+                    momentum_score = 80 if momentum > 0.05 else 30 if momentum < -0.05 else 50
+
+                    technical_score = (rsi_score * 0.3 + trend_score * 0.4 + momentum_score * 0.3)
+
+            except Exception as e:
+                technical_factors["error"] = str(e)
+
+        results["factors"]["technical"] = technical_factors
+        results["scores"]["technical"] = technical_score
+
+        # FUNDAMENTAL FACTORS (35% weight)
+        fundamental_score = 50  # Neutral default
+        fundamental_factors = {}
+
+        if fundamental_data and "error" not in fundamental_data:
+            try:
+                overview = fundamental_data.get("company_overview", {})
+                yf_fundamentals = fundamental_data.get("yfinance_fundamentals", {})
+
+                # Valuation metrics
+                pe_ratio = overview.get("pe_ratio") or yf_fundamentals.get("trailing_pe")
+                pb_ratio = overview.get("pb_ratio") or yf_fundamentals.get("price_to_book")
+                peg_ratio = overview.get("peg_ratio") or yf_fundamentals.get("peg_ratio")
+
+                # Quality metrics
+                roe = overview.get("roe") or yf_fundamentals.get("return_on_equity")
+                roa = overview.get("roa") or yf_fundamentals.get("return_on_assets")
+                profit_margin = overview.get("profit_margin") or yf_fundamentals.get("profit_margins")
+
+                # Growth metrics
+                revenue_growth = yf_fundamentals.get("revenue_growth")
+                earnings_growth = yf_fundamentals.get("earnings_growth")
+
+                fundamental_factors = {
+                    "pe_ratio": pe_ratio,
+                    "pb_ratio": pb_ratio,
+                    "peg_ratio": peg_ratio,
+                    "roe": roe,
+                    "roa": roa,
+                    "profit_margin": profit_margin,
+                    "revenue_growth": revenue_growth,
+                    "earnings_growth": earnings_growth
+                }
+
+                # Fundamental scoring based on strategy type
+                if strategy_type == "value":
+                    # Value strategy prioritizes low P/E and P/B
+                    pe_score = 90 if pe_ratio and pe_ratio < 15 else 50 if pe_ratio and pe_ratio < 25 else 20
+                    pb_score = 90 if pb_ratio and pb_ratio < 1.5 else 50 if pb_ratio and pb_ratio < 3 else 20
+                    fundamental_score = (pe_score * 0.5 + pb_score * 0.5)
+
+                elif strategy_type == "growth":
+                    # Growth strategy prioritizes earnings/revenue growth
+                    growth_score = 0
+                    if earnings_growth and earnings_growth > 0.15: growth_score += 60
+                    if revenue_growth and revenue_growth > 0.10: growth_score += 40
+                    peg_score = 80 if peg_ratio and peg_ratio < 1.5 else 40
+                    fundamental_score = min(100, growth_score + peg_score * 0.3)
+
+                elif strategy_type == "quality":
+                    # Quality strategy prioritizes ROE, ROA, margins
+                    quality_score = 0
+                    if roe and roe > 0.15: quality_score += 40
+                    if roa and roa > 0.08: quality_score += 30
+                    if profit_margin and profit_margin > 0.10: quality_score += 30
+                    fundamental_score = quality_score
+
+                else:  # comprehensive
+                    valuation_score = 60 if pe_ratio and pe_ratio < 25 else 30
+                    quality_score = 60 if roe and roe > 0.10 else 30
+                    growth_score = 60 if earnings_growth and earnings_growth > 0.05 else 30
+                    fundamental_score = (valuation_score * 0.4 + quality_score * 0.4 + growth_score * 0.2)
+
+            except Exception as e:
+                fundamental_factors["error"] = str(e)
+
+        results["factors"]["fundamental"] = fundamental_factors
+        results["scores"]["fundamental"] = fundamental_score
+
+        # MICROSTRUCTURE FACTORS (25% weight)
+        microstructure_score = 50  # Neutral default
+        microstructure_factors = {}
+
+        if microstructure_data and "error" not in microstructure_data:
+            try:
+                analysis = microstructure_data.get("analysis", {})
+                recommendations = microstructure_data.get("execution_recommendations", {})
+
+                # Extract key microstructure metrics
+                spread_analysis = analysis.get("spread_analysis", {})
+                volume_analysis = analysis.get("volume_analysis", {})
+                order_flow = analysis.get("order_flow", {})
+                market_condition = analysis.get("market_condition", "neutral")
+
+                microstructure_factors = {
+                    "spread_percent": spread_analysis.get("spread_percent"),
+                    "liquidity_assessment": spread_analysis.get("liquidity_assessment"),
+                    "volume_trend": volume_analysis.get("volume_trend"),
+                    "volume_zscore": volume_analysis.get("volume_zscore"),
+                    "order_flow_momentum": order_flow.get("momentum"),
+                    "buy_ratio": order_flow.get("buy_ratio"),
+                    "market_condition": market_condition,
+                    "optimal_slippage": analysis.get("slippage_model", {}).get("optimal_slippage")
+                }
+
+                # Microstructure scoring
+                liquidity_score = 90 if spread_analysis.get("liquidity_assessment") == "high" else 60 if spread_analysis.get("liquidity_assessment") == "medium" else 30
+                volume_score = 80 if volume_analysis.get("volume_trend") == "high" else 40 if volume_analysis.get("volume_trend") == "low" else 60
+                momentum_score = 80 if order_flow.get("momentum") == "bullish" else 30 if order_flow.get("momentum") == "bearish" else 50
+
+                microstructure_score = (liquidity_score * 0.4 + volume_score * 0.3 + momentum_score * 0.3)
+
+            except Exception as e:
+                microstructure_factors["error"] = str(e)
+
+        results["factors"]["microstructure"] = microstructure_factors
+        results["scores"]["microstructure"] = microstructure_score
+
+        # COMBINED SCORING AND RECOMMENDATIONS
+        overall_score = (
+            technical_score * 0.40 +
+            fundamental_score * 0.35 +
+            microstructure_score * 0.25
+        )
+
+        results["scores"]["overall"] = overall_score
+
+        # Generate investment recommendation
+        if overall_score >= 75:
+            recommendation = "STRONG_BUY"
+            confidence = "High"
+            rationale = "All factors align positively"
+        elif overall_score >= 60:
+            recommendation = "BUY"
+            confidence = "Moderate"
+            rationale = "Most factors are positive"
+        elif overall_score >= 45:
+            recommendation = "HOLD"
+            confidence = "Neutral"
+            rationale = "Mixed signals across factors"
+        elif overall_score >= 30:
+            recommendation = "SELL"
+            confidence = "Moderate"
+            rationale = "Most factors are negative"
+        else:
+            recommendation = "STRONG_SELL"
+            confidence = "High"
+            rationale = "All factors align negatively"
+
+        # Adjust for risk tolerance
+        if risk_tolerance == "conservative":
+            # Be more cautious
+            if recommendation == "BUY" and overall_score < 70:
+                recommendation = "HOLD"
+            elif recommendation == "STRONG_BUY" and overall_score < 80:
+                recommendation = "BUY"
+        elif risk_tolerance == "aggressive":
+            # Be more aggressive
+            if recommendation == "HOLD" and overall_score > 50:
+                recommendation = "BUY"
+            elif recommendation == "BUY" and overall_score > 70:
+                recommendation = "STRONG_BUY"
+
+        results["recommendation"] = {
+            "action": recommendation,
+            "confidence": confidence,
+            "overall_score": overall_score,
+            "rationale": rationale,
+            "risk_adjusted": f"Adjusted for {risk_tolerance} risk tolerance"
+        }
+
+        # POSITION SIZING RECOMMENDATIONS
+        base_position_size = 0.05  # 5% of portfolio default
+
+        # Adjust based on confidence and risk tolerance
+        if confidence == "High":
+            position_multiplier = 1.5
+        elif confidence == "Moderate":
+            position_multiplier = 1.0
+        else:
+            position_multiplier = 0.5
+
+        if risk_tolerance == "conservative":
+            position_multiplier *= 0.7
+        elif risk_tolerance == "aggressive":
+            position_multiplier *= 1.3
+
+        # Adjust for microstructure conditions
+        if microstructure_factors.get("liquidity_assessment") == "low":
+            position_multiplier *= 0.8  # Reduce size for illiquid stocks
+
+        if microstructure_factors.get("market_condition") == "challenging":
+            position_multiplier *= 0.9  # Reduce size for difficult market conditions
+
+        recommended_position_size = base_position_size * position_multiplier
+
+        results["position_sizing"] = {
+            "recommended_percent": recommended_position_size,
+            "base_size": base_position_size,
+            "adjustment_factors": {
+                "confidence_multiplier": position_multiplier / (base_position_size / recommended_position_size),
+                "risk_tolerance": risk_tolerance,
+                "liquidity_adjustment": 0.8 if microstructure_factors.get("liquidity_assessment") == "low" else 1.0,
+                "market_condition_adjustment": 0.9 if microstructure_factors.get("market_condition") == "challenging" else 1.0
+            },
+            "max_position_limit": min(recommended_position_size * 2, 0.15)  # Max 15% of portfolio
+        }
+
+        # RISK MANAGEMENT
+        stop_loss_percent = 0.05  # 5% default
+        take_profit_percent = 0.15  # 15% default
+
+        # Adjust based on volatility and strategy
+        if strategy_type == "momentum":
+            stop_loss_percent = 0.08  # Wider stops for momentum
+            take_profit_percent = 0.25  # Higher targets
+        elif strategy_type == "value":
+            stop_loss_percent = 0.03  # Tighter stops for value
+            take_profit_percent = 0.10  # Lower targets
+
+        if risk_tolerance == "conservative":
+            stop_loss_percent *= 0.8
+            take_profit_percent *= 0.8
+        elif risk_tolerance == "aggressive":
+            stop_loss_percent *= 1.2
+            take_profit_percent *= 1.2
+
+        results["risk_management"] = {
+            "stop_loss_percent": stop_loss_percent,
+            "take_profit_percent": take_profit_percent,
+            "max_holding_period_days": 90 if strategy_type == "momentum" else 180 if strategy_type == "growth" else 365,
+            "rebalance_trigger": "10% deviation from target weight or quarterly review",
+            "risk_factors": {
+                "volatility_risk": "medium" if technical_factors.get("momentum_10d", 0) > 0.1 else "low",
+                "liquidity_risk": microstructure_factors.get("liquidity_assessment", "medium"),
+                "fundamental_risk": "low" if fundamental_score > 60 else "medium" if fundamental_score > 40 else "high"
+            }
+        }
+
+        # STRATEGY-SPECIFIC ADJUSTMENTS
+        if strategy_type == "momentum":
+            results["strategy_notes"] = "Focus on strong trending stocks with positive momentum. Hold until momentum fades."
+        elif strategy_type == "value":
+            results["strategy_notes"] = "Target undervalued stocks with strong fundamentals. Be patient for mean reversion."
+        elif strategy_type == "growth":
+            results["strategy_notes"] = "Invest in high-growth companies. Accept higher volatility for growth potential."
+        elif strategy_type == "quality":
+            results["strategy_notes"] = "Prioritize companies with strong balance sheets and consistent profitability."
+        else:
+            results["strategy_notes"] = "Balanced approach across all factors for comprehensive analysis."
+
+        return results
+
+    except Exception as e:
+        return {
+            "error": f"Multi-factor strategy analysis failed: {str(e)}",
+            "symbol": symbol,
+            "strategy_type": strategy_type,
+            "suggestion": "Check data sources and try again"
+        }
+
+@tool
+@circuit_breaker("sanity_check", failure_threshold=3, recovery_timeout=3600)
+def sanity_check_tool(proposal: str) -> Dict[str, Any]:
+    """
+    Perform sanity checks on trading proposals to ensure they make logical sense.
+    Args:
+        proposal: Trading proposal to validate.
+    Returns:
+        Dict with sanity check results and recommendations.
+    """
+    results = {
+        "proposal": proposal,
+        "timestamp": pd.Timestamp.now().isoformat(),
+        "checks": {},
+        "overall_sanity": "unknown",
+        "recommendations": []
+    }
+
+    try:
+        # Basic sanity checks
+        checks = {
+            "has_symbol": False,
+            "has_direction": False,
+            "has_quantity": False,
+            "has_price_logic": False,
+            "risk_reasonable": False,
+            "time_horizon_reasonable": False
+        }
+
+        proposal_lower = proposal.lower()
+
+        # Check for stock symbol (basic pattern)
+        import re
+        symbol_pattern = r'\b[A-Z]{1,5}\b'  # 1-5 uppercase letters
+        symbols = re.findall(symbol_pattern, proposal)
+        if symbols:
+            # Filter out common words that might match
+            valid_symbols = [s for s in symbols if s not in ['THE', 'AND', 'FOR', 'ARE', 'BUT', 'NOT', 'YOU', 'ALL', 'CAN', 'HER', 'WAS', 'ONE', 'OUR', 'HAD', 'BY', 'HOT', 'BUT', 'SAY', 'WHO', 'EACH', 'WHICH', 'THEIR', 'TIME', 'WILL', 'ABOUT', 'WOULD', 'THERE', 'COULD', 'OTHER']]
+            if valid_symbols:
+                checks["has_symbol"] = True
+                results["identified_symbols"] = valid_symbols
+
+        # Check for direction
+        if any(word in proposal_lower for word in ['buy', 'sell', 'long', 'short', 'purchase', 'acquire']):
+            checks["has_direction"] = True
+
+        # Check for quantity/position size
+        if any(word in proposal_lower for word in ['shares', 'position', 'size', 'allocation', 'percent', '%', 'dollars', '$']):
+            checks["has_quantity"] = True
+
+        # Check for price logic
+        if any(word in proposal_lower for word in ['price', 'valuation', 'pe', 'pb', 'growth', 'momentum', 'support', 'resistance']):
+            checks["has_price_logic"] = True
+
+        # Check for reasonable risk
+        risk_indicators = ['stop loss', 'risk management', 'position size', 'volatility', 'drawdown']
+        if any(indicator in proposal_lower for indicator in risk_indicators):
+            checks["risk_reasonable"] = True
+
+        # Check for time horizon
+        if any(word in proposal_lower for word in ['days', 'weeks', 'months', 'years', 'hold', 'exit', 'target']):
+            checks["time_horizon_reasonable"] = True
+
+        results["checks"] = checks
+
+        # Overall sanity assessment
+        passed_checks = sum(checks.values())
+        total_checks = len(checks)
+
+        if passed_checks >= total_checks * 0.8:
+            results["overall_sanity"] = "excellent"
+        elif passed_checks >= total_checks * 0.6:
+            results["overall_sanity"] = "good"
+        elif passed_checks >= total_checks * 0.4:
+            results["overall_sanity"] = "fair"
+        else:
+            results["overall_sanity"] = "poor"
+
+        # Generate recommendations
+        if not checks["has_symbol"]:
+            results["recommendations"].append("Specify which stock symbol(s) to trade")
+
+        if not checks["has_direction"]:
+            results["recommendations"].append("Clearly state buy/sell direction")
+
+        if not checks["has_quantity"]:
+            results["recommendations"].append("Define position size or allocation")
+
+        if not checks["has_price_logic"]:
+            results["recommendations"].append("Explain valuation or entry logic")
+
+        if not checks["risk_reasonable"]:
+            results["recommendations"].append("Include risk management parameters")
+
+        if not checks["time_horizon_reasonable"]:
+            results["recommendations"].append("Specify holding period or exit strategy")
+
+        return results
+
+    except Exception as e:
+        return {
+            "error": f"Sanity check failed: {str(e)}",
+            "proposal": proposal,
+            "overall_sanity": "error",
+            "recommendations": ["Unable to perform sanity check - review proposal manually"]
+        }
+
+@tool
+@circuit_breaker("convergence_check", failure_threshold=3, recovery_timeout=3600)
+def convergence_check_tool(performance_data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Check if the system's learning and performance are converging toward optimal behavior.
+    Args:
+        performance_data: Dict containing performance metrics and learning data.
+    Returns:
+        Dict with convergence analysis and recommendations.
+    """
+    results = {
+        "timestamp": pd.Timestamp.now().isoformat(),
+        "convergence_metrics": {},
+        "learning_progress": {},
+        "recommendations": [],
+        "overall_convergence": "unknown"
+    }
+
+    try:
+        # Extract performance metrics
+        metrics = performance_data.get("metrics", {})
+        learning_history = performance_data.get("learning_history", [])
+
+        # Convergence checks
+        convergence_checks = {
+            "sharpe_ratio_stable": False,
+            "win_rate_improving": False,
+            "drawdown_decreasing": False,
+            "learning_loss_converging": False,
+            "strategy_adaptation": False
+        }
+
+        # Sharpe ratio stability (should stabilize over time)
+        sharpe_history = [m.get("sharpe_ratio", 0) for m in learning_history[-10:]] if learning_history else []
+        if len(sharpe_history) >= 5:
+            recent_sharpe = sharpe_history[-3:]
+            older_sharpe = sharpe_history[:-3]
+            recent_avg = sum(recent_sharpe) / len(recent_sharpe)
+            older_avg = sum(older_sharpe) / len(older_sharpe)
+            # Sharpe should be positive and relatively stable
+            if recent_avg > 0.5 and abs(recent_avg - older_avg) < 0.5:
+                convergence_checks["sharpe_ratio_stable"] = True
+
+        # Win rate improvement
+        win_rates = [m.get("win_rate", 0) for m in learning_history[-10:]] if learning_history else []
+        if len(win_rates) >= 5:
+            recent_win_rate = sum(win_rates[-3:]) / 3
+            older_win_rate = sum(win_rates[:-3]) / len(win_rates[:-3])
+            if recent_win_rate > older_win_rate and recent_win_rate > 0.5:
+                convergence_checks["win_rate_improving"] = True
+
+        # Drawdown reduction
+        drawdowns = [m.get("max_drawdown", 0) for m in learning_history[-10:]] if learning_history else []
+        if len(drawdowns) >= 5:
+            recent_dd = sum(drawdowns[-3:]) / 3
+            older_dd = sum(drawdowns[:-3]) / len(drawdowns[:-3])
+            if recent_dd < older_dd and recent_dd < 0.15:  # Less than 15% drawdown
+                convergence_checks["drawdown_decreasing"] = True
+
+        # Learning loss convergence (if available)
+        losses = [m.get("learning_loss", 0) for m in learning_history[-10:]] if learning_history else []
+        if len(losses) >= 5:
+            recent_loss = sum(losses[-3:]) / 3
+            older_loss = sum(losses[:-3]) / len(losses[:-3])
+            if recent_loss < older_loss * 0.9 and recent_loss < 0.1:  # Converging and low
+                convergence_checks["learning_loss_converging"] = True
+
+        # Strategy adaptation (diversity of strategies used)
+        strategies_used = set()
+        for m in learning_history[-20:]:
+            strategy = m.get("strategy_type", "")
+            if strategy:
+                strategies_used.add(strategy)
+        if len(strategies_used) >= 3:  # Using multiple strategy types
+            convergence_checks["strategy_adaptation"] = True
+
+        results["convergence_metrics"] = convergence_checks
+
+        # Learning progress assessment
+        passed_checks = sum(convergence_checks.values())
+        total_checks = len(convergence_checks)
+
+        if passed_checks >= total_checks * 0.8:
+            results["overall_convergence"] = "excellent"
+            results["learning_progress"]["status"] = "Well converged - system performing optimally"
+        elif passed_checks >= total_checks * 0.6:
+            results["overall_convergence"] = "good"
+            results["learning_progress"]["status"] = "Converging well - continue current learning approach"
+        elif passed_checks >= total_checks * 0.4:
+            results["overall_convergence"] = "fair"
+            results["learning_progress"]["status"] = "Partial convergence - may need parameter tuning"
+        else:
+            results["overall_convergence"] = "poor"
+            results["learning_progress"]["status"] = "Not converging - review learning algorithm"
+
+        # Generate recommendations
+        if not convergence_checks["sharpe_ratio_stable"]:
+            results["recommendations"].append("Sharpe ratio not stable - review risk-return optimization")
+
+        if not convergence_checks["win_rate_improving"]:
+            results["recommendations"].append("Win rate not improving - consider different entry/exit signals")
+
+        if not convergence_checks["drawdown_decreasing"]:
+            results["recommendations"].append("Drawdowns not decreasing - strengthen risk management")
+
+        if not convergence_checks["learning_loss_converging"]:
+            results["recommendations"].append("Learning not converging - adjust learning rate or architecture")
+
+        if not convergence_checks["strategy_adaptation"]:
+            results["recommendations"].append("Limited strategy diversity - explore additional strategy types")
+
+        # Performance summary
+        if learning_history:
+            latest_metrics = learning_history[-1]
+            results["current_performance"] = {
+                "sharpe_ratio": latest_metrics.get("sharpe_ratio", 0),
+                "win_rate": latest_metrics.get("win_rate", 0),
+                "max_drawdown": latest_metrics.get("max_drawdown", 0),
+                "total_return": latest_metrics.get("total_return", 0),
+                "strategy_type": latest_metrics.get("strategy_type", "unknown")
+            }
+
+        return results
+
+    except Exception as e:
+        return {
+            "error": f"Convergence check failed: {str(e)}",
+            "overall_convergence": "error",
+            "recommendations": ["Unable to assess convergence - check performance data format"]
+        }
+
+@tool
+@circuit_breaker("sec_edgar_fundamentals", failure_threshold=5, recovery_timeout=3600)
+def sec_edgar_fundamentals_tool(symbol: str, filing_types: str = "10-K,10-Q") -> Dict[str, Any]:
+    """
+    Fetch fundamental data directly from SEC EDGAR API for comprehensive financial analysis.
+    Args:
+        symbol: Stock symbol (e.g., 'AAPL').
+        filing_types: Comma-separated filing types ('10-K,10-Q,8-K').
+    Returns:
+        Dict with SEC EDGAR fundamental data.
+    """
+    import requests
+
+    results = {
+        "symbol": symbol,
+        "filing_types": filing_types,
+        "timestamp": pd.Timestamp.now().isoformat(),
+        "filings": {},
+        "financial_statements": {},
+        "source": "sec_edgar"
+    }
+
+    try:
+        # First, get company CIK from symbol
+        cik = None
+
+        # Try to get CIK from a mapping or API
+        # For now, use a simple mapping for common stocks
+        cik_mapping = {
+            'AAPL': '0000320193',
+            'MSFT': '0000789019',
+            'GOOGL': '0001652044',
+            'AMZN': '0001018724',
+            'TSLA': '0001318605',
+            'NVDA': '0001045810',
+            'META': '0001326801',
+            'NFLX': '0001065280',
+            'SPY': '0000884394'  # SPDR S&P 500 ETF
+        }
+
+        cik = cik_mapping.get(symbol.upper())
+
+        if not cik:
+            # Try to search for CIK using SEC API
+            try:
+                search_url = "https://www.sec.gov/include/ticker.txt"
+                response = requests.get(search_url, headers={"User-Agent": "GROK-IBKR/1.0"})
+                if response.status_code == 200:
+                    ticker_data = response.text
+                    for line in ticker_data.split('\n'):
+                        if line.strip():
+                            ticker, company_cik = line.split('\t')
+                            if ticker.upper() == symbol.upper():
+                                cik = company_cik.zfill(10)
+                                break
+            except Exception as e:
+                logger.warning(f"Could not retrieve CIK for {symbol}: {e}")
+
+        if not cik:
+            results["error"] = f"Could not find CIK for symbol {symbol}"
+            return results
+
+        results["cik"] = cik
+
+        # Get company facts (comprehensive financial data)
+        base_url = "https://data.sec.gov/api/xbrl/companyfacts"
+        headers = {"User-Agent": "GROK-IBKR/1.0 (contact@example.com)"}
+
+        facts_url = f"{base_url}/CIK{cik}.json"
+        response = requests.get(facts_url, headers=headers, timeout=15)
+
+        if response.status_code == 200:
+            facts_data = response.json()
+
+            # Extract key financial metrics
+            if "facts" in facts_data:
+                us_gaap = facts_data["facts"].get("us-gaap", {})
+                ifrs_full = facts_data["facts"].get("ifrs-full", {})
+
+                # Extract income statement items
+                income_statement = {}
+
+                # Revenue
+                if "Revenues" in us_gaap:
+                    revenues = us_gaap["Revenues"]
+                    if "units" in revenues and "USD" in revenues["units"]:
+                        revenue_data = revenues["units"]["USD"]
+                        if revenue_data:
+                            latest_revenue = max(revenue_data, key=lambda x: x.get("end", ""))
+                            income_statement["total_revenue"] = {
+                                "value": latest_revenue.get("val", 0),
+                                "end_date": latest_revenue.get("end", ""),
+                                "filed": latest_revenue.get("filed", "")
+                            }
+
+                # Net Income
+                if "NetIncomeLoss" in us_gaap:
+                    net_income = us_gaap["NetIncomeLoss"]
+                    if "units" in net_income and "USD" in net_income["units"]:
+                        ni_data = net_income["units"]["USD"]
+                        if ni_data:
+                            latest_ni = max(ni_data, key=lambda x: x.get("end", ""))
+                            income_statement["net_income"] = {
+                                "value": latest_ni.get("val", 0),
+                                "end_date": latest_ni.get("end", ""),
+                                "filed": latest_ni.get("filed", "")
+                            }
+
+                # EPS
+                if "EarningsPerShareBasic" in us_gaap:
+                    eps = us_gaap["EarningsPerShareBasic"]
+                    if "units" in eps and "USD/shares" in eps["units"]:
+                        eps_data = eps["units"]["USD/shares"]
+                        if eps_data:
+                            latest_eps = max(eps_data, key=lambda x: x.get("end", ""))
+                            income_statement["eps_basic"] = {
+                                "value": latest_eps.get("val", 0),
+                                "end_date": latest_eps.get("end", ""),
+                                "filed": latest_eps.get("filed", "")
+                            }
+
+                if income_statement:
+                    results["financial_statements"]["income_statement"] = income_statement
+
+                # Extract balance sheet items
+                balance_sheet = {}
+
+                # Total Assets
+                if "Assets" in us_gaap:
+                    assets = us_gaap["Assets"]
+                    if "units" in assets and "USD" in assets["units"]:
+                        assets_data = assets["units"]["USD"]
+                        if assets_data:
+                            latest_assets = max(assets_data, key=lambda x: x.get("end", ""))
+                            balance_sheet["total_assets"] = {
+                                "value": latest_assets.get("val", 0),
+                                "end_date": latest_assets.get("end", ""),
+                                "filed": latest_assets.get("filed", "")
+                            }
+
+                # Total Liabilities
+                if "Liabilities" in us_gaap:
+                    liabilities = us_gaap["Liabilities"]
+                    if "units" in liabilities and "USD" in liabilities["units"]:
+                        liab_data = liabilities["units"]["USD"]
+                        if liab_data:
+                            latest_liab = max(liab_data, key=lambda x: x.get("end", ""))
+                            balance_sheet["total_liabilities"] = {
+                                "value": latest_liab.get("val", 0),
+                                "end_date": latest_liab.get("end", ""),
+                                "filed": latest_liab.get("filed", "")
+                            }
+
+                # Stockholders Equity
+                if "StockholdersEquity" in us_gaap:
+                    equity = us_gaap["StockholdersEquity"]
+                    if "units" in equity and "USD" in equity["units"]:
+                        equity_data = equity["units"]["USD"]
+                        if equity_data:
+                            latest_equity = max(equity_data, key=lambda x: x.get("end", ""))
+                            balance_sheet["stockholders_equity"] = {
+                                "value": latest_equity.get("val", 0),
+                                "end_date": latest_equity.get("end", ""),
+                                "filed": latest_equity.get("filed", "")
+                            }
+
+                if balance_sheet:
+                    results["financial_statements"]["balance_sheet"] = balance_sheet
+
+                # Calculate derived ratios
+                if "income_statement" in results["financial_statements"] and "balance_sheet" in results["financial_statements"]:
+                    istmt = results["financial_statements"]["income_statement"]
+                    bstmt = results["financial_statements"]["balance_sheet"]
+
+                    derived_ratios = {}
+
+                    # ROE
+                    net_income = istmt.get("net_income", {}).get("value", 0)
+                    equity = bstmt.get("stockholders_equity", {}).get("value", 0)
+                    if equity != 0:
+                        derived_ratios["roe"] = net_income / equity
+
+                    # ROA
+                    assets = bstmt.get("total_assets", {}).get("value", 0)
+                    if assets != 0:
+                        derived_ratios["roa"] = net_income / assets
+
+                    # Debt to Equity
+                    liabilities = bstmt.get("total_liabilities", {}).get("value", 0)
+                    if equity != 0:
+                        derived_ratios["debt_to_equity"] = liabilities / equity
+
+                    if derived_ratios:
+                        results["derived_ratios"] = derived_ratios
+
+        # Get recent filings
+        filings_url = f"https://data.sec.gov/submissions/CIK{cik}.json"
+        filings_response = requests.get(filings_url, headers=headers, timeout=15)
+
+        if filings_response.status_code == 200:
+            filings_data = filings_response.json()
+
+            if "filings" in filings_data and "recent" in filings_data["filings"]:
+                recent_filings = filings_data["filings"]["recent"]
+
+                # Filter by requested filing types
+                requested_types = [ft.strip() for ft in filing_types.split(',')]
+                filtered_filings = []
+
+                for i, form in enumerate(recent_filings.get("form", [])):
+                    if form in requested_types:
+                        filing_info = {
+                            "form": form,
+                            "filing_date": recent_filings["filingDate"][i] if i < len(recent_filings["filingDate"]) else "",
+                            "report_date": recent_filings["reportDate"][i] if i < len(recent_filings["reportDate"]) else "",
+                            "primary_document": recent_filings["primaryDocument"][i] if i < len(recent_filings["primaryDocument"]) else "",
+                            "accession_number": recent_filings["accessionNumber"][i] if i < len(recent_filings["accessionNumber"]) else "",
+                            "url": f"https://www.sec.gov/Archives/edgar/data/{cik}/{recent_filings['accessionNumber'][i].replace('-', '')}/{recent_filings['primaryDocument'][i]}" if i < len(recent_filings["accessionNumber"]) and i < len(recent_filings["primaryDocument"]) else ""
+                        }
+                        filtered_filings.append(filing_info)
+
+                        if len(filtered_filings) >= 5:  # Limit to 5 most recent
+                            break
+
+                results["filings"]["recent"] = filtered_filings
+
+        results["data_quality"] = "high" if results.get("financial_statements") else "low"
+        return results
+
+    except Exception as e:
+        return {
+            "error": f"SEC EDGAR fundamentals fetch failed: {str(e)}",
+            "symbol": symbol,
+            "cik": cik if 'cik' in locals() else None,
+            "suggestion": "Check symbol spelling or try alternative data sources"
+        }
+
+@tool
+@circuit_breaker("kalshi_odds", failure_threshold=3, recovery_timeout=300)
+def kalshi_odds_tool(query: str = "", market_type: str = "all", limit: int = 20) -> Dict[str, Any]:
+    """
+    Fetch prediction market odds from Kalshi API for market sentiment analysis.
+    Args:
+        query: Search query for markets (e.g., 'election', 'fed', 'economy').
+        market_type: Type of markets ('all', 'politics', 'economics', 'sports', 'misc').
+        limit: Maximum number of markets to return (default 20).
+    Returns:
+        Dict with prediction market odds and sentiment analysis.
+    """
+    private_key_pem = get_kalshi_api_key()
+    access_key_id = get_kalshi_access_key_id()
+
+    if not private_key_pem:
+        return {
+            "error": "Kalshi API key not found. Please set KALSHI_API_KEY in .env file.",
+            "setup": "Kalshi provides prediction market odds for various events",
+            "note": "Kalshi is a regulated prediction market platform"
+        }
+
+    if not access_key_id:
+        return {
+            "error": "Kalshi Access Key ID not found. Please set KALSHI_ACCESS_KEY_ID in .env file.",
+            "setup": "Get your Access Key ID from Kalshi account settings after generating API keys",
+            "note": "Kalshi uses RSA private key authentication with separate Key ID"
+        }
+
+    try:
+        # Load RSA private key
+        private_key = serialization.load_pem_private_key(
+            private_key_pem.encode('utf-8'),
+            password=None,
+            backend=default_backend()
+        )
+
+        # Kalshi API endpoints
+        base_urls = [
+            "https://api.elections.kalshi.com/trade-api/v2"
+            # "https://demo-api.kalshi.co/trade-api/v2"  # Try production first
+        ]
+
+        api_result = None
+        last_error = None
+
+        for base_url in base_urls:
+            try:
+                markets_url = f"{base_url}/markets"
+
+                # Create timestamp and message for signing
+                current_time = int(time.time() * 1000)
+                method = "GET"
+                path = "/trade-api/v2/markets"  # Path without query parameters for signing
+
+                # Create message string: timestamp + method + path
+                message = f"{current_time}{method}{path}"
+
+                # Sign the message with RSA-PSS
+                signature = private_key.sign(
+                    message.encode('utf-8'),
+                    padding.PSS(
+                        mgf=padding.MGF1(hashes.SHA256()),
+                        salt_length=padding.PSS.DIGEST_LENGTH
+                    ),
+                    hashes.SHA256()
+                )
+
+                # Base64 encode the signature
+                signature_b64 = base64.b64encode(signature).decode('utf-8')
+
+                # Prepare headers
+                headers = {
+                    "KALSHI-ACCESS-KEY": access_key_id,
+                    "KALSHI-ACCESS-SIGNATURE": signature_b64,
+                    "KALSHI-ACCESS-TIMESTAMP": str(current_time),
+                    "Content-Type": "application/json"
+                }
+
+                # Build query parameters
+                params = {
+                    "limit": min(limit, 100),  # API typically limits to 100
+                    "status": "open"  # Only open markets (not 'active')
+                }
+
+                if query:
+                    params["query"] = query
+
+                if market_type != "all":
+                    # Map market types to Kalshi categories
+                    category_map = {
+                        "politics": "Politics",
+                        "economics": "Economics",
+                        "sports": "Sports",
+                        "misc": "Miscellaneous"
+                    }
+                    if market_type in category_map:
+                        params["category"] = category_map[market_type]
+
+                # Make API request
+                response = requests.get(markets_url, headers=headers, params=params, timeout=15)
+                response.raise_for_status()
+                data = response.json()
+
+                api_result = data
+                break  # Success, exit the loop
+
+            except requests.exceptions.RequestException as e:
+                last_error = str(e)
+                continue  # Try next base URL
+
+        if api_result is None:
+            # All endpoints failed
+            return {
+                "error": f"Kalshi API endpoints not accessible. This may be due to API changes, network issues, or Kalshi service status. Last error: {last_error}",
+                "query": query,
+                "market_type": market_type,
+                "endpoints_tried": base_urls,
+                "note": "Kalshi is a regulated prediction market. API access may require special permissions or the API may have changed.",
+                "suggestion": "Check Kalshi's official API documentation or contact their support for current endpoints.",
+                "fallback_available": True
+            }
+
+        markets = api_result.get("markets", [])
+        if not markets:
+            return {
+                "query": query,
+                "market_type": market_type,
+                "total_markets": 0,
+                "error": "No markets found matching criteria",
+                "suggestion": "Try broader search terms or different market type"
+            }
+
+        # Process market data
+        processed_markets = []
+        sentiment_indicators = {
+            "bullish_markets": 0,
+            "bearish_markets": 0,
+            "neutral_markets": 0,
+            "high_confidence_trades": 0,
+            "total_volume": 0
+        }
+
+        for market in markets[:limit]:
+            # Extract market odds
+            yes_ask = market.get("yes_ask", 0)
+            yes_bid = market.get("yes_bid", 0)
+            no_ask = market.get("no_ask", 0)
+            no_bid = market.get("no_bid", 0)
+
+            # Calculate implied probabilities
+            yes_price = (yes_ask + yes_bid) / 2 if yes_ask and yes_bid else yes_ask or yes_bid or 0
+            no_price = (no_ask + no_bid) / 2 if no_ask and no_bid else no_ask or no_bid or 0
+
+            # Market sentiment (probability of "yes" outcome)
+            market_sentiment = yes_price / 100 if yes_price > 0 else 0.5
+
+            # Determine market bias
+            if market_sentiment > 0.6:
+                bias = "bullish"
+                sentiment_indicators["bullish_markets"] += 1
+            elif market_sentiment < 0.4:
+                bias = "bearish"
+                sentiment_indicators["bearish_markets"] += 1
+            else:
+                bias = "neutral"
+                sentiment_indicators["neutral_markets"] += 1
+
+            # Volume and liquidity
+            volume = market.get("volume", 0)
+            sentiment_indicators["total_volume"] += volume
+
+            # High confidence indicator (tight spread)
+            spread = abs(yes_price - no_price)
+            if spread < 10:  # Tight spread indicates high confidence
+                sentiment_indicators["high_confidence_trades"] += 1
+
+            processed_market = {
+                "market_id": market.get("id", ""),
+                "title": market.get("title", ""),
+                "category": market.get("category", ""),
+                "sentiment_score": market_sentiment,
+                "bias": bias,
+                "yes_price": yes_price,
+                "no_price": no_price,
+                "spread": spread,
+                "volume": volume,
+                "close_date": market.get("close_date", ""),
+                "settlement_date": market.get("settlement_date", ""),
+                "description": market.get("description", "")[:200] + "..." if len(market.get("description", "")) > 200 else market.get("description", "")
+            }
+
+            processed_markets.append(processed_market)
+
+        # Calculate aggregate sentiment
+        total_markets = len(processed_markets)
+        if total_markets > 0:
+            avg_sentiment = sum(m["sentiment_score"] for m in processed_markets) / total_markets
+            sentiment_distribution = {
+                "bullish_pct": sentiment_indicators["bullish_markets"] / total_markets,
+                "bearish_pct": sentiment_indicators["bearish_markets"] / total_markets,
+                "neutral_pct": sentiment_indicators["neutral_markets"] / total_markets
+            }
+
+            # Overall market sentiment
+            if avg_sentiment > 0.55:
+                overall_sentiment = "bullish"
+                confidence = min(0.9, sentiment_indicators["high_confidence_trades"] / total_markets + 0.1)
+            elif avg_sentiment < 0.45:
+                overall_sentiment = "bearish"
+                confidence = min(0.9, sentiment_indicators["high_confidence_trades"] / total_markets + 0.1)
+            else:
+                overall_sentiment = "neutral"
+                confidence = 0.5
+
+            # Market intelligence insights
+            insights = []
+            if sentiment_indicators["high_confidence_trades"] / total_markets > 0.3:
+                insights.append("High conviction in market predictions")
+            if sentiment_indicators["total_volume"] > 10000:
+                insights.append("Significant trading volume indicates strong market interest")
+            if abs(avg_sentiment - 0.5) > 0.1:
+                insights.append(f"Strong {overall_sentiment} bias in prediction markets")
+
+        return {
+            "query": query,
+            "market_type": market_type,
+            "total_markets": total_markets,
+            "markets": processed_markets,
+            "aggregate_sentiment": {
+                "overall_sentiment": overall_sentiment,
+                "average_score": avg_sentiment,
+                "confidence": confidence,
+                "sentiment_distribution": sentiment_distribution
+            },
+            "market_intelligence": {
+                "insights": insights,
+                "total_volume": sentiment_indicators["total_volume"],
+                "high_confidence_markets": sentiment_indicators["high_confidence_trades"],
+                "market_participation": "high" if sentiment_indicators["total_volume"] > 5000 else "moderate" if sentiment_indicators["total_volume"] > 1000 else "low"
+            },
+            "source": "kalshi_api",
+            "note": "Kalshi prediction markets provide crowd-sourced probability estimates for future events"
+        }
+
+    except requests.exceptions.HTTPError as e:
+        if response.status_code == 401:
+            return {
+                "error": "Kalshi API authentication failed. Check KALSHI_API_KEY and KALSHI_ACCESS_KEY_ID.",
+                "status_code": 401,
+                "suggestion": "Verify your Kalshi RSA private key and Access Key ID are correct and active"
+            }
+        elif response.status_code == 429:
+            return {
+                "error": "Kalshi API rate limit exceeded.",
+                "status_code": 429,
+                "suggestion": "Wait before making another request"
+            }
+        else:
+            return {
+                "error": f"Kalshi API HTTP error: {response.status_code}",
+                "details": response.text,
+                "suggestion": "Check API documentation for correct endpoints"
+            }
+    except Exception as e:
+        return {
+            "error": f"Kalshi API request failed: {str(e)}",
+            "query": query,
+            "market_type": market_type,
+            "suggestion": "Check network connectivity and API key configuration"
+        }
+
+@tool
+@circuit_breaker("yfinance_multi", failure_threshold=5, recovery_timeout=300)
+def multi_asset_historical_data_tool(symbols: str, start_date: str, end_date: str,
+                                   interval: str = "1d") -> str:
+    """
+    Fetch historical data for multiple assets concurrently.
+    Enhanced version with better error handling and data validation.
+
+    Args:
+        symbols: Comma-separated list of stock symbols (e.g., 'SPY,QQQ,VTI')
+        start_date: Start date in YYYY-MM-DD format
+        end_date: End date in YYYY-MM-DD format
+        interval: Data interval ('1d', '1wk', '1mo')
+
+    Returns:
+        JSON string with historical data for all symbols
+    """
+    try:
+        import yfinance as yf
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        symbol_list = [s.strip() for s in symbols.split(',') if s.strip()]
+        if not symbol_list:
+            return '{"error": "No valid symbols provided"}'
+
+        logger.info(f"Fetching {interval} data for {len(symbol_list)} symbols from {start_date} to {end_date}")
+
+        def fetch_single_symbol(symbol):
+            try:
+                data = yf.download(symbol, start=start_date, end=end_date,
+                                 interval=interval, progress=False)
+
+                if data.empty:
+                    return symbol, {"error": f"No data available for {symbol}"}
+
+                # Clean and format data
+                data = data.dropna()
+                data['Symbol'] = symbol
+                data['Returns'] = data['Close'].pct_change()
+
+                # Calculate additional metrics
+                if len(data) > 1:
+                    data['SMA_20'] = data['Close'].rolling(window=20).mean()
+                    data['SMA_50'] = data['Close'].rolling(window=50).mean()
+                    data['Volatility_20'] = data['Returns'].rolling(window=20).std() * np.sqrt(252)
+
+                return symbol, {
+                    "data": data.to_dict('records'),
+                    "metadata": {
+                        "symbol": symbol,
+                        "start_date": start_date,
+                        "end_date": end_date,
+                        "interval": interval,
+                        "data_points": len(data),
+                        "date_range": f"{data.index.min()} to {data.index.max()}" if not data.empty else "N/A"
+                    }
+                }
+
+            except Exception as e:
+                return symbol, {"error": f"Failed to fetch {symbol}: {str(e)}"}
+
+        # Fetch data concurrently
+        results = {}
+        with ThreadPoolExecutor(max_workers=min(len(symbol_list), 10)) as executor:
+            futures = [executor.submit(fetch_single_symbol, symbol) for symbol in symbol_list]
+            for future in as_completed(futures):
+                symbol, result = future.result()
+                results[symbol] = result
+
+        # Summary statistics
+        successful_fetches = sum(1 for r in results.values() if "data" in r)
+        total_data_points = sum(len(r.get("data", [])) for r in results.values())
+
+        response = {
+            "summary": {
+                "total_symbols_requested": len(symbol_list),
+                "successful_fetches": successful_fetches,
+                "failed_fetches": len(symbol_list) - successful_fetches,
+                "total_data_points": total_data_points,
+                "date_range": f"{start_date} to {end_date}",
+                "interval": interval
+            },
+            "data": results
+        }
+
+        return json.dumps(response, default=str)
+
+    except Exception as e:
+        return json.dumps({"error": f"Multi-asset data fetch failed: {str(e)}"})
+
+@tool
+@circuit_breaker("yfinance_portfolio", failure_threshold=3, recovery_timeout=300)
+def portfolio_historical_data_tool(symbols: str, weights: str = None,
+                                  start_date: str = None, end_date: str = None,
+                                  period: str = "2y") -> str:
+    """
+    Fetch historical data optimized for portfolio analysis.
+    Includes correlation analysis and portfolio-level metrics.
+
+    Args:
+        symbols: Comma-separated list of stock symbols
+        weights: Optional comma-separated weights (e.g., '0.4,0.3,0.3')
+        start_date: Start date (YYYY-MM-DD) - overrides period if provided
+        end_date: End date (YYYY-MM-DD) - overrides period if provided
+        period: Period if start/end dates not provided ('1y', '2y', '5y', etc.)
+
+    Returns:
+        JSON string with portfolio-optimized historical data
+    """
+    try:
+        import yfinance as yf
+
+        symbol_list = [s.strip() for s in symbols.split(',') if s.strip()]
+        if not symbol_list:
+            return '{"error": "No valid symbols provided"}'
+
+        # Parse weights
+        weight_list = None
+        if weights:
+            try:
+                weight_list = [float(w.strip()) for w in weights.split(',')]
+                if len(weight_list) != len(symbol_list):
+                    return '{"error": "Number of weights must match number of symbols"}'
+            except ValueError:
+                return '{"error": "Invalid weight format"}'
+
+        # Fetch data
+        if start_date and end_date:
+            data = yf.download(symbol_list, start=start_date, end=end_date, progress=False)
+        else:
+            data = yf.download(symbol_list, period=period, progress=False)
+
+        if data.empty:
+            return '{"error": "No data available for the specified symbols and period"}'
+
+        # Process data for portfolio analysis
+        portfolio_data = {}
+
+        for symbol in symbol_list:
+            if symbol in data.columns.get_level_values(0):
+                symbol_data = data[symbol].copy()
+                symbol_data['Symbol'] = symbol
+                symbol_data['Returns'] = symbol_data['Close'].pct_change()
+
+                portfolio_data[symbol] = {
+                    "price_data": symbol_data.to_dict('records'),
+                    "summary_stats": {
+                        "mean_return": symbol_data['Returns'].mean(),
+                        "volatility": symbol_data['Returns'].std(),
+                        "sharpe_ratio": symbol_data['Returns'].mean() / symbol_data['Returns'].std() * np.sqrt(252) if symbol_data['Returns'].std() > 0 else 0,
+                        "max_drawdown": (symbol_data['Close'] / symbol_data['Close'].cummax() - 1).min(),
+                        "total_return": (symbol_data['Close'].iloc[-1] / symbol_data['Close'].iloc[0] - 1) if len(symbol_data) > 1 else 0
+                    }
+                }
+
+        # Calculate portfolio-level metrics if weights provided
+        portfolio_metrics = {}
+        if weight_list and len(portfolio_data) == len(symbol_list):
+            try:
+                # Extract returns for correlation analysis
+                returns_df = pd.DataFrame()
+                for symbol in symbol_list:
+                    if symbol in portfolio_data:
+                        returns = pd.DataFrame(portfolio_data[symbol]["price_data"])['Returns']
+                        returns_df[symbol] = returns
+
+                # Calculate correlation matrix
+                correlation_matrix = returns_df.corr()
+
+                # Calculate portfolio metrics
+                weighted_returns = returns_df.dot(weight_list)
+                portfolio_volatility = weighted_returns.std() * np.sqrt(252)  # Annualized
+                portfolio_return = weighted_returns.mean() * 252  # Annualized
+
+                portfolio_metrics = {
+                    "correlation_matrix": correlation_matrix.to_dict(),
+                    "portfolio_volatility": portfolio_volatility,
+                    "portfolio_expected_return": portfolio_return,
+                    "portfolio_sharpe_ratio": portfolio_return / portfolio_volatility if portfolio_volatility > 0 else 0,
+                    "weights": dict(zip(symbol_list, weight_list))
+                }
+
+            except Exception as e:
+                logger.warning(f"Failed to calculate portfolio metrics: {e}")
+
+        response = {
+            "metadata": {
+                "symbols": symbol_list,
+                "weights": dict(zip(symbol_list, weight_list)) if weight_list else None,
+                "date_range": f"{data.index.min()} to {data.index.max()}",
+                "data_points": len(data),
+                "period": period if not (start_date and end_date) else f"{start_date} to {end_date}"
+            },
+            "individual_assets": portfolio_data,
+            "portfolio_metrics": portfolio_metrics
+        }
+
+        return json.dumps(response, default=str)
+
+    except Exception as e:
+        return json.dumps({"error": f"Portfolio data fetch failed: {str(e)}"})
+
+@tool
+def historical_portfolio_simulation_tool(symbols: str, start_date: str, end_date: str,
+                                       initial_capital: float = 100000,
+                                       weights: str = None,
+                                       rebalance_frequency: str = "monthly") -> Dict[str, Any]:
+    """
+    Run comprehensive historical portfolio simulation with realistic trading conditions.
+    Includes transaction costs, slippage, rebalancing, and detailed performance analytics.
+
+    Args:
+        symbols: Comma-separated list of stock symbols (e.g., 'SPY,QQQ,VTI')
+        start_date: Start date in YYYY-MM-DD format
+        end_date: End date in YYYY-MM-DD format
+        initial_capital: Starting portfolio value
+        weights: Optional comma-separated portfolio weights (equal weight if None)
+        rebalance_frequency: How often to rebalance ('daily', 'weekly', 'monthly', 'quarterly')
+
+    Returns:
+        Comprehensive simulation results with performance metrics and analytics
+    """
+    try:
+        from .historical_simulation_engine import run_historical_portfolio_simulation
+
+        symbol_list = [s.strip() for s in symbols.split(',') if s.strip()]
+        if not symbol_list:
+            return {"error": "No valid symbols provided"}
+
+        # Parse weights if provided
+        weight_list = None
+        if weights:
+            try:
+                weight_list = [float(w.strip()) for w in weights.split(',')]
+                if len(weight_list) != len(symbol_list):
+                    return {"error": f"Number of weights ({len(weight_list)}) must match number of symbols ({len(symbol_list)})"}
+            except ValueError:
+                return {"error": "Invalid weight format - must be comma-separated numbers"}
+
+        # Run simulation
+        results = run_historical_portfolio_simulation(
+            symbols=symbol_list,
+            start_date=start_date,
+            end_date=end_date,
+            initial_capital=initial_capital,
+            weights=dict(zip(symbol_list, weight_list)) if weight_list else None,
+            rebalance_frequency=rebalance_frequency
+        )
+
+        return results
+
+    except Exception as e:
+        return {
+            "error": f"Historical portfolio simulation failed: {str(e)}",
+            "symbols": symbols,
+            "start_date": start_date,
+            "end_date": end_date
+        }
+
+@tool
+def multi_strategy_portfolio_comparison_tool(symbols: str, strategies_config: str,
+                                           start_date: str, end_date: str,
+                                           initial_capital: float = 100000) -> Dict[str, Any]:
+    """
+    Compare multiple portfolio strategies on historical data.
+    Useful for strategy optimization and risk assessment.
+
+    Args:
+        symbols: Comma-separated list of stock symbols
+        strategies_config: JSON string defining different strategies to compare
+        start_date: Start date in YYYY-MM-DD format
+        end_date: End date in YYYY-MM-DD format
+        initial_capital: Starting portfolio value
+
+    Returns:
+        Comparison of strategy performance metrics
+    """
+    try:
+        import json
+        from .historical_simulation_engine import run_multi_strategy_comparison
+
+        symbol_list = [s.strip() for s in symbols.split(',') if s.strip()]
+        if not symbol_list:
+            return {"error": "No valid symbols provided"}
+
+        # Parse strategies configuration
+        try:
+            strategies = json.loads(strategies_config)
+        except json.JSONDecodeError:
+            return {"error": "Invalid strategies configuration - must be valid JSON"}
+
+        # Validate strategies format
+        if not isinstance(strategies, list):
+            return {"error": "Strategies configuration must be a list of strategy objects"}
+
+        for i, strategy in enumerate(strategies):
+            if not isinstance(strategy, dict) or 'name' not in strategy:
+                return {"error": f"Strategy {i} must be a dict with at least a 'name' field"}
+
+        # Run comparison
+        results = run_multi_strategy_comparison(
+            symbols=symbol_list,
+            strategies=strategies,
+            start_date=start_date,
+            end_date=end_date,
+            initial_capital=initial_capital
+        )
+
+        # Add comparison summary
+        if results and not any('error' in str(result) for result in results.values()):
+            comparison_summary = {}
+
+            for strategy_name, result in results.items():
+                perf = result.get('performance_metrics', {})
+                comparison_summary[strategy_name] = {
+                    'total_return': perf.get('total_return', 0),
+                    'sharpe_ratio': perf.get('sharpe_ratio', 0),
+                    'max_drawdown': perf.get('max_drawdown', 0),
+                    'annualized_return': perf.get('annualized_return', 0)
+                }
+
+            results['_comparison_summary'] = comparison_summary
+
+        return results
+
+    except Exception as e:
+        return {
+            "error": f"Multi-strategy comparison failed: {str(e)}",
+            "symbols": symbols,
+            "strategies_config": strategies_config[:100] + "..." if len(strategies_config) > 100 else strategies_config
+        }
+
+@tool
+def risk_analytics_tool(simulation_results: str) -> str:
+    """
+    Perform comprehensive risk analysis on historical portfolio simulation results.
+
+    This tool analyzes simulation results to provide detailed risk metrics including:
+    - Advanced risk measures (VaR, CVaR, Cornish-Fisher adjustments)
+    - Drawdown analysis and recovery metrics
+    - Stress testing for extreme market conditions
+    - Liquidity risk assessment
+    - Performance attribution analysis
+    - Risk assessment and management recommendations
+
+    Args:
+        simulation_results: JSON string containing portfolio simulation results
+                           Should include portfolio_history, trades, and benchmark data
+
+    Returns:
+        Comprehensive risk analysis report with metrics, assessment, and recommendations
+    """
+    try:
+        import json
+        from .risk_analytics_framework import analyze_portfolio_risk
+
+        # Parse simulation results
+        try:
+            results = json.loads(simulation_results)
+        except json.JSONDecodeError as e:
+            return json.dumps({"error": f"Invalid JSON format: {str(e)}"})
+
+        # Validate required fields
+        if not isinstance(results, dict):
+            return json.dumps({"error": "Simulation results must be a dictionary"})
+
+        # Perform risk analysis
+        risk_report = analyze_portfolio_risk(results)
+
+        # Convert to JSON string for tool response
+        return json.dumps(risk_report, indent=2, default=str)
+
+    except ImportError as e:
+        return json.dumps({"error": f"Missing required dependencies: {str(e)}"})
+    except Exception as e:
+        return json.dumps({
+            "error": f"Risk analysis failed: {str(e)}",
+            "input_length": len(simulation_results) if simulation_results else 0
+        })@ t o o l  
+ d e f   o p t i o n s _ g r e e k s _ c a l c _ t o o l ( o p t i o n _ t y p e :   s t r ,   s p o t _ p r i c e :   f l o a t ,   s t r i k e _ p r i c e :   f l o a t ,  
+                                                       t i m e _ t o _ e x p i r y :   f l o a t ,   v o l a t i l i t y :   f l o a t ,   r i s k _ f r e e _ r a t e :   f l o a t   =   0 . 0 5 ,  
+                                                       d i v i d e n d _ y i e l d :   f l o a t   =   0 . 0 )   - >   D i c t [ s t r ,   A n y ] :  
+         " " "  
+         C a l c u l a t e   B l a c k - S c h o l e s   o p t i o n   G r e e k s   f o r   p r i c i n g   a n d   r i s k   m a n a g e m e n t .  
+         A r g s :  
+                 o p t i o n _ t y p e :   ' c a l l '   o r   ' p u t '  
+                 s p o t _ p r i c e :   C u r r e n t   u n d e r l y i n g   p r i c e  
+                 s t r i k e _ p r i c e :   O p t i o n   s t r i k e   p r i c e  
+                 t i m e _ t o _ e x p i r y :   T i m e   t o   e x p i r y   i n   y e a r s  
+                 v o l a t i l i t y :   I m p l i e d   v o l a t i l i t y   ( a n n u a l i z e d )  
+                 r i s k _ f r e e _ r a t e :   R i s k - f r e e   r a t e   ( d e f a u l t   5 % )  
+                 d i v i d e n d _ y i e l d :   D i v i d e n d   y i e l d   ( d e f a u l t   0 % )  
+         R e t u r n s :  
+                 D i c t   w i t h   o p t i o n   p r i c e   a n d   a l l   G r e e k s  
+         " " "  
+         t r y :  
+                 i m p o r t   n u m p y   a s   n p  
+                 f r o m   s c i p y . s t a t s   i m p o r t   n o r m  
+  
+                 #   B l a c k - S c h o l e s   c a l c u l a t i o n s  
+                 d 1   =   ( n p . l o g ( s p o t _ p r i c e   /   s t r i k e _ p r i c e )   +   ( r i s k _ f r e e _ r a t e   -   d i v i d e n d _ y i e l d   +   0 . 5   *   v o l a t i l i t y * * 2 )   *   t i m e _ t o _ e x p i r y )   /   ( v o l a t i l i t y   *   n p . s q r t ( t i m e _ t o _ e x p i r y ) )  
+                 d 2   =   d 1   -   v o l a t i l i t y   *   n p . s q r t ( t i m e _ t o _ e x p i r y )  
+  
+                 i f   o p t i o n _ t y p e . l o w e r ( )   = =   ' c a l l ' :  
+                         p r i c e   =   s p o t _ p r i c e   *   n p . e x p ( - d i v i d e n d _ y i e l d   *   t i m e _ t o _ e x p i r y )   *   n o r m . c d f ( d 1 )   -   s t r i k e _ p r i c e   *   n p . e x p ( - r i s k _ f r e e _ r a t e   *   t i m e _ t o _ e x p i r y )   *   n o r m . c d f ( d 2 )  
+                         d e l t a   =   n p . e x p ( - d i v i d e n d _ y i e l d   *   t i m e _ t o _ e x p i r y )   *   n o r m . c d f ( d 1 )  
+                         g a m m a   =   n p . e x p ( - d i v i d e n d _ y i e l d   *   t i m e _ t o _ e x p i r y )   *   n o r m . p d f ( d 1 )   /   ( s p o t _ p r i c e   *   v o l a t i l i t y   *   n p . s q r t ( t i m e _ t o _ e x p i r y ) )  
+                         t h e t a   =   - s p o t _ p r i c e   *   n p . e x p ( - d i v i d e n d _ y i e l d   *   t i m e _ t o _ e x p i r y )   *   n o r m . p d f ( d 1 )   *   v o l a t i l i t y   /   ( 2   *   n p . s q r t ( t i m e _ t o _ e x p i r y ) )   -   r i s k _ f r e e _ r a t e   *   s t r i k e _ p r i c e   *   n p . e x p ( - r i s k _ f r e e _ r a t e   *   t i m e _ t o _ e x p i r y )   *   n o r m . c d f ( d 2 )   +   d i v i d e n d _ y i e l d   *   s p o t _ p r i c e   *   n p . e x p ( - d i v i d e n d _ y i e l d   *   t i m e _ t o _ e x p i r y )   *   n o r m . c d f ( d 1 )  
+                         v e g a   =   s p o t _ p r i c e   *   n p . e x p ( - d i v i d e n d _ y i e l d   *   t i m e _ t o _ e x p i r y )   *   n o r m . p d f ( d 1 )   *   n p . s q r t ( t i m e _ t o _ e x p i r y )  
+                         r h o   =   s t r i k e _ p r i c e   *   t i m e _ t o _ e x p i r y   *   n p . e x p ( - r i s k _ f r e e _ r a t e   *   t i m e _ t o _ e x p i r y )   *   n o r m . c d f ( d 2 )  
+                 e l s e :     #   p u t  
+                         p r i c e   =   s t r i k e _ p r i c e   *   n p . e x p ( - r i s k _ f r e e _ r a t e   *   t i m e _ t o _ e x p i r y )   *   n o r m . c d f ( - d 2 )   -   s p o t _ p r i c e   *   n p . e x p ( - d i v i d e n d _ y i e l d   *   t i m e _ t o _ e x p i r y )   *   n o r m . c d f ( - d 1 )  
+                         d e l t a   =   - n p . e x p ( - d i v i d e n d _ y i e l d   *   t i m e _ t o _ e x p i r y )   *   n o r m . c d f ( - d 1 )  
+                         g a m m a   =   n p . e x p ( - d i v i d e n d _ y i e l d   *   t i m e _ t o _ e x p i r y )   *   n o r m . p d f ( d 1 )   /   ( s p o t _ p r i c e   *   v o l a t i l i t y   *   n p . s q r t ( t i m e _ t o _ e x p i r y ) )  
+                         t h e t a   =   - s p o t _ p r i c e   *   n p . e x p ( - d i v i d e n d _ y i e l d   *   t i m e _ t o _ e x p i r y )   *   n o r m . p d f ( d 1 )   *   v o l a t i l i t y   /   ( 2   *   n p . s q r t ( t i m e _ t o _ e x p i r y ) )   +   r i s k _ f r e e _ r a t e   *   s t r i k e _ p r i c e   *   n p . e x p ( - r i s k _ f r e e _ r a t e   *   t i m e _ t o _ e x p i r y )   *   n o r m . c d f ( - d 2 )   -   d i v i d e n d _ y i e l d   *   s p o t _ p r i c e   *   n p . e x p ( - d i v i d e n d _ y i e l d   *   t i m e _ t o _ e x p i r y )   *   n o r m . c d f ( - d 1 )  
+                         v e g a   =   s p o t _ p r i c e   *   n p . e x p ( - d i v i d e n d _ y i e l d   *   t i m e _ t o _ e x p i r y )   *   n o r m . p d f ( d 1 )   *   n p . s q r t ( t i m e _ t o _ e x p i r y )  
+                         r h o   =   - s t r i k e _ p r i c e   *   t i m e _ t o _ e x p i r y   *   n p . e x p ( - r i s k _ f r e e _ r a t e   *   t i m e _ t o _ e x p i r y )   *   n o r m . c d f ( - d 2 )  
+  
+                 r e t u r n   {  
+                         " o p t i o n _ t y p e " :   o p t i o n _ t y p e ,  
+                         " p r i c e " :   f l o a t ( p r i c e ) ,  
+                         " d e l t a " :   f l o a t ( d e l t a ) ,  
+                         " g a m m a " :   f l o a t ( g a m m a ) ,  
+                         " t h e t a " :   f l o a t ( t h e t a ) ,  
+                         " v e g a " :   f l o a t ( v e g a ) ,  
+                         " r h o " :   f l o a t ( r h o ) ,  
+                         " i n p u t s " :   {  
+                                 " s p o t _ p r i c e " :   s p o t _ p r i c e ,  
+                                 " s t r i k e _ p r i c e " :   s t r i k e _ p r i c e ,  
+                                 " t i m e _ t o _ e x p i r y " :   t i m e _ t o _ e x p i r y ,  
+                                 " v o l a t i l i t y " :   v o l a t i l i t y ,  
+                                 " r i s k _ f r e e _ r a t e " :   r i s k _ f r e e _ r a t e ,  
+                                 " d i v i d e n d _ y i e l d " :   d i v i d e n d _ y i e l d  
+                         }  
+                 }  
+  
+         e x c e p t   E x c e p t i o n   a s   e :  
+                 r e t u r n   { " e r r o r " :   f " G r e e k s   c a l c u l a t i o n   f a i l e d :   { s t r ( e ) } " }  
+  
+ @ t o o l  
+ d e f   f l o w _ a l p h a _ c a l c _ t o o l ( o r d e r _ f l o w _ d a t a :   s t r ,   m a r k e t _ d a t a :   s t r )   - >   D i c t [ s t r ,   A n y ] :  
+         " " "  
+         C a l c u l a t e   a l p h a   s i g n a l s   f r o m   o r d e r   f l o w   a n d   m a r k e t   m i c r o s t r u c t u r e   d a t a .  
+         A r g s :  
+                 o r d e r _ f l o w _ d a t a :   J S O N   s t r i n g   o f   o r d e r   f l o w   d a t a  
+                 m a r k e t _ d a t a :   J S O N   s t r i n g   o f   m a r k e t   d a t a  
+         R e t u r n s :  
+                 D i c t   w i t h   f l o w - b a s e d   a l p h a   s i g n a l s   a n d   t r a d i n g   r e c o m m e n d a t i o n s  
+         " " "  
+         t r y :  
+                 i m p o r t   j s o n  
+                 i m p o r t   n u m p y   a s   n p  
+  
+                 o r d e r _ f l o w   =   j s o n . l o a d s ( o r d e r _ f l o w _ d a t a )  
+                 m a r k e t   =   j s o n . l o a d s ( m a r k e t _ d a t a )  
+  
+                 #   E x t r a c t   k e y   m e t r i c s  
+                 b u y _ v o l u m e   =   o r d e r _ f l o w . g e t ( ' b u y _ v o l u m e ' ,   0 )  
+                 s e l l _ v o l u m e   =   o r d e r _ f l o w . g e t ( ' s e l l _ v o l u m e ' ,   0 )  
+                 t o t a l _ v o l u m e   =   b u y _ v o l u m e   +   s e l l _ v o l u m e  
+  
+                 i f   t o t a l _ v o l u m e   = =   0 :  
+                         r e t u r n   { " e r r o r " :   " N o   o r d e r   f l o w   d a t a   a v a i l a b l e " }  
+  
+                 #   C a l c u l a t e   f l o w   i m b a l a n c e  
+                 i m b a l a n c e _ r a t i o   =   ( b u y _ v o l u m e   -   s e l l _ v o l u m e )   /   t o t a l _ v o l u m e  
+                 b u y _ r a t i o   =   b u y _ v o l u m e   /   t o t a l _ v o l u m e  
+  
+                 #   A n a l y z e   m a r k e t   i m p a c t  
+                 s p r e a d _ p c t   =   m a r k e t . g e t ( ' s p r e a d _ p e r c e n t ' ,   0 . 1 )  
+                 v o l u m e _ z s c o r e   =   m a r k e t . g e t ( ' v o l u m e _ z s c o r e ' ,   0 )  
+  
+                 #   G e n e r a t e   a l p h a   s i g n a l s  
+                 s i g n a l s   =   [ ]  
+  
+                 #   I m b a l a n c e   s i g n a l  
+                 i f   a b s ( i m b a l a n c e _ r a t i o )   >   0 . 3 :  
+                         d i r e c t i o n   =   " b u l l i s h "   i f   i m b a l a n c e _ r a t i o   >   0   e l s e   " b e a r i s h "  
+                         s t r e n g t h   =   " s t r o n g "   i f   a b s ( i m b a l a n c e _ r a t i o )   >   0 . 5   e l s e   " m o d e r a t e "  
+                         s i g n a l s . a p p e n d ( {  
+                                 " s i g n a l " :   " f l o w _ i m b a l a n c e " ,  
+                                 " d i r e c t i o n " :   d i r e c t i o n ,  
+                                 " s t r e n g t h " :   s t r e n g t h ,  
+                                 " c o n f i d e n c e " :   m i n ( a b s ( i m b a l a n c e _ r a t i o )   *   1 0 0 ,   9 5 )  
+                         } )  
+  
+                 #   V o l u m e   c o n f i r m a t i o n  
+                 i f   v o l u m e _ z s c o r e   >   1 . 5   a n d   b u y _ r a t i o   >   0 . 6 :  
+                         s i g n a l s . a p p e n d ( {  
+                                 " s i g n a l " :   " v o l u m e _ c o n f i r m a t i o n " ,  
+                                 " d i r e c t i o n " :   " b u l l i s h " ,  
+                                 " s t r e n g t h " :   " s t r o n g " ,  
+                                 " c o n f i d e n c e " :   8 5  
+                         } )  
+                 e l i f   v o l u m e _ z s c o r e   >   1 . 5   a n d   b u y _ r a t i o   <   0 . 4 :  
+                         s i g n a l s . a p p e n d ( {  
+                                 " s i g n a l " :   " v o l u m e _ c o n f i r m a t i o n " ,  
+                                 " d i r e c t i o n " :   " b e a r i s h " ,  
+                                 " s t r e n g t h " :   " s t r o n g " ,  
+                                 " c o n f i d e n c e " :   8 5  
+                         } )  
+  
+                 #   S p r e a d   e f f i c i e n c y   s i g n a l  
+                 i f   s p r e a d _ p c t   <   0 . 0 5   a n d   l e n ( s i g n a l s )   >   0 :  
+                         s i g n a l s . a p p e n d ( {  
+                                 " s i g n a l " :   " e x e c u t i o n _ e f f i c i e n c y " ,  
+                                 " d i r e c t i o n " :   " f a v o r a b l e " ,  
+                                 " s t r e n g t h " :   " h i g h " ,  
+                                 " c o n f i d e n c e " :   9 0  
+                         } )  
+  
+                 #   O v e r a l l   a l p h a   s c o r e  
+                 a l p h a _ s c o r e   =   0  
+                 f o r   s i g n a l   i n   s i g n a l s :  
+                         i f   s i g n a l [ ' d i r e c t i o n ' ]   = =   ' b u l l i s h ' :  
+                                 a l p h a _ s c o r e   + =   s i g n a l [ ' c o n f i d e n c e ' ]   *   s i g n a l . g e t ( ' s t r e n g t h _ m u l t i p l i e r ' ,   1 )  
+                         e l i f   s i g n a l [ ' d i r e c t i o n ' ]   = =   ' b e a r i s h ' :  
+                                 a l p h a _ s c o r e   - =   s i g n a l [ ' c o n f i d e n c e ' ]   *   s i g n a l . g e t ( ' s t r e n g t h _ m u l t i p l i e r ' ,   1 )  
+  
+                 r e t u r n   {  
+                         " a l p h a _ s c o r e " :   a l p h a _ s c o r e ,  
+                         " s i g n a l s " :   s i g n a l s ,  
+                         " f l o w _ m e t r i c s " :   {  
+                                 " b u y _ r a t i o " :   b u y _ r a t i o ,  
+                                 " i m b a l a n c e _ r a t i o " :   i m b a l a n c e _ r a t i o ,  
+                                 " t o t a l _ v o l u m e " :   t o t a l _ v o l u m e  
+                         } ,  
+                         " m a r k e t _ c o n d i t i o n s " :   {  
+                                 " s p r e a d _ e f f i c i e n c y " :   " h i g h "   i f   s p r e a d _ p c t   <   0 . 0 5   e l s e   " m e d i u m "   i f   s p r e a d _ p c t   <   0 . 1 5   e l s e   " l o w " ,  
+                                 " v o l u m e _ r e g i m e " :   " h i g h "   i f   v o l u m e _ z s c o r e   >   1 . 5   e l s e   " n o r m a l "   i f   v o l u m e _ z s c o r e   >   - 1 . 5   e l s e   " l o w "  
+                         } ,  
+                         " r e c o m m e n d a t i o n " :   " b u y "   i f   a l p h a _ s c o r e   >   5 0   e l s e   " s e l l "   i f   a l p h a _ s c o r e   <   - 5 0   e l s e   " h o l d "  
+                 }  
+  
+         e x c e p t   E x c e p t i o n   a s   e :  
+                 r e t u r n   { " e r r o r " :   f " F l o w   a l p h a   c a l c u l a t i o n   f a i l e d :   { s t r ( e ) } " }  
+  
+ @ t o o l  
+ d e f   q l i b _ m l _ r e f i n e _ t o o l ( s t r a t e g y _ d a t a :   s t r ,   h i s t o r i c a l _ p e r f o r m a n c e :   s t r )   - >   D i c t [ s t r ,   A n y ] :  
+         " " "  
+         U s e   Q l i b / M L   t e c h n i q u e s   t o   r e f i n e   t r a d i n g   s t r a t e g i e s   b a s e d   o n   h i s t o r i c a l   p e r f o r m a n c e .  
+         A r g s :  
+                 s t r a t e g y _ d a t a :   J S O N   s t r i n g   o f   s t r a t e g y   p a r a m e t e r s   a n d   r u l e s  
+                 h i s t o r i c a l _ p e r f o r m a n c e :   J S O N   s t r i n g   o f   h i s t o r i c a l   b a c k t e s t   r e s u l t s  
+         R e t u r n s :  
+                 D i c t   w i t h   r e f i n e d   s t r a t e g y   p a r a m e t e r s   a n d   p e r f o r m a n c e   p r o j e c t i o n s  
+         " " "  
+         t r y :  
+                 i m p o r t   j s o n  
+                 i m p o r t   n u m p y   a s   n p  
+  
+                 s t r a t e g y   =   j s o n . l o a d s ( s t r a t e g y _ d a t a )  
+                 p e r f o r m a n c e   =   j s o n . l o a d s ( h i s t o r i c a l _ p e r f o r m a n c e )  
+  
+                 #   E x t r a c t   p e r f o r m a n c e   m e t r i c s  
+                 r e t u r n s   =   p e r f o r m a n c e . g e t ( ' r e t u r n s ' ,   [ ] )  
+                 s h a r p e _ r a t i o   =   p e r f o r m a n c e . g e t ( ' s h a r p e _ r a t i o ' ,   0 )  
+                 m a x _ d r a w d o w n   =   p e r f o r m a n c e . g e t ( ' m a x _ d r a w d o w n ' ,   0 )  
+                 w i n _ r a t e   =   p e r f o r m a n c e . g e t ( ' w i n _ r a t e ' ,   0 . 5 )  
+  
+                 #   M L - b a s e d   r e f i n e m e n t s  
+                 r e f i n e m e n t s   =   { }  
+  
+                 #   S h a r p e   r a t i o   o p t i m i z a t i o n  
+                 i f   s h a r p e _ r a t i o   <   1 . 0 :  
+                         r e f i n e m e n t s [ ' r i s k _ m a n a g e m e n t ' ]   =   {  
+                                 ' a c t i o n ' :   ' i n c r e a s e _ s t o p _ l o s s ' ,  
+                                 ' s u g g e s t e d _ l e v e l ' :   0 . 0 5   +   ( 1 . 0   -   s h a r p e _ r a t i o )   *   0 . 0 5 ,  
+                                 ' e x p e c t e d _ i m p r o v e m e n t ' :   m i n ( ( 1 . 0   -   s h a r p e _ r a t i o )   *   0 . 3 ,   0 . 5 )  
+                         }  
+  
+                 #   D r a w d o w n   c o n t r o l  
+                 i f   m a x _ d r a w d o w n   >   0 . 1 5 :  
+                         r e f i n e m e n t s [ ' p o s i t i o n _ s i z i n g ' ]   =   {  
+                                 ' a c t i o n ' :   ' r e d u c e _ m a x _ p o s i t i o n ' ,  
+                                 ' s u g g e s t e d _ m a x ' :   0 . 1 5   /   m a x _ d r a w d o w n ,  
+                                 ' e x p e c t e d _ i m p r o v e m e n t ' :   m i n ( m a x _ d r a w d o w n   *   0 . 4 ,   0 . 6 )  
+                         }  
+  
+                 #   W i n   r a t e   o p t i m i z a t i o n  
+                 i f   w i n _ r a t e   <   0 . 5 5 :  
+                         r e f i n e m e n t s [ ' e n t r y _ t i m i n g ' ]   =   {  
+                                 ' a c t i o n ' :   ' a d d _ c o n f i r m a t i o n _ s i g n a l s ' ,  
+                                 ' s u g g e s t e d _ i n d i c a t o r s ' :   [ ' R S I ' ,   ' M A C D ' ,   ' v o l u m e _ p r o f i l e ' ] ,  
+                                 ' e x p e c t e d _ i m p r o v e m e n t ' :   m i n ( ( 0 . 5 5   -   w i n _ r a t e )   *   2 ,   0 . 3 )  
+                         }  
+  
+                 #   C a l c u l a t e   o v e r a l l   r e f i n e m e n t   s c o r e  
+                 r e f i n e m e n t _ s c o r e   =   s u m ( r . g e t ( ' e x p e c t e d _ i m p r o v e m e n t ' ,   0 )   f o r   r   i n   r e f i n e m e n t s . v a l u e s ( ) )  
+  
+                 r e t u r n   {  
+                         " o r i g i n a l _ p e r f o r m a n c e " :   {  
+                                 " s h a r p e _ r a t i o " :   s h a r p e _ r a t i o ,  
+                                 " m a x _ d r a w d o w n " :   m a x _ d r a w d o w n ,  
+                                 " w i n _ r a t e " :   w i n _ r a t e  
+                         } ,  
+                         " r e f i n e m e n t s " :   r e f i n e m e n t s ,  
+                         " r e f i n e m e n t _ s c o r e " :   r e f i n e m e n t _ s c o r e ,  
+                         " p r o j e c t e d _ i m p r o v e m e n t " :   {  
+                                 " s h a r p e _ r a t i o " :   s h a r p e _ r a t i o   *   ( 1   +   r e f i n e m e n t _ s c o r e   *   0 . 5 ) ,  
+                                 " m a x _ d r a w d o w n " :   m a x _ d r a w d o w n   *   ( 1   -   r e f i n e m e n t _ s c o r e   *   0 . 3 ) ,  
+                                 " w i n _ r a t e " :   w i n _ r a t e   +   r e f i n e m e n t _ s c o r e   *   0 . 2  
+                         } ,  
+                         " i m p l e m e n t a t i o n _ p r i o r i t y " :   " h i g h "   i f   r e f i n e m e n t _ s c o r e   >   0 . 4   e l s e   " m e d i u m "   i f   r e f i n e m e n t _ s c o r e   >   0 . 2   e l s e   " l o w "  
+                 }  
+  
+         e x c e p t   E x c e p t i o n   a s   e :  
+                 r e t u r n   { " e r r o r " :   f " Q l i b   M L   r e f i n e m e n t   f a i l e d :   { s t r ( e ) } " }  
+ 

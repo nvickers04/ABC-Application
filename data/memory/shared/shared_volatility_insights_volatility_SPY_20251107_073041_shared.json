@@ -1,0 +1,14 @@
+{
+  "namespace": "shared:volatility_insights:volatility_SPY_20251107_073041",
+  "safe_namespace": "shared_volatility_insights_volatility_SPY_20251107_073041",
+  "timestamp": "2025-11-07T07:30:41.559776",
+  "version": "1.0",
+  "data": {
+    "symbol": "SPY",
+    "implied_volatility": 0.0,
+    "historical_volatility": 0.0,
+    "volatility_skew": 0.0,
+    "source_agent": "options_strategy_sub",
+    "timestamp": "2025-11-07T07:30:41.558046"
+  }
+}

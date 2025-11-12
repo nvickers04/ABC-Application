@@ -1,0 +1,1817 @@
+{
+  "agent_role": "reflection",
+  "timestamp": "2025-11-06T08:29:07.732719",
+  "version": "1.0",
+  "data": {
+    "audit_history": [
+      {
+        "timestamp": "2025-11-04T15:23:28.286069",
+        "type": "execution_review",
+        "outcome": {
+          "p&l": 1.5
+        },
+        "analysis": {
+          "sharpe_ratio": 1.5362301837204897,
+          "max_drawdown": 0.24249785301489496,
+          "bonus_awarded": true,
+          "bonus_amount": 15,
+          "bonus_rationale": "LLM Comprehensive Analysis Awarded: **Recommendation: AWARD**\n\n**Rationale for Decision:**\n\n1. **Performance Quality Relative to Risk-Adjusted Metrics (Sharpe, Drawdown):**\n   - The Sharpe Ratio of 1.536 indicates a strong risk-adjusted...",
+          "insights": [
+            "Strong performance on UNKNOWN: +1.5%",
+            "Good risk-adjusted returns (Sharpe: 1.54)",
+            "Bonus awarded for strong estimate accuracy"
+          ],
+          "adjustments": {},
+          "recommendations": [
+            "Consider scaling up position sizes for similar setups",
+            "Implement stricter stop-loss rules to limit drawdowns"
+          ],
+          "audit_logged": true,
+          "rationale": "Reviewed UNKNOWN outcome: 1.50% P&L, Sharpe 1.54, bonus awarded"
+        }
+      },
+      {
+        "timestamp": "2025-11-05T07:43:21.187459",
+        "type": "execution_result",
+        "result": {
+          "executed": false,
+          "symbol": "SPY",
+          "reason": "market_closed",
+          "market_status": {
+            "market_open": false,
+            "current_time": "2025-11-05T13:43:21.166546+00:00",
+            "next_open": "2025-11-05T14:30:00+00:00",
+            "next_close": "2025-11-05T21:00:00+00:00",
+            "timezone": "UTC"
+          },
+          "roi_estimate": 0.25,
+          "rationale": "Market is closed - cannot execute orders"
+        },
+        "analysis": {
+          "execution_processed": true,
+          "symbol": "SPY",
+          "executed": false,
+          "reason": "market_closed",
+          "roi_estimate": 0.25,
+          "pattern_analysis": {
+            "pattern": "insufficient_history",
+            "execution_rate": 0.0,
+            "common_reasons": [
+              "market_closed"
+            ]
+          },
+          "insights": [
+            "Trade not executed for SPY: market_closed",
+            "Market timing issue - review execution scheduling",
+            "Low execution rate (0.0%) for SPY - review strategy parameters"
+          ],
+          "recommendations": [
+            "Adjust execution timing to align with market hours",
+            "Consider modifying strategy parameters to improve execution rate"
+          ],
+          "bonus_analysis": {
+            "bonus_awarded": false,
+            "reason": "No execution occurred",
+            "amount": 0
+          },
+          "rationale": "Processed execution result for SPY: Not executed (market_closed)"
+        }
+      },
+      {
+        "timestamp": "2025-11-05T07:48:24.865393",
+        "type": "execution_result",
+        "result": {
+          "executed": false,
+          "symbol": "SPY",
+          "reason": "market_closed",
+          "market_status": {
+            "market_open": false,
+            "current_time": "2025-11-05T13:48:24.833160+00:00",
+            "next_open": "2025-11-05T14:30:00+00:00",
+            "next_close": "2025-11-05T21:00:00+00:00",
+            "timezone": "UTC"
+          },
+          "roi_estimate": 0.25,
+          "rationale": "Market is closed - cannot execute orders"
+        },
+        "analysis": {
+          "execution_processed": true,
+          "symbol": "SPY",
+          "executed": false,
+          "reason": "market_closed",
+          "roi_estimate": 0.25,
+          "pattern_analysis": {
+            "pattern": "very_low_execution_rate",
+            "execution_rate": 0.0,
+            "common_reasons": [
+              "market_closed"
+            ],
+            "timing_patterns": {
+              "pattern": "insufficient_data"
+            },
+            "sample_size": 2
+          },
+          "insights": [
+            "Trade not executed for SPY: market_closed",
+            "Market timing issue - review execution scheduling",
+            "Low execution rate (0.0%) for SPY - review strategy parameters"
+          ],
+          "recommendations": [
+            "Adjust execution timing to align with market hours",
+            "Consider modifying strategy parameters to improve execution rate"
+          ],
+          "bonus_analysis": {
+            "bonus_awarded": false,
+            "reason": "No execution occurred",
+            "amount": 0
+          },
+          "rationale": "Processed execution result for SPY: Not executed (market_closed)"
+        }
+      },
+      {
+        "timestamp": "2025-11-05T07:56:47.570088",
+        "type": "execution_result",
+        "result": {
+          "executed": false,
+          "symbol": "SPY",
+          "reason": "market_closed",
+          "market_status": {
+            "market_open": false,
+            "current_time": "2025-11-05T13:56:47.531734+00:00",
+            "next_open": "2025-11-05T14:30:00+00:00",
+            "next_close": "2025-11-05T21:00:00+00:00",
+            "timezone": "UTC"
+          },
+          "roi_estimate": 0.25,
+          "rationale": "Market is closed - cannot execute orders"
+        },
+        "analysis": {
+          "execution_processed": true,
+          "symbol": "SPY",
+          "executed": false,
+          "reason": "market_closed",
+          "roi_estimate": 0.25,
+          "pattern_analysis": {
+            "pattern": "very_low_execution_rate",
+            "execution_rate": 0.0,
+            "common_reasons": [
+              "market_closed"
+            ],
+            "timing_patterns": {
+              "pattern": "weekday_focused",
+              "market_hours_rate": 0.0,
+              "weekday_rate": 1.0
+            },
+            "sample_size": 3
+          },
+          "insights": [
+            "Trade not executed for SPY: market_closed",
+            "Market timing issue - review execution scheduling",
+            "Low execution rate (0.0%) for SPY - review strategy parameters"
+          ],
+          "recommendations": [
+            "Adjust execution timing to align with market hours",
+            "Consider modifying strategy parameters to improve execution rate"
+          ],
+          "bonus_analysis": {
+            "bonus_awarded": false,
+            "reason": "No execution occurred",
+            "amount": 0
+          },
+          "rationale": "Processed execution result for SPY: Not executed (market_closed)"
+        }
+      },
+      {
+        "timestamp": "2025-11-05T08:02:39.342974",
+        "type": "execution_result",
+        "result": {
+          "executed": false,
+          "symbol": "SPY",
+          "reason": "market_closed",
+          "market_status": {
+            "market_open": false,
+            "current_time": "2025-11-05T14:02:39.305342+00:00",
+            "next_open": "2025-11-05T14:30:00+00:00",
+            "next_close": "2025-11-05T21:00:00+00:00",
+            "timezone": "UTC"
+          },
+          "roi_estimate": 0.25,
+          "rationale": "Market is closed - cannot execute orders"
+        },
+        "analysis": {
+          "execution_processed": true,
+          "symbol": "SPY",
+          "executed": false,
+          "reason": "market_closed",
+          "roi_estimate": 0.25,
+          "pattern_analysis": {
+            "pattern": "very_low_execution_rate",
+            "execution_rate": 0.0,
+            "common_reasons": [
+              "market_closed"
+            ],
+            "timing_patterns": {
+              "pattern": "weekday_focused",
+              "market_hours_rate": 0.0,
+              "weekday_rate": 1.0
+            },
+            "sample_size": 4
+          },
+          "insights": [
+            "Trade not executed for SPY: market_closed",
+            "Market timing issue - review execution scheduling",
+            "Low execution rate (0.0%) for SPY - review strategy parameters"
+          ],
+          "recommendations": [
+            "Adjust execution timing to align with market hours",
+            "Consider modifying strategy parameters to improve execution rate"
+          ],
+          "bonus_analysis": {
+            "bonus_awarded": false,
+            "reason": "No execution occurred",
+            "amount": 0
+          },
+          "rationale": "Processed execution result for SPY: Not executed (market_closed)"
+        }
+      },
+      {
+        "timestamp": "2025-11-05T08:06:55.191040",
+        "type": "execution_result",
+        "result": {
+          "executed": false,
+          "symbol": "SPY",
+          "reason": "market_closed",
+          "market_status": {
+            "market_open": false,
+            "current_time": "2025-11-05T14:06:55.166034+00:00",
+            "next_open": "2025-11-05T14:30:00+00:00",
+            "next_close": "2025-11-05T21:00:00+00:00",
+            "timezone": "UTC"
+          },
+          "roi_estimate": 0.25,
+          "rationale": "Market is closed - cannot execute orders"
+        },
+        "analysis": {
+          "execution_processed": true,
+          "symbol": "SPY",
+          "executed": false,
+          "reason": "market_closed",
+          "roi_estimate": 0.25,
+          "pattern_analysis": {
+            "pattern": "very_low_execution_rate",
+            "execution_rate": 0.0,
+            "common_reasons": [
+              "market_closed"
+            ],
+            "timing_patterns": {
+              "pattern": "weekday_focused",
+              "market_hours_rate": 0.0,
+              "weekday_rate": 1.0
+            },
+            "sample_size": 5
+          },
+          "insights": [
+            "Trade not executed for SPY: market_closed",
+            "Market timing issue - review execution scheduling",
+            "Low execution rate (0.0%) for SPY - review strategy parameters"
+          ],
+          "recommendations": [
+            "Adjust execution timing to align with market hours",
+            "Consider modifying strategy parameters to improve execution rate"
+          ],
+          "bonus_analysis": {
+            "bonus_awarded": false,
+            "reason": "No execution occurred",
+            "amount": 0
+          },
+          "rationale": "Processed execution result for SPY: Not executed (market_closed)"
+        }
+      },
+      {
+        "timestamp": "2025-11-05T08:12:37.460394",
+        "type": "execution_result",
+        "result": {
+          "executed": false,
+          "symbol": "SPY",
+          "reason": "market_closed",
+          "market_status": {
+            "market_open": false,
+            "current_time": "2025-11-05T14:12:37.435501+00:00",
+            "next_open": "2025-11-05T14:30:00+00:00",
+            "next_close": "2025-11-05T21:00:00+00:00",
+            "timezone": "UTC"
+          },
+          "roi_estimate": 0.25,
+          "rationale": "Market is closed - cannot execute orders"
+        },
+        "analysis": {
+          "execution_processed": true,
+          "symbol": "SPY",
+          "executed": false,
+          "reason": "market_closed",
+          "roi_estimate": 0.25,
+          "pattern_analysis": {
+            "pattern": "very_low_execution_rate",
+            "execution_rate": 0.0,
+            "common_reasons": [
+              "market_closed"
+            ],
+            "timing_patterns": {
+              "pattern": "weekday_focused",
+              "market_hours_rate": 0.0,
+              "weekday_rate": 1.0
+            },
+            "sample_size": 6
+          },
+          "insights": [
+            "Trade not executed for SPY: market_closed",
+            "Market timing issue - review execution scheduling",
+            "Low execution rate (0.0%) for SPY - review strategy parameters"
+          ],
+          "recommendations": [
+            "Adjust execution timing to align with market hours",
+            "Consider modifying strategy parameters to improve execution rate"
+          ],
+          "bonus_analysis": {
+            "bonus_awarded": false,
+            "reason": "No execution occurred",
+            "amount": 0
+          },
+          "rationale": "Processed execution result for SPY: Not executed (market_closed)"
+        }
+      },
+      {
+        "timestamp": "2025-11-05T08:17:08.368899",
+        "type": "execution_result",
+        "result": {
+          "executed": false,
+          "symbol": "SPY",
+          "reason": "market_closed",
+          "market_status": {
+            "market_open": false,
+            "current_time": "2025-11-05T14:17:08.336091+00:00",
+            "next_open": "2025-11-05T14:30:00+00:00",
+            "next_close": "2025-11-05T21:00:00+00:00",
+            "timezone": "UTC"
+          },
+          "roi_estimate": 0.25,
+          "rationale": "Market is closed - cannot execute orders"
+        },
+        "analysis": {
+          "execution_processed": true,
+          "symbol": "SPY",
+          "executed": false,
+          "reason": "market_closed",
+          "roi_estimate": 0.25,
+          "pattern_analysis": {
+            "pattern": "very_low_execution_rate",
+            "execution_rate": 0.0,
+            "common_reasons": [
+              "market_closed"
+            ],
+            "timing_patterns": {
+              "pattern": "weekday_focused",
+              "market_hours_rate": 0.0,
+              "weekday_rate": 1.0
+            },
+            "sample_size": 7
+          },
+          "insights": [
+            "Trade not executed for SPY: market_closed",
+            "Market timing issue - review execution scheduling",
+            "Low execution rate (0.0%) for SPY - review strategy parameters"
+          ],
+          "recommendations": [
+            "Adjust execution timing to align with market hours",
+            "Consider modifying strategy parameters to improve execution rate"
+          ],
+          "bonus_analysis": {
+            "bonus_awarded": false,
+            "reason": "No execution occurred",
+            "amount": 0
+          },
+          "rationale": "Processed execution result for SPY: Not executed (market_closed)"
+        }
+      },
+      {
+        "timestamp": "2025-11-05T12:08:15.192810",
+        "type": "execution_result",
+        "result": {
+          "executed": false,
+          "symbol": "PL=F",
+          "reason": "llm_comprehensive_analysis",
+          "roi_estimate": 0.25,
+          "usd_floor": 0.1,
+          "rationale": "LLM Comprehensive Analysis No-Trade: ### Reasoning and Recommendation for Execution Decision\n\nAs the Execution Agent, I will evaluate the trading proposal for PL=F with a quantity of 100, based on the provided foundation execution analys..."
+        },
+        "analysis": {
+          "execution_processed": true,
+          "symbol": "PL=F",
+          "executed": false,
+          "reason": "llm_comprehensive_analysis",
+          "roi_estimate": 0.25,
+          "pattern_analysis": {
+            "pattern": "insufficient_history",
+            "execution_rate": 0.0,
+            "common_reasons": [
+              "llm_comprehensive_analysis"
+            ]
+          },
+          "insights": [
+            "Trade not executed for PL=F: llm_comprehensive_analysis",
+            "Low execution rate (0.0%) for PL=F - review strategy parameters"
+          ],
+          "recommendations": [
+            "Consider modifying strategy parameters to improve execution rate"
+          ],
+          "bonus_analysis": {
+            "bonus_awarded": false,
+            "reason": "No execution occurred",
+            "amount": 0
+          },
+          "rationale": "Processed execution result for PL=F: Not executed (llm_comprehensive_analysis)"
+        }
+      },
+      {
+        "timestamp": "2025-11-05T12:18:00.974864",
+        "type": "execution_result",
+        "result": {
+          "executed": false,
+          "symbol": "PL=F",
+          "reason": "llm_comprehensive_analysis",
+          "roi_estimate": 0.25,
+          "usd_floor": 0.1,
+          "rationale": "LLM Comprehensive Analysis No-Trade: ### Reasoning and Recommendation for Execution Decision\n\nAs the Execution Agent, I will follow a hybrid approach combining foundation execution analysis with LLM reasoning to evaluate the trading prop..."
+        },
+        "analysis": {
+          "execution_processed": true,
+          "symbol": "PL=F",
+          "executed": false,
+          "reason": "llm_comprehensive_analysis",
+          "roi_estimate": 0.25,
+          "pattern_analysis": {
+            "pattern": "very_low_execution_rate",
+            "execution_rate": 0.0,
+            "common_reasons": [
+              "llm_comprehensive_analysis"
+            ],
+            "timing_patterns": {
+              "pattern": "insufficient_data"
+            },
+            "sample_size": 2
+          },
+          "insights": [
+            "Trade not executed for PL=F: llm_comprehensive_analysis",
+            "Low execution rate (0.0%) for PL=F - review strategy parameters"
+          ],
+          "recommendations": [
+            "Consider modifying strategy parameters to improve execution rate"
+          ],
+          "bonus_analysis": {
+            "bonus_awarded": false,
+            "reason": "No execution occurred",
+            "amount": 0
+          },
+          "rationale": "Processed execution result for PL=F: Not executed (llm_comprehensive_analysis)"
+        }
+      },
+      {
+        "timestamp": "2025-11-05T13:51:51.139641",
+        "type": "execution_result",
+        "result": {
+          "executed": false,
+          "symbol": "XLK",
+          "reason": "llm_comprehensive_analysis",
+          "roi_estimate": 0.15,
+          "usd_floor": 0.1,
+          "rationale": "LLM Comprehensive Analysis No-Trade: ### Reasoning and Recommendation for Execution Decision\n\n**Role**: Execution Agent  \n**Approach**: Hybrid Analysis (Foundation Execution Metrics + LLM Reasoning for Nuanced Decision-Making)\n\n---\n\n####..."
+        },
+        "analysis": {
+          "execution_processed": true,
+          "symbol": "XLK",
+          "executed": false,
+          "reason": "llm_comprehensive_analysis",
+          "roi_estimate": 0.15,
+          "pattern_analysis": {
+            "pattern": "insufficient_history",
+            "execution_rate": 0.0,
+            "common_reasons": [
+              "llm_comprehensive_analysis"
+            ]
+          },
+          "insights": [
+            "Trade not executed for XLK: llm_comprehensive_analysis",
+            "Low execution rate (0.0%) for XLK - review strategy parameters"
+          ],
+          "recommendations": [
+            "Consider modifying strategy parameters to improve execution rate"
+          ],
+          "bonus_analysis": {
+            "bonus_awarded": false,
+            "reason": "No execution occurred",
+            "amount": 0
+          },
+          "rationale": "Processed execution result for XLK: Not executed (llm_comprehensive_analysis)"
+        }
+      },
+      {
+        "timestamp": "2025-11-05T20:36:20.257955",
+        "type": "execution_result",
+        "result": {
+          "executed": false,
+          "symbol": "PL=F",
+          "reason": "market_closed",
+          "market_status": {
+            "market_open": false,
+            "current_time": "2025-11-06T02:36:20.214534+00:00",
+            "next_open": "2025-11-06T14:30:00+00:00",
+            "next_close": "2025-11-06T21:00:00+00:00",
+            "timezone": "UTC"
+          },
+          "roi_estimate": 0.25,
+          "rationale": "Market is closed - cannot execute orders"
+        },
+        "analysis": {
+          "execution_processed": true,
+          "symbol": "PL=F",
+          "executed": false,
+          "reason": "market_closed",
+          "roi_estimate": 0.25,
+          "pattern_analysis": {
+            "pattern": "very_low_execution_rate",
+            "execution_rate": 0.0,
+            "common_reasons": [
+              "llm_comprehensive_analysis",
+              "market_closed"
+            ],
+            "timing_patterns": {
+              "pattern": "weekday_focused",
+              "market_hours_rate": 0.6666666666666666,
+              "weekday_rate": 1.0
+            },
+            "sample_size": 3
+          },
+          "insights": [
+            "Trade not executed for PL=F: market_closed",
+            "Market timing issue - review execution scheduling",
+            "Low execution rate (0.0%) for PL=F - review strategy parameters"
+          ],
+          "recommendations": [
+            "Adjust execution timing to align with market hours",
+            "Consider modifying strategy parameters to improve execution rate"
+          ],
+          "bonus_analysis": {
+            "bonus_awarded": false,
+            "reason": "No execution occurred",
+            "amount": 0
+          },
+          "rationale": "Processed execution result for PL=F: Not executed (market_closed)"
+        }
+      },
+      {
+        "timestamp": "2025-11-05T20:36:20.285262",
+        "type": "execution_result",
+        "result": {
+          "executed": false,
+          "symbol": "PL=F",
+          "reason": "market_closed",
+          "market_status": {
+            "market_open": false,
+            "current_time": "2025-11-06T02:36:20.214534+00:00",
+            "next_open": "2025-11-06T14:30:00+00:00",
+            "next_close": "2025-11-06T21:00:00+00:00",
+            "timezone": "UTC"
+          },
+          "roi_estimate": 0.25,
+          "rationale": "Market is closed - cannot execute orders"
+        },
+        "analysis": {
+          "execution_processed": true,
+          "symbol": "PL=F",
+          "executed": false,
+          "reason": "market_closed",
+          "roi_estimate": 0.25,
+          "pattern_analysis": {
+            "pattern": "very_low_execution_rate",
+            "execution_rate": 0.0,
+            "common_reasons": [
+              "llm_comprehensive_analysis",
+              "market_closed"
+            ],
+            "timing_patterns": {
+              "pattern": "weekday_focused",
+              "market_hours_rate": 0.5,
+              "weekday_rate": 1.0
+            },
+            "sample_size": 4
+          },
+          "insights": [
+            "Trade not executed for PL=F: market_closed",
+            "Market timing issue - review execution scheduling",
+            "Low execution rate (0.0%) for PL=F - review strategy parameters"
+          ],
+          "recommendations": [
+            "Adjust execution timing to align with market hours",
+            "Consider modifying strategy parameters to improve execution rate"
+          ],
+          "bonus_analysis": {
+            "bonus_awarded": false,
+            "reason": "No execution occurred",
+            "amount": 0
+          },
+          "rationale": "Processed execution result for PL=F: Not executed (market_closed)"
+        }
+      },
+      {
+        "timestamp": "2025-11-06T06:54:36.701277",
+        "type": "execution_result",
+        "result": {
+          "executed": false,
+          "symbol": "PL=F",
+          "reason": "market_closed",
+          "market_status": {
+            "market_open": false,
+            "current_time": "2025-11-06T12:54:36.668652+00:00",
+            "next_open": "2025-11-06T14:30:00+00:00",
+            "next_close": "2025-11-06T21:00:00+00:00",
+            "timezone": "UTC"
+          },
+          "roi_estimate": 0.25,
+          "rationale": "Market is closed - cannot execute orders"
+        },
+        "analysis": {
+          "execution_processed": true,
+          "symbol": "PL=F",
+          "executed": false,
+          "reason": "market_closed",
+          "roi_estimate": 0.25,
+          "pattern_analysis": {
+            "pattern": "very_low_execution_rate",
+            "execution_rate": 0.0,
+            "common_reasons": [
+              "market_closed",
+              "llm_comprehensive_analysis"
+            ],
+            "timing_patterns": {
+              "pattern": "weekday_focused",
+              "market_hours_rate": 0.4,
+              "weekday_rate": 1.0
+            },
+            "sample_size": 5
+          },
+          "insights": [
+            "Trade not executed for PL=F: market_closed",
+            "Market timing issue - review execution scheduling",
+            "Low execution rate (0.0%) for PL=F - review strategy parameters"
+          ],
+          "recommendations": [
+            "Adjust execution timing to align with market hours",
+            "Consider modifying strategy parameters to improve execution rate"
+          ],
+          "bonus_analysis": {
+            "bonus_awarded": false,
+            "reason": "No execution occurred",
+            "amount": 0
+          },
+          "rationale": "Processed execution result for PL=F: Not executed (market_closed)"
+        }
+      },
+      {
+        "timestamp": "2025-11-06T06:54:36.722926",
+        "type": "execution_result",
+        "result": {
+          "executed": false,
+          "symbol": "PL=F",
+          "reason": "market_closed",
+          "market_status": {
+            "market_open": false,
+            "current_time": "2025-11-06T12:54:36.668652+00:00",
+            "next_open": "2025-11-06T14:30:00+00:00",
+            "next_close": "2025-11-06T21:00:00+00:00",
+            "timezone": "UTC"
+          },
+          "roi_estimate": 0.25,
+          "rationale": "Market is closed - cannot execute orders"
+        },
+        "analysis": {
+          "execution_processed": true,
+          "symbol": "PL=F",
+          "executed": false,
+          "reason": "market_closed",
+          "roi_estimate": 0.25,
+          "pattern_analysis": {
+            "pattern": "very_low_execution_rate",
+            "execution_rate": 0.0,
+            "common_reasons": [
+              "market_closed",
+              "llm_comprehensive_analysis"
+            ],
+            "timing_patterns": {
+              "pattern": "weekday_focused",
+              "market_hours_rate": 0.3333333333333333,
+              "weekday_rate": 1.0
+            },
+            "sample_size": 6
+          },
+          "insights": [
+            "Trade not executed for PL=F: market_closed",
+            "Market timing issue - review execution scheduling",
+            "Low execution rate (0.0%) for PL=F - review strategy parameters"
+          ],
+          "recommendations": [
+            "Adjust execution timing to align with market hours",
+            "Consider modifying strategy parameters to improve execution rate"
+          ],
+          "bonus_analysis": {
+            "bonus_awarded": false,
+            "reason": "No execution occurred",
+            "amount": 0
+          },
+          "rationale": "Processed execution result for PL=F: Not executed (market_closed)"
+        }
+      },
+      {
+        "timestamp": "2025-11-06T07:02:22.256775",
+        "type": "execution_result",
+        "result": {
+          "executed": false,
+          "symbol": "PL=F",
+          "reason": "market_closed",
+          "market_status": {
+            "market_open": false,
+            "current_time": "2025-11-06T13:02:22.236679+00:00",
+            "next_open": "2025-11-06T14:30:00+00:00",
+            "next_close": "2025-11-06T21:00:00+00:00",
+            "timezone": "UTC"
+          },
+          "roi_estimate": 0.15,
+          "rationale": "Market is closed - cannot execute orders"
+        },
+        "analysis": {
+          "execution_processed": true,
+          "symbol": "PL=F",
+          "executed": false,
+          "reason": "market_closed",
+          "roi_estimate": 0.15,
+          "pattern_analysis": {
+            "pattern": "very_low_execution_rate",
+            "execution_rate": 0.0,
+            "common_reasons": [
+              "market_closed",
+              "llm_comprehensive_analysis"
+            ],
+            "timing_patterns": {
+              "pattern": "weekday_focused",
+              "market_hours_rate": 0.2857142857142857,
+              "weekday_rate": 1.0
+            },
+            "sample_size": 7
+          },
+          "insights": [
+            "Trade not executed for PL=F: market_closed",
+            "Market timing issue - review execution scheduling",
+            "Low execution rate (0.0%) for PL=F - review strategy parameters"
+          ],
+          "recommendations": [
+            "Adjust execution timing to align with market hours",
+            "Consider modifying strategy parameters to improve execution rate"
+          ],
+          "bonus_analysis": {
+            "bonus_awarded": false,
+            "reason": "No execution occurred",
+            "amount": 0
+          },
+          "rationale": "Processed execution result for PL=F: Not executed (market_closed)"
+        }
+      },
+      {
+        "timestamp": "2025-11-06T07:02:22.278848",
+        "type": "execution_result",
+        "result": {
+          "executed": false,
+          "symbol": "PL=F",
+          "reason": "market_closed",
+          "market_status": {
+            "market_open": false,
+            "current_time": "2025-11-06T13:02:22.236679+00:00",
+            "next_open": "2025-11-06T14:30:00+00:00",
+            "next_close": "2025-11-06T21:00:00+00:00",
+            "timezone": "UTC"
+          },
+          "roi_estimate": 0.15,
+          "rationale": "Market is closed - cannot execute orders"
+        },
+        "analysis": {
+          "execution_processed": true,
+          "symbol": "PL=F",
+          "executed": false,
+          "reason": "market_closed",
+          "roi_estimate": 0.15,
+          "pattern_analysis": {
+            "pattern": "very_low_execution_rate",
+            "execution_rate": 0.0,
+            "common_reasons": [
+              "market_closed",
+              "llm_comprehensive_analysis"
+            ],
+            "timing_patterns": {
+              "pattern": "weekday_focused",
+              "market_hours_rate": 0.25,
+              "weekday_rate": 1.0
+            },
+            "sample_size": 8
+          },
+          "insights": [
+            "Trade not executed for PL=F: market_closed",
+            "Market timing issue - review execution scheduling",
+            "Low execution rate (0.0%) for PL=F - review strategy parameters"
+          ],
+          "recommendations": [
+            "Adjust execution timing to align with market hours",
+            "Consider modifying strategy parameters to improve execution rate"
+          ],
+          "bonus_analysis": {
+            "bonus_awarded": false,
+            "reason": "No execution occurred",
+            "amount": 0
+          },
+          "rationale": "Processed execution result for PL=F: Not executed (market_closed)"
+        }
+      },
+      {
+        "timestamp": "2025-11-06T07:09:30.275239",
+        "type": "execution_result",
+        "result": {
+          "executed": false,
+          "symbol": "PL=F",
+          "reason": "market_closed",
+          "market_status": {
+            "market_open": false,
+            "current_time": "2025-11-06T13:09:30.257347+00:00",
+            "next_open": "2025-11-06T14:30:00+00:00",
+            "next_close": "2025-11-06T21:00:00+00:00",
+            "timezone": "UTC"
+          },
+          "roi_estimate": 0.25,
+          "rationale": "Market is closed - cannot execute orders"
+        },
+        "analysis": {
+          "execution_processed": true,
+          "symbol": "PL=F",
+          "executed": false,
+          "reason": "market_closed",
+          "roi_estimate": 0.25,
+          "pattern_analysis": {
+            "pattern": "very_low_execution_rate",
+            "execution_rate": 0.0,
+            "common_reasons": [
+              "market_closed",
+              "llm_comprehensive_analysis"
+            ],
+            "timing_patterns": {
+              "pattern": "weekday_focused",
+              "market_hours_rate": 0.2222222222222222,
+              "weekday_rate": 1.0
+            },
+            "sample_size": 9
+          },
+          "insights": [
+            "Trade not executed for PL=F: market_closed",
+            "Market timing issue - review execution scheduling",
+            "Low execution rate (0.0%) for PL=F - review strategy parameters"
+          ],
+          "recommendations": [
+            "Adjust execution timing to align with market hours",
+            "Consider modifying strategy parameters to improve execution rate"
+          ],
+          "bonus_analysis": {
+            "bonus_awarded": false,
+            "reason": "No execution occurred",
+            "amount": 0
+          },
+          "rationale": "Processed execution result for PL=F: Not executed (market_closed)"
+        }
+      },
+      {
+        "timestamp": "2025-11-06T07:09:30.302604",
+        "type": "execution_result",
+        "result": {
+          "executed": false,
+          "symbol": "PL=F",
+          "reason": "market_closed",
+          "market_status": {
+            "market_open": false,
+            "current_time": "2025-11-06T13:09:30.257347+00:00",
+            "next_open": "2025-11-06T14:30:00+00:00",
+            "next_close": "2025-11-06T21:00:00+00:00",
+            "timezone": "UTC"
+          },
+          "roi_estimate": 0.25,
+          "rationale": "Market is closed - cannot execute orders"
+        },
+        "analysis": {
+          "execution_processed": true,
+          "symbol": "PL=F",
+          "executed": false,
+          "reason": "market_closed",
+          "roi_estimate": 0.25,
+          "pattern_analysis": {
+            "pattern": "very_low_execution_rate",
+            "execution_rate": 0.0,
+            "common_reasons": [
+              "market_closed",
+              "llm_comprehensive_analysis"
+            ],
+            "timing_patterns": {
+              "pattern": "weekday_focused",
+              "market_hours_rate": 0.2,
+              "weekday_rate": 1.0
+            },
+            "sample_size": 10
+          },
+          "insights": [
+            "Trade not executed for PL=F: market_closed",
+            "Market timing issue - review execution scheduling",
+            "Low execution rate (0.0%) for PL=F - review strategy parameters"
+          ],
+          "recommendations": [
+            "Adjust execution timing to align with market hours",
+            "Consider modifying strategy parameters to improve execution rate"
+          ],
+          "bonus_analysis": {
+            "bonus_awarded": false,
+            "reason": "No execution occurred",
+            "amount": 0
+          },
+          "rationale": "Processed execution result for PL=F: Not executed (market_closed)"
+        }
+      },
+      {
+        "timestamp": "2025-11-06T07:17:25.448899",
+        "type": "execution_result",
+        "result": {
+          "executed": false,
+          "symbol": "PL=F",
+          "reason": "market_closed",
+          "market_status": {
+            "market_open": false,
+            "current_time": "2025-11-06T13:17:25.427960+00:00",
+            "next_open": "2025-11-06T14:30:00+00:00",
+            "next_close": "2025-11-06T21:00:00+00:00",
+            "timezone": "UTC"
+          },
+          "roi_estimate": 0.3,
+          "rationale": "Market is closed - cannot execute orders"
+        },
+        "analysis": {
+          "execution_processed": true,
+          "symbol": "PL=F",
+          "executed": false,
+          "reason": "market_closed",
+          "roi_estimate": 0.3,
+          "pattern_analysis": {
+            "pattern": "very_low_execution_rate",
+            "execution_rate": 0.0,
+            "common_reasons": [
+              "market_closed",
+              "llm_comprehensive_analysis"
+            ],
+            "timing_patterns": {
+              "pattern": "weekday_focused",
+              "market_hours_rate": 0.1,
+              "weekday_rate": 1.0
+            },
+            "sample_size": 10
+          },
+          "insights": [
+            "Trade not executed for PL=F: market_closed",
+            "Market timing issue - review execution scheduling",
+            "Low execution rate (0.0%) for PL=F - review strategy parameters"
+          ],
+          "recommendations": [
+            "Adjust execution timing to align with market hours",
+            "Consider modifying strategy parameters to improve execution rate"
+          ],
+          "bonus_analysis": {
+            "bonus_awarded": false,
+            "reason": "No execution occurred",
+            "amount": 0
+          },
+          "rationale": "Processed execution result for PL=F: Not executed (market_closed)"
+        }
+      },
+      {
+        "timestamp": "2025-11-06T07:17:25.473906",
+        "type": "execution_result",
+        "result": {
+          "executed": false,
+          "symbol": "PL=F",
+          "reason": "market_closed",
+          "market_status": {
+            "market_open": false,
+            "current_time": "2025-11-06T13:17:25.427960+00:00",
+            "next_open": "2025-11-06T14:30:00+00:00",
+            "next_close": "2025-11-06T21:00:00+00:00",
+            "timezone": "UTC"
+          },
+          "roi_estimate": 0.3,
+          "rationale": "Market is closed - cannot execute orders"
+        },
+        "analysis": {
+          "execution_processed": true,
+          "symbol": "PL=F",
+          "executed": false,
+          "reason": "market_closed",
+          "roi_estimate": 0.3,
+          "pattern_analysis": {
+            "pattern": "very_low_execution_rate",
+            "execution_rate": 0.0,
+            "common_reasons": [
+              "market_closed"
+            ],
+            "timing_patterns": {
+              "pattern": "weekday_focused",
+              "market_hours_rate": 0.0,
+              "weekday_rate": 1.0
+            },
+            "sample_size": 10
+          },
+          "insights": [
+            "Trade not executed for PL=F: market_closed",
+            "Market timing issue - review execution scheduling",
+            "Low execution rate (0.0%) for PL=F - review strategy parameters"
+          ],
+          "recommendations": [
+            "Adjust execution timing to align with market hours",
+            "Consider modifying strategy parameters to improve execution rate"
+          ],
+          "bonus_analysis": {
+            "bonus_awarded": false,
+            "reason": "No execution occurred",
+            "amount": 0
+          },
+          "rationale": "Processed execution result for PL=F: Not executed (market_closed)"
+        }
+      },
+      {
+        "timestamp": "2025-11-06T07:37:17.795588",
+        "type": "execution_result",
+        "result": {
+          "executed": false,
+          "symbol": "ETH-USD",
+          "reason": "llm_comprehensive_analysis",
+          "roi_estimate": 0.25,
+          "rationale": "LLM Comprehensive Analysis No-Trade: ### Reasoning and Recommendation for Execution Decision\n\nI have reviewed the foundation execution analysis for the trading proposal on ETH-USD with a quantity of 100 and an ROI estimate of 25.0%. Foll..."
+        },
+        "analysis": {
+          "execution_processed": true,
+          "symbol": "ETH-USD",
+          "executed": false,
+          "reason": "llm_comprehensive_analysis",
+          "roi_estimate": 0.25,
+          "pattern_analysis": {
+            "pattern": "insufficient_history",
+            "execution_rate": 0.0,
+            "common_reasons": [
+              "llm_comprehensive_analysis"
+            ]
+          },
+          "insights": [
+            "Trade not executed for ETH-USD: llm_comprehensive_analysis",
+            "Low execution rate (0.0%) for ETH-USD - review strategy parameters"
+          ],
+          "recommendations": [
+            "Consider modifying strategy parameters to improve execution rate"
+          ],
+          "bonus_analysis": {
+            "bonus_awarded": false,
+            "reason": "No execution occurred",
+            "amount": 0
+          },
+          "rationale": "Processed execution result for ETH-USD: Not executed (llm_comprehensive_analysis)"
+        }
+      },
+      {
+        "timestamp": "2025-11-06T07:46:49.811739",
+        "type": "execution_result",
+        "result": {
+          "executed": false,
+          "symbol": "ETH-USD",
+          "reason": "llm_comprehensive_analysis",
+          "roi_estimate": 0.15,
+          "rationale": "LLM Comprehensive Analysis No-Trade: ### Reasoning and Recommendation for Execution Decision\n\n**Role**: Execution Agent  \n**Approach**: Hybrid Intelligence (Foundation Analysis + LLM Reasoning for Complex Cases)\n\n#### Step-by-Step Reason..."
+        },
+        "analysis": {
+          "execution_processed": true,
+          "symbol": "ETH-USD",
+          "executed": false,
+          "reason": "llm_comprehensive_analysis",
+          "roi_estimate": 0.15,
+          "pattern_analysis": {
+            "pattern": "very_low_execution_rate",
+            "execution_rate": 0.0,
+            "common_reasons": [
+              "llm_comprehensive_analysis"
+            ],
+            "timing_patterns": {
+              "pattern": "insufficient_data"
+            },
+            "sample_size": 2
+          },
+          "insights": [
+            "Trade not executed for ETH-USD: llm_comprehensive_analysis",
+            "Low execution rate (0.0%) for ETH-USD - review strategy parameters"
+          ],
+          "recommendations": [
+            "Consider modifying strategy parameters to improve execution rate"
+          ],
+          "bonus_analysis": {
+            "bonus_awarded": false,
+            "reason": "No execution occurred",
+            "amount": 0
+          },
+          "rationale": "Processed execution result for ETH-USD: Not executed (llm_comprehensive_analysis)"
+        }
+      },
+      {
+        "timestamp": "2025-11-06T08:03:52.691993",
+        "type": "execution_result",
+        "result": {
+          "executed": false,
+          "symbol": "ETH-USD",
+          "reason": "llm_comprehensive_analysis",
+          "roi_estimate": 0.3,
+          "rationale": "LLM Comprehensive Analysis No-Trade: ### Reasoning and Recommendation for Execution Decision\n\n**Role**: Execution Agent in AI Portfolio Manager System  \n**Approach**: Hybrid Intelligence (Foundation Analysis + LLM Reasoning for Complex C..."
+        },
+        "analysis": {
+          "execution_processed": true,
+          "symbol": "ETH-USD",
+          "executed": false,
+          "reason": "llm_comprehensive_analysis",
+          "roi_estimate": 0.3,
+          "pattern_analysis": {
+            "pattern": "very_low_execution_rate",
+            "execution_rate": 0.0,
+            "common_reasons": [
+              "llm_comprehensive_analysis"
+            ],
+            "timing_patterns": {
+              "pattern": "weekday_focused",
+              "market_hours_rate": 0.0,
+              "weekday_rate": 1.0
+            },
+            "sample_size": 3
+          },
+          "insights": [
+            "Trade not executed for ETH-USD: llm_comprehensive_analysis",
+            "Low execution rate (0.0%) for ETH-USD - review strategy parameters"
+          ],
+          "recommendations": [
+            "Consider modifying strategy parameters to improve execution rate"
+          ],
+          "bonus_analysis": {
+            "bonus_awarded": false,
+            "reason": "No execution occurred",
+            "amount": 0
+          },
+          "rationale": "Processed execution result for ETH-USD: Not executed (llm_comprehensive_analysis)"
+        }
+      },
+      {
+        "timestamp": "2025-11-06T08:12:01.050915",
+        "type": "execution_result",
+        "result": {
+          "executed": true,
+          "symbol": "ETH-USD",
+          "quantity": 100,
+          "price": 100.04,
+          "total_value": 10003.73,
+          "commission": 0.0,
+          "roi_estimate": 0.25,
+          "simulated": true,
+          "source": "simulation_fallback",
+          "microstructure_analysis": {
+            "symbol": "ETH-USD",
+            "analysis_type": "comprehensive",
+            "timestamp": "2025-11-06T08:10:23.788984",
+            "analysis": {
+              "slippage_model": {
+                "base_slippage": 0.0005,
+                "multiplier": 1.0,
+                "optimal_slippage": 0.0005,
+                "expected_fill_quality": "excellent"
+              },
+              "market_condition": "challenging"
+            },
+            "execution_recommendations": {
+              "overall": "Market conditions are challenging for execution"
+            }
+          },
+          "advanced_slippage_analysis": {
+            "symbol": "ETH-USD",
+            "quantity": 100,
+            "order_type": "MKT",
+            "market_impact_models": {
+              "almgren_chriss": {
+                "model": "almgren_chriss",
+                "temporary_impact_pct": 0.0007071067811865476,
+                "permanent_impact_pct": 3.620505801927099e-05,
+                "total_impact_pct": 0.0007433118392058186,
+                "participation_rate": 0.0002,
+                "confidence": 0.8
+              },
+              "kyle_lambda": {
+                "model": "kyle_lambda",
+                "lambda_estimate": 2.82842712474619e-05,
+                "expected_impact_pct": 0.00282842712474619,
+                "confidence": 0.5,
+                "method": "fallback_estimation"
+              },
+              "square_root": {
+                "model": "square_root",
+                "impact_coefficient": 1.414213562373095e-05,
+                "expected_impact_pct": 0.00014142135623730948,
+                "participation_rate": 0.0002,
+                "confidence": 0.75
+              },
+              "lob_impact": {
+                "model": "lob_impact",
+                "bid_depth": 5000,
+                "ask_depth": 4800,
+                "queue_position": 0.02040816326530612,
+                "expected_impact_pct": 0.001020408163265306,
+                "confidence": 0.6
+              },
+              "ml_prediction": {
+                "model": "ml_prediction",
+                "predicted_slippage_pct": 0.001,
+                "confidence": 0.4,
+                "method": "fallback"
+              },
+              "ensemble": {
+                "model": "ensemble",
+                "ensemble_impact_pct": 0.00115271593378933,
+                "ensemble_confidence": 0.6166666666666667,
+                "prediction_variance": 1.1792133769585092e-06,
+                "models_used": 3,
+                "method": "weighted_average"
+              }
+            },
+            "predictive_analysis": {
+              "expected_slippage_pct": 0.00115271593378933,
+              "confidence_interval_95": 0.00212839519566358,
+              "scenarios": {
+                "best_case": 0.000576357966894665,
+                "expected_case": 0.00115271593378933,
+                "worst_case": 0.00230543186757866,
+                "extreme_case": 0.00576357966894665
+              },
+              "risk_level": "low",
+              "recommendations": [
+                "Proceed with market order - low slippage risk",
+                "Monitor execution but expect smooth completion",
+                "Consider limit orders only if very patient"
+              ]
+            },
+            "execution_strategy": {
+              "optimal_strategy": {
+                "order_type": "MKT",
+                "timing": "balanced",
+                "size_management": "moderate_slices",
+                "monitoring": "active",
+                "expected_completion": "single_session"
+              },
+              "risk_level": "low",
+              "expected_slippage": 0.00115271593378933,
+              "alternative_strategies": {
+                "low_risk": {
+                  "order_type": "LMT",
+                  "timing": "patient",
+                  "size_management": "small_slices",
+                  "monitoring": "continuous",
+                  "expected_completion": "multiple_sessions"
+                },
+                "medium_risk": {
+                  "order_type": "MKT",
+                  "timing": "balanced",
+                  "size_management": "moderate_slices",
+                  "monitoring": "active",
+                  "expected_completion": "single_session"
+                },
+                "high_risk": {
+                  "order_type": "MKT",
+                  "timing": "immediate",
+                  "size_management": "full_size",
+                  "monitoring": "intensive",
+                  "expected_completion": "immediate"
+                }
+              }
+            },
+            "monitoring_setup": {
+              "monitoring_active": false,
+              "error": "'AdvancedMemoryManager' object has no attribute 'store_execution_monitoring_config'"
+            },
+            "timestamp": "2025-11-06T08:11:14.696584"
+          },
+          "slippage_pct": 0.037,
+          "microstructure_used": true,
+          "rationale": "Simulated execution with comprehensive LLM analysis (IBKR unavailable)"
+        },
+        "analysis": {
+          "execution_processed": true,
+          "symbol": "ETH-USD",
+          "executed": true,
+          "reason": "unknown",
+          "roi_estimate": 0.25,
+          "pattern_analysis": {
+            "pattern": "low_execution_rate",
+            "execution_rate": 0.25,
+            "common_reasons": [
+              "llm_comprehensive_analysis"
+            ],
+            "timing_patterns": {
+              "pattern": "weekday_focused",
+              "market_hours_rate": 0.0,
+              "weekday_rate": 1.0
+            },
+            "sample_size": 4
+          },
+          "insights": [
+            "Successfully executed trade for ETH-USD",
+            "Execution was simulated - monitor real execution performance",
+            "Low execution rate (25.0%) for ETH-USD - review strategy parameters"
+          ],
+          "recommendations": [
+            "Consider modifying strategy parameters to improve execution rate",
+            "Validate simulation parameters against real market conditions"
+          ],
+          "bonus_analysis": {
+            "bonus_awarded": true,
+            "amount": 2,
+            "reason": "Successful execution with 0.2% ROI estimate above 0.2% threshold",
+            "roi_estimate": 0.25,
+            "threshold": 0.25
+          },
+          "rationale": "Processed execution result for ETH-USD: Executed (unknown)"
+        }
+      },
+      {
+        "timestamp": "2025-11-06T08:21:08.045484",
+        "type": "execution_result",
+        "result": {
+          "executed": false,
+          "symbol": "ETH-USD",
+          "reason": "llm_comprehensive_analysis",
+          "roi_estimate": 0.25,
+          "rationale": "LLM Comprehensive Analysis No-Trade: ### Reasoning and Recommendation for ETH-USD Trade Execution\n\n**Role**: Execution Agent  \n**Approach**: Hybrid Intelligence (Foundation Analysis + LLM Reasoning)\n\n#### Step-by-Step Reasoning (ReAct Fo..."
+        },
+        "analysis": {
+          "execution_processed": true,
+          "symbol": "ETH-USD",
+          "executed": false,
+          "reason": "llm_comprehensive_analysis",
+          "roi_estimate": 0.25,
+          "pattern_analysis": {
+            "pattern": "very_low_execution_rate",
+            "execution_rate": 0.2,
+            "common_reasons": [
+              "llm_comprehensive_analysis"
+            ],
+            "timing_patterns": {
+              "pattern": "weekday_focused",
+              "market_hours_rate": 0.0,
+              "weekday_rate": 1.0
+            },
+            "sample_size": 5
+          },
+          "insights": [
+            "Trade not executed for ETH-USD: llm_comprehensive_analysis",
+            "Low execution rate (20.0%) for ETH-USD - review strategy parameters"
+          ],
+          "recommendations": [
+            "Consider modifying strategy parameters to improve execution rate"
+          ],
+          "bonus_analysis": {
+            "bonus_awarded": false,
+            "reason": "No execution occurred",
+            "amount": 0
+          },
+          "rationale": "Processed execution result for ETH-USD: Not executed (llm_comprehensive_analysis)"
+        }
+      }
+    ],
+    "bonus_stack": {
+      "UNKNOWN": [
+        {
+          "symbol": "UNKNOWN",
+          "amount": 15,
+          "estimate": 150.0,
+          "timestamp": "2025-11-04T15:23:28.268335",
+          "quarter_awarded": 4,
+          "fade_rate": 0.25
+        }
+      ],
+      "ETH-USD": [
+        {
+          "symbol": "ETH-USD",
+          "amount": 2,
+          "estimate": 0.25,
+          "timestamp": "2025-11-06T08:12:01.040804",
+          "quarter_awarded": 4,
+          "fade_rate": 0.25
+        }
+      ]
+    },
+    "performance_history": [
+      {
+        "timestamp": "2025-11-04T15:21:53.597378",
+        "symbol": "UNKNOWN",
+        "pnl_pct": 1.5,
+        "sharpe_ratio": 1.6365253014289074,
+        "max_drawdown": 0.11179490056899542,
+        "outcome": {
+          "p&l": 1.5
+        },
+        "pyramiding": {}
+      },
+      {
+        "timestamp": "2025-11-04T15:22:54.469821",
+        "symbol": "UNKNOWN",
+        "pnl_pct": 1.5,
+        "sharpe_ratio": 1.5362301837204897,
+        "max_drawdown": 0.24249785301489496,
+        "outcome": {
+          "p&l": 1.5
+        },
+        "pyramiding": {}
+      },
+      {
+        "executed": false,
+        "symbol": "SPY",
+        "reason": "market_closed",
+        "roi_estimate": 0.25,
+        "price": null,
+        "quantity": null,
+        "total_value": null,
+        "commission": 0,
+        "simulated": true,
+        "source": "unknown",
+        "rationale": "Market is closed - cannot execute orders",
+        "timestamp": "2025-11-05T07:43:21.187459"
+      },
+      {
+        "executed": false,
+        "symbol": "SPY",
+        "reason": "market_closed",
+        "roi_estimate": 0.25,
+        "price": null,
+        "quantity": null,
+        "total_value": null,
+        "commission": 0,
+        "simulated": true,
+        "source": "unknown",
+        "rationale": "Market is closed - cannot execute orders",
+        "timestamp": "2025-11-05T07:48:24.865393"
+      },
+      {
+        "executed": false,
+        "symbol": "SPY",
+        "reason": "market_closed",
+        "roi_estimate": 0.25,
+        "price": null,
+        "quantity": null,
+        "total_value": null,
+        "commission": 0,
+        "simulated": true,
+        "source": "unknown",
+        "rationale": "Market is closed - cannot execute orders",
+        "timestamp": "2025-11-05T07:56:47.570088"
+      },
+      {
+        "executed": false,
+        "symbol": "SPY",
+        "reason": "market_closed",
+        "roi_estimate": 0.25,
+        "price": null,
+        "quantity": null,
+        "total_value": null,
+        "commission": 0,
+        "simulated": true,
+        "source": "unknown",
+        "rationale": "Market is closed - cannot execute orders",
+        "timestamp": "2025-11-05T08:02:39.331543"
+      },
+      {
+        "executed": false,
+        "symbol": "SPY",
+        "reason": "market_closed",
+        "roi_estimate": 0.25,
+        "price": null,
+        "quantity": null,
+        "total_value": null,
+        "commission": 0,
+        "simulated": true,
+        "source": "unknown",
+        "rationale": "Market is closed - cannot execute orders",
+        "timestamp": "2025-11-05T08:06:55.189040"
+      },
+      {
+        "executed": false,
+        "symbol": "SPY",
+        "reason": "market_closed",
+        "roi_estimate": 0.25,
+        "price": null,
+        "quantity": null,
+        "total_value": null,
+        "commission": 0,
+        "simulated": true,
+        "source": "unknown",
+        "rationale": "Market is closed - cannot execute orders",
+        "timestamp": "2025-11-05T08:12:37.458407"
+      },
+      {
+        "executed": false,
+        "symbol": "SPY",
+        "reason": "market_closed",
+        "roi_estimate": 0.25,
+        "price": null,
+        "quantity": null,
+        "total_value": null,
+        "commission": 0,
+        "simulated": true,
+        "source": "unknown",
+        "rationale": "Market is closed - cannot execute orders",
+        "timestamp": "2025-11-05T08:17:08.366898"
+      },
+      {
+        "executed": false,
+        "symbol": "PL=F",
+        "reason": "llm_comprehensive_analysis",
+        "roi_estimate": 0.25,
+        "price": null,
+        "quantity": null,
+        "total_value": null,
+        "commission": 0,
+        "simulated": true,
+        "source": "unknown",
+        "rationale": "LLM Comprehensive Analysis No-Trade: ### Reasoning and Recommendation for Execution Decision\n\nAs the Execution Agent, I will evaluate the trading proposal for PL=F with a quantity of 100, based on the provided foundation execution analys...",
+        "timestamp": "2025-11-05T12:08:15.184773"
+      },
+      {
+        "executed": false,
+        "symbol": "PL=F",
+        "reason": "llm_comprehensive_analysis",
+        "roi_estimate": 0.25,
+        "price": null,
+        "quantity": null,
+        "total_value": null,
+        "commission": 0,
+        "simulated": true,
+        "source": "unknown",
+        "rationale": "LLM Comprehensive Analysis No-Trade: ### Reasoning and Recommendation for Execution Decision\n\nAs the Execution Agent, I will follow a hybrid approach combining foundation execution analysis with LLM reasoning to evaluate the trading prop...",
+        "timestamp": "2025-11-05T12:18:00.972864"
+      },
+      {
+        "executed": false,
+        "symbol": "XLK",
+        "reason": "llm_comprehensive_analysis",
+        "roi_estimate": 0.15,
+        "price": null,
+        "quantity": null,
+        "total_value": null,
+        "commission": 0,
+        "simulated": true,
+        "source": "unknown",
+        "rationale": "LLM Comprehensive Analysis No-Trade: ### Reasoning and Recommendation for Execution Decision\n\n**Role**: Execution Agent  \n**Approach**: Hybrid Analysis (Foundation Execution Metrics + LLM Reasoning for Nuanced Decision-Making)\n\n---\n\n####...",
+        "timestamp": "2025-11-05T13:51:51.127200"
+      },
+      {
+        "executed": false,
+        "symbol": "PL=F",
+        "reason": "market_closed",
+        "roi_estimate": 0.25,
+        "price": null,
+        "quantity": null,
+        "total_value": null,
+        "commission": 0,
+        "simulated": true,
+        "source": "unknown",
+        "rationale": "Market is closed - cannot execute orders",
+        "timestamp": "2025-11-05T20:36:20.252673"
+      },
+      {
+        "executed": false,
+        "symbol": "PL=F",
+        "reason": "market_closed",
+        "roi_estimate": 0.25,
+        "price": null,
+        "quantity": null,
+        "total_value": null,
+        "commission": 0,
+        "simulated": true,
+        "source": "unknown",
+        "rationale": "Market is closed - cannot execute orders",
+        "timestamp": "2025-11-05T20:36:20.272124"
+      },
+      {
+        "executed": false,
+        "symbol": "PL=F",
+        "reason": "market_closed",
+        "roi_estimate": 0.25,
+        "price": null,
+        "quantity": null,
+        "total_value": null,
+        "commission": 0,
+        "simulated": true,
+        "source": "unknown",
+        "rationale": "Market is closed - cannot execute orders",
+        "timestamp": "2025-11-06T06:54:36.700218"
+      },
+      {
+        "executed": false,
+        "symbol": "PL=F",
+        "reason": "market_closed",
+        "roi_estimate": 0.25,
+        "price": null,
+        "quantity": null,
+        "total_value": null,
+        "commission": 0,
+        "simulated": true,
+        "source": "unknown",
+        "rationale": "Market is closed - cannot execute orders",
+        "timestamp": "2025-11-06T06:54:36.717976"
+      },
+      {
+        "executed": false,
+        "symbol": "PL=F",
+        "reason": "market_closed",
+        "roi_estimate": 0.15,
+        "price": null,
+        "quantity": null,
+        "total_value": null,
+        "commission": 0,
+        "simulated": true,
+        "source": "unknown",
+        "rationale": "Market is closed - cannot execute orders",
+        "timestamp": "2025-11-06T07:02:22.238764"
+      },
+      {
+        "executed": false,
+        "symbol": "PL=F",
+        "reason": "market_closed",
+        "roi_estimate": 0.15,
+        "price": null,
+        "quantity": null,
+        "total_value": null,
+        "commission": 0,
+        "simulated": true,
+        "source": "unknown",
+        "rationale": "Market is closed - cannot execute orders",
+        "timestamp": "2025-11-06T07:02:22.269849"
+      },
+      {
+        "executed": false,
+        "symbol": "PL=F",
+        "reason": "market_closed",
+        "roi_estimate": 0.25,
+        "price": null,
+        "quantity": null,
+        "total_value": null,
+        "commission": 0,
+        "simulated": true,
+        "source": "unknown",
+        "rationale": "Market is closed - cannot execute orders",
+        "timestamp": "2025-11-06T07:09:30.259331"
+      },
+      {
+        "executed": false,
+        "symbol": "PL=F",
+        "reason": "market_closed",
+        "roi_estimate": 0.25,
+        "price": null,
+        "quantity": null,
+        "total_value": null,
+        "commission": 0,
+        "simulated": true,
+        "source": "unknown",
+        "rationale": "Market is closed - cannot execute orders",
+        "timestamp": "2025-11-06T07:09:30.287374"
+      },
+      {
+        "executed": false,
+        "symbol": "PL=F",
+        "reason": "market_closed",
+        "roi_estimate": 0.3,
+        "price": null,
+        "quantity": null,
+        "total_value": null,
+        "commission": 0,
+        "simulated": true,
+        "source": "unknown",
+        "rationale": "Market is closed - cannot execute orders",
+        "timestamp": "2025-11-06T07:17:25.429003"
+      },
+      {
+        "executed": false,
+        "symbol": "PL=F",
+        "reason": "market_closed",
+        "roi_estimate": 0.3,
+        "price": null,
+        "quantity": null,
+        "total_value": null,
+        "commission": 0,
+        "simulated": true,
+        "source": "unknown",
+        "rationale": "Market is closed - cannot execute orders",
+        "timestamp": "2025-11-06T07:17:25.462881"
+      },
+      {
+        "executed": false,
+        "symbol": "ETH-USD",
+        "reason": "llm_comprehensive_analysis",
+        "roi_estimate": 0.25,
+        "price": null,
+        "quantity": null,
+        "total_value": null,
+        "commission": 0,
+        "simulated": true,
+        "source": "unknown",
+        "rationale": "LLM Comprehensive Analysis No-Trade: ### Reasoning and Recommendation for Execution Decision\n\nI have reviewed the foundation execution analysis for the trading proposal on ETH-USD with a quantity of 100 and an ROI estimate of 25.0%. Foll...",
+        "timestamp": "2025-11-06T07:37:17.790575"
+      },
+      {
+        "executed": false,
+        "symbol": "ETH-USD",
+        "reason": "llm_comprehensive_analysis",
+        "roi_estimate": 0.15,
+        "price": null,
+        "quantity": null,
+        "total_value": null,
+        "commission": 0,
+        "simulated": true,
+        "source": "unknown",
+        "rationale": "LLM Comprehensive Analysis No-Trade: ### Reasoning and Recommendation for Execution Decision\n\n**Role**: Execution Agent  \n**Approach**: Hybrid Intelligence (Foundation Analysis + LLM Reasoning for Complex Cases)\n\n#### Step-by-Step Reason...",
+        "timestamp": "2025-11-06T07:46:49.783873"
+      },
+      {
+        "executed": false,
+        "symbol": "ETH-USD",
+        "reason": "llm_comprehensive_analysis",
+        "roi_estimate": 0.3,
+        "price": null,
+        "quantity": null,
+        "total_value": null,
+        "commission": 0,
+        "simulated": true,
+        "source": "unknown",
+        "rationale": "LLM Comprehensive Analysis No-Trade: ### Reasoning and Recommendation for Execution Decision\n\n**Role**: Execution Agent in AI Portfolio Manager System  \n**Approach**: Hybrid Intelligence (Foundation Analysis + LLM Reasoning for Complex C...",
+        "timestamp": "2025-11-06T08:03:52.688318"
+      },
+      {
+        "executed": true,
+        "symbol": "ETH-USD",
+        "reason": "unknown",
+        "roi_estimate": 0.25,
+        "price": 100.04,
+        "quantity": 100,
+        "total_value": 10003.73,
+        "commission": 0.0,
+        "simulated": true,
+        "source": "simulation_fallback",
+        "rationale": "Simulated execution with comprehensive LLM analysis (IBKR unavailable)",
+        "timestamp": "2025-11-06T08:12:01.027244"
+      },
+      {
+        "executed": false,
+        "symbol": "ETH-USD",
+        "reason": "llm_comprehensive_analysis",
+        "roi_estimate": 0.25,
+        "price": null,
+        "quantity": null,
+        "total_value": null,
+        "commission": 0,
+        "simulated": true,
+        "source": "unknown",
+        "rationale": "LLM Comprehensive Analysis No-Trade: ### Reasoning and Recommendation for ETH-USD Trade Execution\n\n**Role**: Execution Agent  \n**Approach**: Hybrid Intelligence (Foundation Analysis + LLM Reasoning)\n\n#### Step-by-Step Reasoning (ReAct Fo...",
+        "timestamp": "2025-11-06T08:21:08.029443"
+      },
+      {
+        "executed": false,
+        "symbol": "ETH-USD",
+        "reason": "llm_comprehensive_analysis",
+        "roi_estimate": 0.25,
+        "price": null,
+        "quantity": null,
+        "total_value": null,
+        "commission": 0,
+        "simulated": true,
+        "source": "unknown",
+        "rationale": "LLM Comprehensive Analysis No-Trade: ### Reasoning and Recommendation for Execution Decision\n\n**Role**: Execution Agent in an AI Portfolio Manager system  \n**Approach**: Hybrid intelligence combining foundation execution analysis and LLM...",
+        "timestamp": "2025-11-06T08:29:07.717635"
+      }
+    ],
+    "mini_loop_history": [],
+    "quarterly_audits": [],
+    "last_quarterly_audit": null
+  }
+}

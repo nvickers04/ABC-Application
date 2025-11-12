@@ -1,0 +1,28 @@
+{
+  "namespace": "session:session_strategy_agent_1762800733.163929:event:1762800733.16493",
+  "safe_namespace": "session_session_strategy_agent_1762800733.163929_event_1762800733.16493",
+  "timestamp": "2025-11-10T12:52:13.175567",
+  "version": "1.0",
+  "data": {
+    "final_participants": [
+      "strategy_agent",
+      "other_agent"
+    ],
+    "final_summary": {
+      "session_id": "session_strategy_agent_1762800733.163929",
+      "topic": "Auth Test",
+      "creator": "strategy_agent",
+      "participants": [
+        "strategy_agent",
+        "other_agent"
+      ],
+      "participant_count": 2,
+      "insights_count": 0,
+      "decisions_count": 0,
+      "created_at": "2025-11-10T12:52:13.163929",
+      "last_activity": "2025-11-10T12:52:13.164930",
+      "status": "archived",
+      "shared_context_keys": []
+    }
+  }
+}

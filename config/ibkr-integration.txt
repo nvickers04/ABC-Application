@@ -1,0 +1,40 @@
+# IBKR Integration Configuration
+# Detailed setup for Interactive Brokers (IBKR) API linkage, enabling real-time trading in the AI Portfolio Manager.
+# Inspirations: ib_nope (automated TWS), nautilus_trader (multi-broker support), ib_insync (Python wrapper).
+# Agents Involved: Execution (primary for trades), Data (market data pulls), Risk (pre-trade validations).
+# A2A Fit: Signals validated via A2A before API calls; post-trade logs shared for reflections.
+# Langchain Integration: IBKR as custom tools (e.g., ibkr_execute_tool, ibkr_data_pull_tool) in ReAct chains; memory for trade history.
+# Reasoning: Ensures traceable, profitable executions; backs funding with secure bridges; supports multi-asset (equities, options, FX).
+
+## API Setup
+- **Library**: Use `ib_insync` or `nautilus_trader` for Python integration (installed via requirements.txt).
+- **Authentication**: TWS Gateway or IBKR API credentials (username, password, API key). Store securely (e.g., env vars, not in code).
+- **Connection**: Host: '127.0.0.1' (local TWS), Port: 7497 (paper) or 7496 (live). Auto-reconnect on failures.
+- **Permissions**: Enable API access in IBKR account; request market data subscriptions.
+
+## Trade Execution Flow
+- **Pre-Execution**: Execution Agent receives approved proposals via A2A; validates time (market hours), sanity (no delusions).
+- **Order Types**: Market, limit, stop-loss; support options (calls/puts), FX pairs.
+- **Execution**: Call IBKR API to place orders; log slippage, fills in JSON.
+- **Post-Execution**: Send outcomes to Reflection/Learning via A2A; update portfolio dashboard.
+
+## Data Pulls
+- **Sources**: Real-time quotes, options chains, historical data via IBKR API.
+- **Integration**: Data Agent uses pulls for validation (>95% match with yfinance).
+- **Frequency**: On-demand for signals; batch for backtests.
+
+## Error Handling
+- **Network Issues**: Retry 3 times with backoff; fallback to cached data.
+- **API Limits**: Monitor rate limits; pause if exceeded.
+- **Failures**: Log errors; escalate to no-trade if critical.
+
+## Testing
+- **Paper Trading**: Use IBKR paper account for sims.
+- **Logs**: All actions in `execution-agent-notes.md`; cross-check with `sim-training-log.txt`.
+
+## Security & Compliance
+- **Encryption**: Use HTTPS for API calls.
+- **Audits**: All trades logged for SEC compliance.
+- **Risks**: Monitor for API downtime; have manual override.
+
+Cross-Refs: `src/integrations/ibkr_connector.py`, `agents/execution-agent-notes.md`, `docs/architecture.md`.

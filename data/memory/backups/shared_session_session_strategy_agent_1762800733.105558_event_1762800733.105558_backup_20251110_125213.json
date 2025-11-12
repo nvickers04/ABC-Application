@@ -1,0 +1,10 @@
+{
+  "namespace": "session:session_strategy_agent_1762800733.105558:event:1762800733.105558",
+  "safe_namespace": "session_session_strategy_agent_1762800733.105558_event_1762800733.105558",
+  "timestamp": "2025-11-10T12:52:13.105558",
+  "version": "1.0",
+  "data": {
+    "agent": "data_agent",
+    "context": null
+  }
+}

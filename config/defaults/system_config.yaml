@@ -1,0 +1,56 @@
+# System-wide configuration defaults
+system:
+  name: "ABC Application Multi-Agent Trading System"
+  version: "2.0.0"
+  environment: "development"  # development|staging|production
+  timezone: "UTC"
+  log_level: "INFO"  # DEBUG|INFO|WARNING|ERROR|CRITICAL
+
+  # Performance settings
+  max_workers: 8
+  thread_pool_size: 16
+  async_timeout_seconds: 300
+
+  # Resource limits
+  max_memory_gb: 32
+  max_cpu_percent: 70
+  max_network_bandwidth_mbps: 500
+
+# Agent orchestration
+agents:
+  max_concurrent_operations: 10
+  message_timeout_seconds: 300
+  retry_attempts: 3
+  circuit_breaker_threshold: 5
+
+  # Communication settings
+  a2a_protocol_version: "2.0"
+  message_queue_size: 5000
+  heartbeat_interval_seconds: 30
+
+# Trading parameters
+trading:
+  base_currency: "USD"
+  supported_exchanges: ["NASDAQ", "NYSE", "AMEX", "ARCA"]
+  max_position_size_usd: 500000
+  max_daily_loss_usd: 25000
+  commission_model: "ibkr_standard"
+
+  # Order settings
+  default_order_type: "LMT"
+  max_slippage_percent: 0.5
+  min_order_size_usd: 100
+
+# Data management
+data:
+  cache_ttl_hours: 24
+  max_api_calls_per_minute: 500
+  data_retention_days: 365
+
+  # Data sources
+  primary_data_provider: "ibkr"
+  fallback_providers: ["alpha_vantage", "yahoo_finance", "polygon"]
+
+  # Quality thresholds
+  min_data_completeness: 0.95
+  max_data_age_minutes: 15

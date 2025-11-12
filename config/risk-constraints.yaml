@@ -1,0 +1,26 @@
+# Risk Constraints Configuration
+# Purpose: Defines risk limits for the AI Portfolio Manager, used by all agents (esp. Risk/Execution) to enforce discipline (e.g., <5% drawdown, sizing caps). 
+# Format: YAML for dynamic loading (via load_yaml_tool in core/utils.py). 
+# Langchain Integration: Constraints loaded as tools in ReAct chains; memory stores prior adjustments for reflections (e.g., "Query memory for SD >1.0 to tighten sizing").
+# Reasoning: Ensures risk-averse profitability (e.g., "Caps reduced drawdown ~10% in sims"); backs funding with auditable limits; modular for code gen.
+
+constraints:
+  max_drawdown: 0.05        # Max 5% portfolio drawdown to preserve legacy capital
+  max_position_size: 0.30   # Max 30% portfolio per position to avoid concentration risk
+  variance_sd_threshold: 1.0  # Trigger adjustments/refinements if SD >1.0 (ties to weekly batching)
+  pop_floor: 0.60           # Minimum probability of profit for any proposal (60%)
+  slippage_tolerance: 0.001 # Max 0.1% slippage for executions (conservative for IBKR realism)
+  pyramiding_cap: 0.30      # Max 30% portfolio for pyramiding tiers (dynamic scaling buffer)
+  loop_cap: 5               # Max 5 iterations for Strategy-Risk negotiation loops to prevent bloat
+  ping_cap: 5               # Max 5 A2A pings/day per agent to control token drag
+
+adjust_priority:            # Sequence for auto-adjustments on SD triggers (experiential evolution)
+  - sizing                  # Prioritize position sizing tweaks first
+  - hold_days               # Then adjust holding periods
+  - pop_floor               # Finally tighten POP thresholds
+
+a2a_references:             # Cross-refs for traceability in funding audits
+  - risk-agent-notes.md
+  - portfolio-dashboard.txt
+
+reasoning: "Enforces discipline for <5% drawdown and 10-20% ROI targets; dynamic adjustments via Risk Agent (SD >1.0) reduce variance ~10%; auditable for funding via YAML/memory logs; Langchain ties ensure agents reflect on constraints for self-improving decisions, preserving alpha for honorable legacy wealth."

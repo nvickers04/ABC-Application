@@ -1,0 +1,195 @@
+# Agent-specific configurations
+agents:
+  data_agent:
+    enabled: true
+    priority: "high"
+    subagents:
+      market_data:
+        enabled: true
+        update_frequency_seconds: 60
+        sources: ["ibkr", "yahoo_finance", "alpha_vantage", "polygon"]
+        max_symbols_per_request: 100
+      sentiment:
+        enabled: true
+        apis: ["newsapi", "twitter", "reddit", "stocktwits"]
+        processing_batch_size: 100
+        sentiment_model: "finbert"
+      economic:
+        enabled: true
+        indicators: ["GDP", "CPI", "Unemployment", "FedFundsRate", "TreasuryYield"]
+        update_frequency_hours: 24
+        forecast_horizon_months: 12
+      options_data:
+        enabled: true
+        chains_depth: 10
+        greeks_calculation: true
+        implied_volatility: true
+      alternative_data:
+        enabled: true
+        sources: ["satellite", "web_traffic", "social_media"]
+        processing_interval_minutes: 60
+
+  strategy_agent:
+    enabled: true
+    priority: "high"
+    subagents:
+      options:
+        enabled: true
+        max_complexity: 3
+        supported_strategies: ["covered_call", "protective_put", "spread", "butterfly"]
+        risk_limits: {"max_loss_percent": 0.10, "max_theta_days": 30}
+      ml_models:
+        enabled: true
+        models: ["xgboost", "neural_network", "ensemble"]
+        retrain_frequency_days: 7
+        feature_engineering: true
+        hyperparameter_tuning: true
+      pairs_trading:
+        enabled: true
+        correlation_threshold: 0.8
+        cointegration_test: true
+        max_pairs_per_portfolio: 10
+      arbitrage:
+        enabled: true
+        min_spread_bps: 5
+        max_holding_period_seconds: 300
+        risk_adjusted: true
+      macro_strategies:
+        enabled: true
+        regime_detection: true
+        factor_models: ["value", "growth", "momentum", "quality"]
+        rebalancing_frequency: "weekly"
+
+  risk_agent:
+    enabled: true
+    priority: "critical"
+    subagents:
+      portfolio_risk:
+        enabled: true
+        var_confidence_level: 0.95
+        var_time_horizon_days: 1
+        expected_shortfall: true
+        stress_testing: true
+      position_risk:
+        enabled: true
+        max_single_position_percent: 0.10
+        max_sector_exposure_percent: 0.25
+        correlation_limits: true
+        liquidity_risk: true
+      compliance:
+        enabled: true
+        reg_t_margin: true
+        pattern_day_trading: true
+        wash_sale_rules: true
+        concentration_limits: true
+      market_risk:
+        enabled: true
+        volatility_monitoring: true
+        gap_risk: true
+        flash_crash_protection: true
+
+  execution_agent:
+    enabled: true
+    priority: "high"
+    subagents:
+      order_management:
+        enabled: true
+        smart_routing: true
+        iceberg_orders: true
+        bracket_orders: true
+        one_cancels_all: true
+      execution_optimization:
+        enabled: true
+        cost_analysis: true
+        slippage_control: true
+        timing_optimization: true
+        dark_pool_access: true
+      monitoring:
+        enabled: true
+        real_time_tracking: true
+        execution_quality: true
+        cost_attribution: true
+
+  macro_agent:
+    enabled: true
+    priority: "high"
+    subagents:
+      sector_analysis:
+        enabled: true
+        sectors: ["XLK", "XLE", "XLF", "XLV", "XLY", "XLI", "XLB", "XLRE", "XLC", "XLU"]
+        weighting_method: "market_cap"
+        rebalancing_threshold: 0.05
+      asset_allocation:
+        enabled: true
+        target_allocations: {"equity": 0.60, "fixed_income": 0.30, "alternatives": 0.10}
+        rebalancing_frequency: "monthly"
+        risk_parity: true
+      market_regime:
+        enabled: true
+        indicators: ["vix", "yield_curve", "credit_spread", "economic_surprise"]
+        regime_states: ["bull", "bear", "sideways", "crisis"]
+      global_macro:
+        enabled: true
+        regions: ["US", "EU", "Asia", "Emerging"]
+        currencies: ["USD", "EUR", "JPY", "GBP", "CNY"]
+        commodities: ["gold", "oil", "copper", "agriculture"]
+
+  learning_agent:
+    enabled: true
+    priority: "medium"
+    subagents:
+      performance_analysis:
+        enabled: true
+        attribution_analysis: true
+        risk_adjusted_returns: true
+        benchmark_comparison: true
+      strategy_optimization:
+        enabled: true
+        genetic_algorithms: true
+        reinforcement_learning: true
+        backtesting_validation: true
+      market_adaptation:
+        enabled: true
+        regime_adaptation: true
+        volatility_adjustment: true
+        correlation_monitoring: true
+
+  reflection_agent:
+    enabled: true
+    priority: "medium"
+    subagents:
+      decision_review:
+        enabled: true
+        success_criteria: ["pnl", "risk_adjusted_return", "execution_quality"]
+        failure_analysis: true
+        pattern_recognition: true
+      bias_detection:
+        enabled: true
+        cognitive_biases: ["anchoring", "confirmation", "overconfidence"]
+        emotional_trading: true
+        herd_behavior: true
+      continuous_improvement:
+        enabled: true
+        feedback_loops: true
+        knowledge_base: true
+        best_practices: true
+
+  memory_agent:
+    enabled: true
+    priority: "medium"
+    subagents:
+      short_term_memory:
+        enabled: true
+        ttl_hours: 24
+        max_entries: 10000
+        compression: true
+      long_term_memory:
+        enabled: true
+        vector_search: true
+        semantic_indexing: true
+        knowledge_graph: true
+      collaborative_memory:
+        enabled: true
+        agent_interactions: true
+        decision_history: true
+        pattern_library: true

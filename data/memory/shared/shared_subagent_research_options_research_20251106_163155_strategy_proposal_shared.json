@@ -1,0 +1,33 @@
+{
+  "namespace": "shared:subagent_research:options_research_20251106_163155_strategy_proposal",
+  "safe_namespace": "shared_subagent_research_options_research_20251106_163155_strategy_proposal",
+  "timestamp": "2025-11-06T16:31:55.625035",
+  "version": "1.0",
+  "data": {
+    "strategy_type": "options",
+    "symbol": "SPY",
+    "llm_driven": true,
+    "research_session": "options_research_20251106_163155",
+    "timestamp": "2025-11-06T16:31:55.616196",
+    "legs": [
+      "{'type': 'call', 'action': 'buy', 'strike': 482.252747573306, 'price': 3.259644906286553, 'quantity': 1, 'greeks': {'delta': 0.1898774213681484, 'gamma': 0.008410372972377725, 'theta': -56.92022522774989, 'vega': 34.99521630629772, 'rho': 6.75494751036002}}",
+      "{'type': 'put', 'action': 'buy', 'strike': 417.747252426694, 'price': 2.1731560876824645, 'quantity': 1, 'greeks': {'delta': -0.1302760516375705, 'gamma': 0.006568614683225275, 'theta': -38.83113272267843, 'vega': 27.331735753831197, 'rho': -4.99704487599363}}"
+    ],
+    "net_premium": 5.432800993969018,
+    "max_loss": 5.432800993969018,
+    "max_profit": Infinity,
+    "breakeven_upper": 487.685548567275,
+    "breakeven_lower": 412.314451432725,
+    "time_to_expiry_days": 30,
+    "pop_estimate": 0.65,
+    "roi_estimate": 0.25,
+    "setup": "strangle",
+    "llm_analysis": "LLM_ERROR: Error code: 404 - {'code': 'Some requested entity was not found', 'error': \"The model gpt-3.5-turbo does not exist or your team 419bc602-e08e-497b-aa60-c76eeed4d736 does not have access to it. Please ensure you're using the correct API key. If you believe this is a mistake, please contact support and quote your team ID and the model name.\"}",
+    "risk_assessment": "moderate",
+    "shared_insights": "{'flow_insights': 'pending_integration', 'ml_insights': 'pending_integration'}",
+    "combined_greeks": "{'delta': 0.05960136973057789, 'gamma': 0.014978987655603, 'theta': -95.75135795042831, 'vega': 62.32695206012892, 'rho': 1.7579026343663893, 'omega': 1.097065211789309}",
+    "delta_neutral": "True",
+    "theta_positive": "False",
+    "gamma_risk": "False"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "namespace": "shared:predictive_insights:predictions_SPY_20251106_162424",
+  "safe_namespace": "shared_predictive_insights_predictions_SPY_20251106_162424",
+  "timestamp": "2025-11-06T16:24:24.092417",
+  "version": "1.0",
+  "data": {
+    "symbol": "SPY",
+    "predictions": {
+      "direction": "neutral",
+      "confidence": 0.0,
+      "timeframe": "unknown"
+    },
+    "patterns": {
+      "trend": "unknown",
+      "strength": 0.0
+    },
+    "source_agent": "ml_strategy_sub",
+    "timestamp": "2025-11-06T16:24:24.092417"
+  }
+}

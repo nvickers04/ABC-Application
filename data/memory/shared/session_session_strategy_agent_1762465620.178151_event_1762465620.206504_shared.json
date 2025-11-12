@@ -1,0 +1,16 @@
+{
+  "namespace": "session:session_strategy_agent_1762465620.178151:event:1762465620.206504",
+  "safe_namespace": "session_session_strategy_agent_1762465620.178151_event_1762465620.206504",
+  "timestamp": "2025-11-06T15:47:00.207502",
+  "version": "1.0",
+  "data": {
+    "agent": "data_agent",
+    "timestamp": "2025-11-06T15:47:00.206504",
+    "insight": {
+      "type": "market_analysis",
+      "content": "SPY showing bullish signals",
+      "confidence": 0.85
+    },
+    "validated_by": []
+  }
+}

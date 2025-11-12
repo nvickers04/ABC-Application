@@ -1,0 +1,290 @@
+#!/usr/bin/env python3
+"""
+Market data tools for real-time and historical market data.
+Provides API and WebSocket connections to market data providers.
+"""
+
+import os
+import json
+import asyncio
+import logging
+from typing import Dict, Any, Optional
+import websockets
+import requests
+
+from .validation import circuit_breaker, DataValidator
+
+logger = logging.getLogger(__name__)
+
+
+@circuit_breaker("marketdataapp_api")
+def marketdataapp_api_tool(symbol: str, data_type: str = "quotes") -> Dict[str, Any]:
+    """
+    Fetch market data from MarketDataApp API.
+    Args:
+        symbol: Stock symbol
+        data_type: Type of data ('quotes', 'historical', etc.)
+    Returns:
+        dict: Market data
+    """
+    api_key = os.getenv('MARKETDATAAPP_API_KEY')
+    if not api_key:
+        return {"error": "MarketDataApp API key not found. Please set MARKETDATAAPP_API_KEY in .env file."}
+
+    try:
+        base_url = "https://api.marketdataapp.com/v1"
+
+        if data_type == "quotes":
+            url = f"{base_url}/stocks/quotes"
+            params = {"symbols": symbol, "apikey": api_key}
+
+        elif data_type == "historical":
+            url = f"{base_url}/stocks/candles"
+            params = {
+                "symbols": symbol,
+                "resolution": "D",
+                "from": "2023-01-01",
+                "to": "2024-01-01",
+                "apikey": api_key
+            }
+        else:
+            return {"error": f"Unsupported data type: {data_type}"}
+
+        response = requests.get(url, params=params, timeout=30)
+        response.raise_for_status()
+
+        data = response.json()
+
+        if not data or not isinstance(data, dict):
+            return {"error": "Invalid response from MarketDataApp API"}
+
+        # Process and validate data
+        if symbol in data:
+            symbol_data = data[symbol]
+
+            if data_type == "quotes":
+                return {
+                    "symbol": symbol,
+                    "price": symbol_data.get("last", 0),
+                    "change": symbol_data.get("change", 0),
+                    "change_percent": symbol_data.get("changepct", 0),
+                    "volume": symbol_data.get("volume", 0),
+                    "source": "marketdataapp",
+                    "data_type": "quotes"
+                }
+            else:
+                # Historical data processing
+                candles = symbol_data.get("candles", [])
+                processed_data = []
+                for candle in candles:
+                    processed_data.append({
+                        "timestamp": candle.get("t", 0),
+                        "open": candle.get("o", 0),
+                        "high": candle.get("h", 0),
+                        "low": candle.get("l", 0),
+                        "close": candle.get("c", 0),
+                        "volume": candle.get("v", 0)
+                    })
+
+                return {
+                    "symbol": symbol,
+                    "data": processed_data,
+                    "count": len(processed_data),
+                    "source": "marketdataapp",
+                    "data_type": "historical"
+                }
+
+        return {"error": f"No data found for symbol {symbol}"}
+
+    except (requests.RequestException, json.JSONDecodeError, ValueError, KeyError) as e:
+        return {"error": f"MarketDataApp API failed: {str(e)}"}
+
+
+@circuit_breaker("marketdataapp_websocket")
+def marketdataapp_websocket_tool(symbol: str, data_type: str = "quotes", duration_seconds: int = 30) -> Dict[str, Any]:
+    """
+    Connect to MarketDataApp WebSocket for real-time data.
+    Args:
+        symbol: Stock symbol
+        data_type: Type of data
+        duration_seconds: How long to collect data
+    Returns:
+        dict: Collected real-time data
+    """
+    api_key = os.getenv('MARKETDATAAPP_API_KEY')
+    if not api_key:
+        return {"error": "MarketDataApp API key not found. Please set MARKETDATAAPP_API_KEY in .env file."}
+
+    async def collect_data():
+        """Async function to collect WebSocket data."""
+        try:
+            uri = f"wss://api.marketdataapp.com/v1/stocks/quotes?symbols={symbol}&apikey={api_key}"
+
+            collected_data = []
+            start_time = asyncio.get_event_loop().time()
+
+            async with websockets.connect(uri) as websocket:
+                while asyncio.get_event_loop().time() - start_time < duration_seconds:
+                    try:
+                        message = await asyncio.wait_for(websocket.recv(), timeout=1.0)
+                        data = json.loads(message)
+
+                        if symbol in data:
+                            symbol_data = data[symbol]
+                            collected_data.append({
+                                "timestamp": asyncio.get_event_loop().time(),
+                                "price": symbol_data.get("last", 0),
+                                "change": symbol_data.get("change", 0),
+                                "volume": symbol_data.get("volume", 0)
+                            })
+
+                            # Limit to last 100 data points
+                            if len(collected_data) > 100:
+                                collected_data = collected_data[-100:]
+
+                    except asyncio.TimeoutError:
+                        continue
+                    except json.JSONDecodeError:
+                        continue
+
+            return collected_data
+
+        except Exception as e:
+            return {"error": f"WebSocket connection failed: {str(e)}"}
+
+    try:
+        # Run async function
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        result = loop.run_until_complete(collect_data())
+        loop.close()
+
+        if isinstance(result, list):
+            return {
+                "symbol": symbol,
+                "data_points": len(result),
+                "data": result,
+                "duration_seconds": duration_seconds,
+                "source": "marketdataapp_websocket",
+                "status": "success"
+            }
+        else:
+            return result
+
+    except Exception as e:
+        return {"error": f"WebSocket tool failed: {str(e)}"}
+
+
+@circuit_breaker("alpha_vantage")
+def alpha_vantage_tool(symbol: str, function: str = "TIME_SERIES_DAILY") -> Dict[str, Any]:
+    """
+    Fetch data from Alpha Vantage API.
+    Args:
+        symbol: Stock symbol
+        function: API function (TIME_SERIES_DAILY, etc.)
+    Returns:
+        dict: Stock data
+    """
+    api_key = os.getenv('ALPHA_VANTAGE_API_KEY')
+    if not api_key:
+        return {"error": "Alpha Vantage API key not found. Please set ALPHA_VANTAGE_API_KEY in .env file."}
+
+    try:
+        url = "https://www.alphavantage.co/query"
+        params = {
+            "function": function,
+            "symbol": symbol,
+            "apikey": api_key,
+            "outputsize": "compact"
+        }
+
+        response = requests.get(url, params=params, timeout=30)
+        response.raise_for_status()
+
+        data = response.json()
+
+        if "Error Message" in data:
+            return {"error": data["Error Message"]}
+
+        if "Note" in data:
+            return {"error": "API limit reached", "note": data["Note"]}
+
+        # Process time series data
+        time_series_key = f"Time Series ({function.split('_')[-1].capitalize()})"
+        if time_series_key in data:
+            time_series = data[time_series_key]
+
+            processed_data = []
+            for date, values in list(time_series.items())[:30]:  # Last 30 days
+                processed_data.append({
+                    "date": date,
+                    "open": float(values.get("1. open", 0)),
+                    "high": float(values.get("2. high", 0)),
+                    "low": float(values.get("3. low", 0)),
+                    "close": float(values.get("4. close", 0)),
+                    "volume": int(values.get("5. volume", 0))
+                })
+
+            return {
+                "symbol": symbol,
+                "function": function,
+                "data": processed_data,
+                "count": len(processed_data),
+                "source": "alpha_vantage",
+                "metadata": data.get("Meta Data", {})
+            }
+
+        return {"error": "No time series data found"}
+
+    except (requests.RequestException, json.JSONDecodeError, ValueError, KeyError) as e:
+        return {"error": f"Alpha Vantage API failed: {str(e)}"}
+
+
+@circuit_breaker("financial_modeling_prep")
+def financial_modeling_prep_tool(symbol: str, data_type: str = "quote") -> Dict[str, Any]:
+    """
+    Fetch data from Financial Modeling Prep API.
+    Args:
+        symbol: Stock symbol
+        data_type: Type of data to fetch
+    Returns:
+        dict: Financial data
+    """
+    api_key = os.getenv('FINANCIALMODELINGPREP_API_KEY')
+    if not api_key:
+        return {"error": "Financial Modeling Prep API key not found. Please set FINANCIALMODELINGPREP_API_KEY in .env file."}
+
+    try:
+        base_url = "https://financialmodelingprep.com/api/v3"
+
+        if data_type == "quote":
+            url = f"{base_url}/quote/{symbol}"
+        elif data_type == "profile":
+            url = f"{base_url}/profile/{symbol}"
+        elif data_type == "ratios":
+            url = f"{base_url}/ratios/{symbol}"
+        else:
+            return {"error": f"Unsupported data type: {data_type}"}
+
+        params = {"apikey": api_key}
+
+        response = requests.get(url, params=params, timeout=30)
+        response.raise_for_status()
+
+        data = response.json()
+
+        if not data or not isinstance(data, list) or len(data) == 0:
+            return {"error": f"No data found for {symbol}"}
+
+        # Return first result (should be the requested symbol)
+        result = data[0]
+
+        return {
+            "symbol": symbol,
+            "data_type": data_type,
+            "data": result,
+            "source": "financial_modeling_prep"
+        }
+
+    except (requests.RequestException, json.JSONDecodeError, ValueError, KeyError) as e:
+        return {"error": f"Financial Modeling Prep API failed: {str(e)}"}

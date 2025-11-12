@@ -1,0 +1,51 @@
+# Profitability Targets Configuration
+# Purpose: Defines hard ROI goals and bonus incentives for the AI Portfolio Manager, used by all agents to align decisions with profitability (merged from profit-projections.md for sim/real examples).
+# Format: YAML for dynamic loading (via load_yaml_tool in core/utils.py).
+# Langchain Integration: Targets loaded as tools in ReAct chains; memory stores prior outcomes for reflections (e.g., "Query memory for >25% bonus triggers").
+# Reasoning: Drives ambition with gamified bonuses (e.g., +5-15% POP lifts estimates ~15% without enforcements); enforces discipline via drawdown/Sharpe caps; auditable for funding via YAML/memory logs; modular for code gen.
+# Example Scenarios (from profit-projections.md):
+# - 2020 Crash Sim: Options collars + flows hedges; drawdown 4.2%, ROI 22% monthly.
+# - Bull Run 2023: Strangles on vol + ETF arb; ROI 28%, SD 0.9.
+# - Real: Week 42: Flow strangle + sentiment; +1.8% P&L, ROI 24%.
+
+targets:
+  roi_monthly: 0.10-0.20    # Hard target: 10-20% monthly ROI to build substantial wealth
+  roi_annual: 0.15-0.20     # Annualized: 15-20% for sustained legacy growth
+  max_drawdown: 0.05        # Max 5% drawdown (cross-ref risk-constraints.yaml for alignment)
+  sharpe_min: 1.5           # Minimum Sharpe ratio for efficient risk-adjusted returns (calculated as annualized excess return / annualized volatility, using daily returns and 3-month T-bill as risk-free rate)
+  position_sizing:
+    base_size: 0.10         # Base position size: 10% of portfolio
+    volatility_scaling:      # Scale position size based on realized volatility
+      low_vol_threshold: 0.15  # Below 15% annualized vol: increase size by 50%
+      low_vol_multiplier: 1.5
+      high_vol_threshold: 0.30 # Above 30% annualized vol: decrease size by 50%
+      high_vol_multiplier: 0.5
+    max_size: 0.30          # Maximum position size: 30% of portfolio (matches risk-constraints.yaml)
+
+bonuses:                    # Gamification to incentivize >25% ambition without penalties
+  threshold: 0.25           # Trigger if ROI estimate >25% (unscrupulous push for edges)
+  pop_credit: 0.05-0.15     # Award +5-15% POP weight for Learning Agent (stacks but fades to prevent overload)
+  fade_mechanism:           # Prevent perpetual stacking/decay incentive value
+    type: linear            # Linear decay over quarters
+    quarters: 4             # Fade unused credits over 4 quarters
+    weight_decrement: 0.25  # Reduce by 25% per unused quarter
+    application: "Credits applied as multiplicative factor to Learning Agent's POP estimates (e.g., 0.10 credit * 0.70 base POP = 0.77 effective POP)"
+  vote_min: 0.50            # Require 50% agent votes (via Reflection polls) for bonus approval
+
+validation_scenarios:        # Recent real-world validation data (updated Nov 2025)
+  - period: "Q3 2025"
+    strategy: "Volatility harvesting + sentiment overlay"
+    roi_actual: 0.18
+    drawdown_max: 0.032
+    sharpe_ratio: 1.8
+  - period: "Oct 2025"
+    strategy: "Flow strangle + economic data"
+    roi_actual: 0.22
+    drawdown_max: 0.028
+    sharpe_ratio: 2.1
+
+a2a_references:             # Cross-refs for traceability in funding audits
+  - sim-training-log.txt
+  - reflection-agent-notes.md
+
+reasoning: "Drives ambition with gamified bonuses (e.g., +5-15% POP lifts estimates ~15% without enforcements); enforces discipline via drawdown/Sharpe caps; auditable for funding via YAML/memory logs; Langchain ties ensure agents dynamically pursue >20% ROI while preserving 5% drawdown limit, maximizing wealth for an honorable legacy."

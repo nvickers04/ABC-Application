@@ -1,0 +1,42 @@
+# Development environment settings
+environment: "development"
+debug: true
+log_level: "DEBUG"
+
+# Reduced resource usage for development
+system:
+  max_workers: 4
+  thread_pool_size: 8
+
+# Mock data for testing
+data:
+  use_mock_data: true
+  mock_data_provider: "random"
+  simulate_delays: true
+  delay_range_ms: [100, 1000]
+
+# Relaxed risk limits for testing
+risk_management:
+  portfolio_limits:
+    max_var_95: 0.25  # More lenient for testing
+    max_daily_loss: 0.10
+
+# Development database
+database:
+  host: "localhost"
+  port: 5432
+  database: "grok_ibkr_dev"
+  username: "dev_user"
+  password: "dev_password"
+
+# Local Redis
+redis:
+  host: "localhost"
+  port: 6379
+  db: 0
+
+# Development API keys (use test/sandbox keys)
+api_keys:
+  alpha_vantage: "demo_key"
+  newsapi: "demo_key"
+  twitter: "demo_key"

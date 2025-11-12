@@ -1,0 +1,11 @@
+{
+  "namespace": "session:session_strategy_agent_1762465253.274459:event:1762465253.343471",
+  "safe_namespace": "session_session_strategy_agent_1762465253.274459_event_1762465253.343471",
+  "timestamp": "2025-11-06T15:40:53.344595",
+  "version": "1.0",
+  "data": {
+    "key": "investment_horizon",
+    "value": "medium_term",
+    "agent": "strategy_agent"
+  }
+}

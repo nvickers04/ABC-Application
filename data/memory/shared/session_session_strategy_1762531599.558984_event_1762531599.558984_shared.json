@@ -1,0 +1,22 @@
+{
+  "namespace": "session:session_strategy_1762531599.558984:event:1762531599.558984",
+  "safe_namespace": "session_session_strategy_1762531599.558984_event_1762531599.558984",
+  "timestamp": "2025-11-07T10:06:39.559989",
+  "version": "1.0",
+  "data": {
+    "agent": "strategy",
+    "timestamp": "2025-11-07T10:06:39.558984",
+    "insight": {
+      "type": "strategy_context",
+      "content": {
+        "market_data": "{'trend': 'bullish', 'volatility': 'moderate', 'momentum': 'strong'}",
+        "economic_data": "{'fed_rate': 0.05, 'inflation': 0.02, 'gdp_growth': 0.03}",
+        "risk_params": "{'max_drawdown': 0.05, 'max_position_size': 0.3}"
+      },
+      "agent": "strategy",
+      "confidence": 0.9,
+      "timestamp": "2025-11-07T10:06:39.558984"
+    },
+    "validated_by": []
+  }
+}

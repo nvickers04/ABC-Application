@@ -1,0 +1,116 @@
+# Data source configurations
+data_sources:
+  # Primary trading data
+  ibkr:
+    enabled: true
+    connection:
+      host: "127.0.0.1"
+      port: 7497
+      client_id: 1
+      timeout_seconds: 30
+    data_types:
+      - real_time_quotes
+      - historical_data
+      - options_chains
+      - account_info
+      - executions
+    rate_limits:
+      requests_per_second: 50
+      max_symbols_per_request: 100
+
+  # Alternative data providers
+  alpha_vantage:
+    enabled: true
+    api_key: "${ALPHA_VANTAGE_API_KEY}"
+    rate_limits:
+      requests_per_minute: 5
+      requests_per_day: 500
+    data_types:
+      - intraday_quotes
+      - daily_quotes
+      - technical_indicators
+      - sector_performance
+
+  yahoo_finance:
+    enabled: true
+    rate_limits:
+      requests_per_second: 2
+    data_types:
+      - historical_prices
+      - options_data
+      - analyst_ratings
+      - institutional_holdings
+
+  polygon:
+    enabled: true
+    api_key: "${POLYGON_API_KEY}"
+    rate_limits:
+      requests_per_minute: 5
+    data_types:
+      - real_time_trades
+      - real_time_quotes
+      - aggregated_bars
+      - news_feed
+
+  # Economic data
+  fred:
+    enabled: true
+    api_key: "${FRED_API_KEY}"
+    rate_limits:
+      requests_per_second: 2
+    indicators:
+      - GDP
+      - CPI
+      - Unemployment
+      - FedFundsRate
+      - TreasuryYields
+      - HousingStarts
+
+  # News and sentiment
+  newsapi:
+    enabled: true
+    api_key: "${NEWSAPI_KEY}"
+    rate_limits:
+      requests_per_day: 1000
+    sources:
+      - reuters
+      - bloomberg
+      - cnbc
+      - financial_times
+      - wall_street_journal
+
+  twitter:
+    enabled: true
+    bearer_token: "${TWITTER_BEARER_TOKEN}"
+    rate_limits:
+      requests_per_15min: 300
+    search_terms:
+      - "$TICKER"
+      - "earnings"
+      - "guidance"
+      - "analyst"
+      - "upgrade"
+      - "downgrade"
+
+  # Alternative data
+  kalshi:
+    enabled: true
+    api_key: "${KALSHI_API_KEY}"
+    markets:
+      - economic_indicators
+      - political_events
+      - weather_events
+      - sports_events
+
+  # Satellite and web data
+  satellite_imagery:
+    enabled: false  # Premium feature
+    provider: "planet_labs"
+    api_key: "${PLANET_LABS_KEY}"
+    coverage: ["agriculture", "energy", "real_estate"]
+
+  web_traffic:
+    enabled: false  # Premium feature
+    provider: "similarweb"
+    api_key: "${SIMILARWEB_KEY}"
+    metrics: ["traffic_volume", "engagement", "demographics"]

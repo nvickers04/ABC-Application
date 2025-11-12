@@ -1,0 +1,104 @@
+# Comprehensive risk management configuration
+risk_management:
+  # Portfolio-level limits
+  portfolio_limits:
+    max_var_95: 0.15  # 15% Value at Risk (95% confidence)
+    max_expected_shortfall: 0.20  # 20% Expected Shortfall
+    max_drawdown: 0.10  # 10% maximum drawdown
+    max_daily_loss: 0.05  # 5% daily loss limit
+    max_monthly_loss: 0.15  # 15% monthly loss limit
+
+  # Position-level limits
+  position_limits:
+    max_single_position: 0.10  # 10% of portfolio
+    max_sector_exposure: 0.25  # 25% sector concentration
+    max_industry_exposure: 0.15  # 15% industry concentration
+    max_region_exposure: 0.30  # 30% regional concentration
+    min_position_size: 0.001  # 0.1% minimum position
+    max_position_size: 0.20  # 20% maximum position
+
+  # Trading limits
+  trading_limits:
+    max_daily_trades: 50
+    max_order_value: 250000  # $250K per order
+    max_daily_turnover: 2.0  # 200% portfolio turnover
+    max_concentration_risk: 0.30  # 30% concentration limit
+
+  # Market risk controls
+  market_risk:
+    volatility_limits:
+      max_portfolio_volatility: 0.25  # 25% annualized volatility
+      max_sector_volatility: 0.35  # 35% sector volatility
+    correlation_limits:
+      max_correlation_cluster: 0.80  # 80% correlation threshold
+      min_diversification_ratio: 1.5  # Minimum diversification
+    liquidity_risk:
+      max_illiquidity_percent: 0.20  # 20% illiquid positions
+      min_daily_volume_threshold: 500000  # $500K daily volume minimum
+
+  # Stress testing scenarios
+  stress_tests:
+    market_crash:
+      equity_drop: 0.20  # 20% equity market drop
+      vol_increase: 2.0  # 2x volatility increase
+      correlation_breakdown: true
+      recovery_time_days: 30
+    volatility_spike:
+      vix_increase: 50  # VIX +50 points
+      sector_rotation: true
+      options_premium_increase: 3.0  # 3x options premium
+    liquidity_crisis:
+      bid_ask_spread_increase: 5.0  # 5x spreads
+      volume_drop: 0.70  # 70% volume decrease
+      margin_call_trigger: true
+    geopolitical_event:
+      region_specific_impact: true
+      currency_volatility: 2.5  # 2.5x currency vol
+      commodity_price_shock: 0.30  # 30% commodity move
+
+  # Compliance settings
+  compliance:
+    regulatory_requirements:
+      reg_t_margin: true
+      pattern_day_trading_rules: true
+      wash_sale_rules: true
+      short_sale_restrictions: true
+      position_reporting: true
+    risk_limits:
+      concentration_limits: true
+      counterparty_limits: true
+      jurisdiction_limits: true
+    monitoring:
+      real_time_surveillance: true
+      trade_reporting: true
+      audit_trail: true
+
+  # Dynamic risk controls
+  dynamic_controls:
+    circuit_breakers:
+      single_stock_circuit: 0.10  # 10% single stock move
+      market_circuit: 0.07  # 7% market move
+      volatility_circuit: 0.05  # 5% VIX move
+    position_sizing:
+      kelly_criterion: true
+      risk_parity: true
+      volatility_targeting: true
+    rebalancing:
+      threshold_based: true
+      time_based: "weekly"
+      risk_based: true
+
+  # Risk monitoring and reporting
+  monitoring:
+    real_time_metrics:
+      var_calculation: "historical_simulation"
+      stress_testing: "daily"
+      scenario_analysis: "weekly"
+    reporting:
+      daily_risk_report: true
+      weekly_risk_review: true
+      monthly_risk_assessment: true
+    alerts:
+      risk_limit_breaches: true
+      stress_test_failures: true
+      concentration_warnings: true

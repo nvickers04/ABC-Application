@@ -1,0 +1,11 @@
+{
+  "namespace": "session:session_strategy_agent_1762798105.443252:event:1762798105.446101",
+  "safe_namespace": "session_session_strategy_agent_1762798105.443252_event_1762798105.446101",
+  "timestamp": "2025-11-10T12:08:25.446101",
+  "version": "1.0",
+  "data": {
+    "key": "volatility",
+    "value": 0.25,
+    "agent": "strategy_agent"
+  }
+}

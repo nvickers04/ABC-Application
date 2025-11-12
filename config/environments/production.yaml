@@ -1,0 +1,48 @@
+# Production environment settings
+environment: "production"
+debug: false
+log_level: "WARNING"
+
+# Optimized for performance
+system:
+  max_workers: 32
+  thread_pool_size: 64
+
+# Production data sources
+data:
+  use_mock_data: false
+  primary_provider: "ibkr"
+  backup_providers: ["alpha_vantage", "polygon"]
+
+# Strict risk limits
+risk_management:
+  portfolio_limits:
+    max_var_95: 0.12  # Stricter than default
+    max_daily_loss: 0.03  # 3% daily loss limit
+
+# Production database cluster
+database:
+  host: "prod-db-cluster.us-east-1.rds.amazonaws.com"
+  port: 5432
+  database: "abc_application_prod"
+  username: "${DB_USERNAME}"
+  password: "${DB_PASSWORD}"
+  ssl_mode: "require"
+  connection_pool_size: 20
+
+# Redis cluster
+redis:
+  cluster_nodes:
+    - "redis-node-1:6379"
+    - "redis-node-2:6379"
+    - "redis-node-3:6379"
+  password: "${REDIS_PASSWORD}"
+
+# Production API keys from secret management
+api_keys:
+  alpha_vantage: "${ALPHA_VANTAGE_API_KEY}"
+  newsapi: "${NEWSAPI_KEY}"
+  twitter: "${TWITTER_BEARER_TOKEN}"
+  polygon: "${POLYGON_API_KEY}"
+  fred: "${FRED_API_KEY}"
+  kalshi: "${KALSHI_API_KEY}"

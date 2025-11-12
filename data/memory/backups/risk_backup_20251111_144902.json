@@ -1,0 +1,635 @@
+{
+  "agent_role": "risk",
+  "timestamp": "2025-11-11T14:49:02.915268",
+  "version": "1.0",
+  "data": {
+    "batch_adjustments": {},
+    "stochastic_logs": [
+      {
+        "proposal": {
+          "symbol": "SPY",
+          "direction": "long",
+          "quantity": 90,
+          "roi_estimate": 0.05,
+          "confidence": 0.9,
+          "strategy_type": "Options",
+          "setup": "options"
+        },
+        "volatility_used": 0.2,
+        "simulated_returns_mean": 0.04688312202487515,
+        "simulated_returns_std": 0.058247825160468676,
+        "simulated_returns_skew": 0.06576503322030043,
+        "simulated_returns_kurtosis": -0.10028261662055638,
+        "pop": 0.789,
+        "var_95": -0.04596753990718293,
+        "cvar_95": -0.03208059392099765,
+        "max_drawdown_sim": 0.04249739322407533,
+        "sharpe_ratio_sim": 0.8048905155808896,
+        "simulation_method": "tfp_gbm_monte_carlo"
+      },
+      {
+        "proposal": {
+          "symbol": "SPY",
+          "direction": "long",
+          "quantity": 90,
+          "roi_estimate": 0.05,
+          "confidence": 0.9,
+          "strategy_type": "Flow",
+          "setup": "flow"
+        },
+        "volatility_used": 0.2,
+        "simulated_returns_mean": 0.049617013493444426,
+        "simulated_returns_std": 0.05718677238793642,
+        "simulated_returns_skew": 0.16071932417208556,
+        "simulated_returns_kurtosis": 0.15474523863195744,
+        "pop": 0.802,
+        "var_95": -0.04490728638156876,
+        "cvar_95": -0.029817904058085754,
+        "max_drawdown_sim": 0.04163065903802522,
+        "sharpe_ratio_sim": 0.8676309471858069,
+        "simulation_method": "tfp_gbm_monte_carlo"
+      },
+      {
+        "proposal": {
+          "symbol": "AAPL",
+          "direction": "long",
+          "quantity": 90,
+          "roi_estimate": 0.2,
+          "confidence": 0.9,
+          "strategy_type": "Ml",
+          "setup": "ml"
+        },
+        "volatility_used": 0.2,
+        "simulated_returns_mean": 0.21264598265593201,
+        "simulated_returns_std": 0.07070912575855433,
+        "simulated_returns_skew": 0.2895228129093781,
+        "simulated_returns_kurtosis": 0.2079392694155291,
+        "pop": 0.999,
+        "var_95": 0.10753061330616553,
+        "cvar_95": -0.006305715079011946,
+        "max_drawdown_sim": 0.019484853644024504,
+        "sharpe_ratio_sim": 3.007334348638956,
+        "simulation_method": "tfp_gbm_monte_carlo"
+      },
+      {
+        "proposal": {
+          "symbol": "QQQ",
+          "direction": "long",
+          "quantity": 90,
+          "roi_estimate": 0.8,
+          "confidence": 0.9,
+          "strategy_type": "Flow",
+          "setup": "flow"
+        },
+        "volatility_used": 0.2,
+        "simulated_returns_mean": 1.1662995260768343,
+        "simulated_returns_std": 0.12225384249530001,
+        "simulated_returns_skew": 0.04197270450369382,
+        "simulated_returns_kurtosis": -0.0023132946116959374,
+        "pop": 1.0,
+        "var_95": 0.9637218868358062,
+        "cvar_95": 0,
+        "max_drawdown_sim": 0.0005157932015795778,
+        "sharpe_ratio_sim": 9.539982566369414,
+        "simulation_method": "tfp_gbm_monte_carlo"
+      },
+      {
+        "proposal": {
+          "symbol": "QQQ",
+          "direction": "long",
+          "quantity": 90,
+          "roi_estimate": 0.78,
+          "confidence": 0.9,
+          "strategy_type": "Flow",
+          "setup": "flow"
+        },
+        "volatility_used": 0.2,
+        "simulated_returns_mean": 1.1219827334026415,
+        "simulated_returns_std": 0.12196136289246608,
+        "simulated_returns_skew": 0.21747025110437343,
+        "simulated_returns_kurtosis": -0.10191962620242867,
+        "pop": 1.0,
+        "var_95": 0.9366072767910678,
+        "cvar_95": 0,
+        "max_drawdown_sim": 0.0006576586473375117,
+        "sharpe_ratio_sim": 9.199493239444193,
+        "simulation_method": "tfp_gbm_monte_carlo"
+      },
+      {
+        "proposal": {
+          "symbol": "QQQ",
+          "direction": "long",
+          "quantity": 90,
+          "roi_estimate": 0.02,
+          "confidence": 0.9,
+          "strategy_type": "Options",
+          "setup": "options"
+        },
+        "volatility_used": 0.2,
+        "simulated_returns_mean": 0.022580936816238243,
+        "simulated_returns_std": 0.05976552055713082,
+        "simulated_returns_skew": 0.370524089686249,
+        "simulated_returns_kurtosis": 0.1402703503233167,
+        "pop": 0.626,
+        "var_95": -0.07008476578959574,
+        "cvar_95": -0.03618649024161422,
+        "max_drawdown_sim": 0.04961931700234788,
+        "sharpe_ratio_sim": 0.3778254854260453,
+        "simulation_method": "tfp_gbm_monte_carlo"
+      },
+      {
+        "proposal": {
+          "symbol": "SPY",
+          "direction": "long",
+          "quantity": 90,
+          "roi_estimate": 0.05,
+          "confidence": 0.9,
+          "strategy_type": "Flow",
+          "setup": "flow"
+        },
+        "volatility_used": 0.2,
+        "simulated_returns_mean": 0.050309462734011004,
+        "simulated_returns_std": 0.061940907463360804,
+        "simulated_returns_skew": 0.13911966478173665,
+        "simulated_returns_kurtosis": 0.030963228838913892,
+        "pop": 0.788,
+        "var_95": -0.04699072050983618,
+        "cvar_95": -0.03188389814275404,
+        "max_drawdown_sim": 0.04196596613242902,
+        "sharpe_ratio_sim": 0.8122170758277958,
+        "simulation_method": "tfp_gbm_monte_carlo"
+      },
+      {
+        "proposal": {
+          "symbol": "QQQ",
+          "direction": "long",
+          "quantity": 90,
+          "roi_estimate": 0.25,
+          "confidence": 0.9,
+          "strategy_type": "Ml",
+          "setup": "ml"
+        },
+        "volatility_used": 0.2,
+        "simulated_returns_mean": 0.272910614054101,
+        "simulated_returns_std": 0.07236748718051479,
+        "simulated_returns_skew": 0.21559121759468697,
+        "simulated_returns_kurtosis": 0.31768900681309287,
+        "pop": 1.0,
+        "var_95": 0.15865878529480623,
+        "cvar_95": 0,
+        "max_drawdown_sim": 0.01602185480358993,
+        "sharpe_ratio_sim": 3.7711771499450815,
+        "simulation_method": "tfp_gbm_monte_carlo"
+      },
+      {
+        "proposal": {
+          "symbol": "NVDA",
+          "direction": "long",
+          "quantity": 70,
+          "roi_estimate": 0.85,
+          "confidence": 0.7,
+          "strategy_type": "Flow",
+          "setup": "flow"
+        },
+        "volatility_used": 0.2,
+        "simulated_returns_mean": 1.279751693754078,
+        "simulated_returns_std": 0.12555234719007283,
+        "simulated_returns_skew": 0.15093937466475266,
+        "simulated_returns_kurtosis": 0.19992110030710863,
+        "pop": 1.0,
+        "var_95": 1.0800394925209165,
+        "cvar_95": 0,
+        "max_drawdown_sim": 0.0003171672959088221,
+        "sharpe_ratio_sim": 10.192973069764047,
+        "simulation_method": "tfp_gbm_monte_carlo"
+      },
+      {
+        "proposal": {
+          "symbol": "TSLA",
+          "direction": "long",
+          "quantity": 70,
+          "roi_estimate": 0.82,
+          "confidence": 0.7,
+          "strategy_type": "ML",
+          "setup": "ml"
+        },
+        "volatility_used": 0.2,
+        "simulated_returns_mean": 1.2140617296888816,
+        "simulated_returns_std": 0.12521189327165394,
+        "simulated_returns_skew": 0.20613588430782018,
+        "simulated_returns_kurtosis": 0.0051787011241932746,
+        "pop": 1.0,
+        "var_95": 1.0154591380624103,
+        "cvar_95": 0,
+        "max_drawdown_sim": 0.0004176410839458473,
+        "sharpe_ratio_sim": 9.696057602570622,
+        "simulation_method": "tfp_gbm_monte_carlo"
+      },
+      {
+        "proposal": {
+          "symbol": "QQQ",
+          "direction": "long",
+          "quantity": 90,
+          "roi_estimate": 0.15,
+          "confidence": 0.9,
+          "strategy_type": "Flow",
+          "setup": "flow"
+        },
+        "volatility_used": 0.2,
+        "simulated_returns_mean": 0.15541893703061088,
+        "simulated_returns_std": 0.06398754604456,
+        "simulated_returns_skew": 0.042355843367854674,
+        "simulated_returns_kurtosis": 0.05336112988100172,
+        "pop": 0.993,
+        "var_95": 0.050658228050921975,
+        "cvar_95": -0.02520537403171549,
+        "max_drawdown_sim": 0.02441830445565367,
+        "sharpe_ratio_sim": 2.428893536913877,
+        "simulation_method": "tfp_gbm_monte_carlo"
+      },
+      {
+        "proposal": {
+          "symbol": "SPY",
+          "direction": "long",
+          "quantity": 90,
+          "roi_estimate": 0.2,
+          "confidence": 0.9,
+          "strategy_type": "Options",
+          "setup": "options"
+        },
+        "volatility_used": 0.2,
+        "simulated_returns_mean": 0.2146690352592002,
+        "simulated_returns_std": 0.0681462945392995,
+        "simulated_returns_skew": 0.13859875627079152,
+        "simulated_returns_kurtosis": 0.0955519600997099,
+        "pop": 1.0,
+        "var_95": 0.10265952570591977,
+        "cvar_95": 0,
+        "max_drawdown_sim": 0.019637834647356373,
+        "sharpe_ratio_sim": 3.150120438836216,
+        "simulation_method": "tfp_gbm_monte_carlo"
+      },
+      {
+        "proposal": {
+          "symbol": "SPY",
+          "direction": "long",
+          "quantity": 90,
+          "roi_estimate": 0.2,
+          "confidence": 0.9,
+          "strategy_type": "Flow",
+          "setup": "flow"
+        },
+        "volatility_used": 0.2,
+        "simulated_returns_mean": 0.21204757057807652,
+        "simulated_returns_std": 0.06946429794865014,
+        "simulated_returns_skew": 0.23051254318303172,
+        "simulated_returns_kurtosis": 0.17237851911435254,
+        "pop": 0.999,
+        "var_95": 0.10283935945812613,
+        "cvar_95": -0.03498274447671463,
+        "max_drawdown_sim": 0.019261771116617466,
+        "sharpe_ratio_sim": 3.0526123035869124,
+        "simulation_method": "tfp_gbm_monte_carlo"
+      },
+      {
+        "proposal": {
+          "symbol": "AAPL",
+          "direction": "long",
+          "quantity": 90,
+          "roi_estimate": 0.95,
+          "confidence": 0.9,
+          "strategy_type": "Ml",
+          "setup": "ml"
+        },
+        "volatility_used": 0.2,
+        "simulated_returns_mean": 1.5008760526760017,
+        "simulated_returns_std": 0.14121648015700206,
+        "simulated_returns_skew": 0.09706573581979935,
+        "simulated_returns_kurtosis": -0.06094984551773042,
+        "pop": 1.0,
+        "var_95": 1.2750482671155188,
+        "cvar_95": 0,
+        "max_drawdown_sim": 9.107860982269578e-05,
+        "sharpe_ratio_sim": 10.628193331311993,
+        "simulation_method": "tfp_gbm_monte_carlo"
+      },
+      {
+        "proposal": {
+          "symbol": "NVDA",
+          "direction": "long",
+          "quantity": 70,
+          "roi_estimate": 0.78,
+          "confidence": 0.7,
+          "strategy_type": "Flow",
+          "setup": "flow"
+        },
+        "volatility_used": 0.2,
+        "simulated_returns_mean": 1.1214848918991207,
+        "simulated_returns_std": 0.11673810754671717,
+        "simulated_returns_skew": 0.12421447409968038,
+        "simulated_returns_kurtosis": -0.07877309497858631,
+        "pop": 1.0,
+        "var_95": 0.9304555736239374,
+        "cvar_95": 0,
+        "max_drawdown_sim": 0.0006967721982234449,
+        "sharpe_ratio_sim": 9.606844889534603,
+        "simulation_method": "tfp_gbm_monte_carlo"
+      },
+      {
+        "proposal": {
+          "symbol": "TSLA",
+          "direction": "long",
+          "quantity": 70,
+          "roi_estimate": 0.75,
+          "confidence": 0.7,
+          "strategy_type": "ML",
+          "setup": "ml"
+        },
+        "volatility_used": 0.2,
+        "simulated_returns_mean": 1.0695175987876528,
+        "simulated_returns_std": 0.11565112937699304,
+        "simulated_returns_skew": 0.2892003918754121,
+        "simulated_returns_kurtosis": 0.24357881910995394,
+        "pop": 1.0,
+        "var_95": 0.8860219484298798,
+        "cvar_95": 0,
+        "max_drawdown_sim": 0.0007973390374565304,
+        "sharpe_ratio_sim": 9.247792084254531,
+        "simulation_method": "tfp_gbm_monte_carlo"
+      },
+      {
+        "proposal": {
+          "symbol": "XOM",
+          "direction": "long",
+          "quantity": 70,
+          "roi_estimate": 0.12,
+          "confidence": 0.7,
+          "strategy_type": "Flow",
+          "setup": "flow"
+        },
+        "volatility_used": 0.2,
+        "simulated_returns_mean": 0.1251508150939783,
+        "simulated_returns_std": 0.06156087937213496,
+        "simulated_returns_skew": 0.20399023873965832,
+        "simulated_returns_kurtosis": 0.3045565348889405,
+        "pop": 0.981,
+        "var_95": 0.026271731480670135,
+        "cvar_95": -0.013493486298453346,
+        "max_drawdown_sim": 0.028050273271114808,
+        "sharpe_ratio_sim": 2.0329601586332573,
+        "simulation_method": "tfp_gbm_monte_carlo"
+      },
+      {
+        "proposal": {
+          "symbol": "SPY",
+          "direction": "long",
+          "quantity": 90,
+          "roi_estimate": 0.2,
+          "confidence": 0.9,
+          "strategy_type": "Options",
+          "setup": "options"
+        },
+        "volatility_used": 0.2,
+        "simulated_returns_mean": 0.21310017862776368,
+        "simulated_returns_std": 0.0665320415567292,
+        "simulated_returns_skew": 0.1706580377409331,
+        "simulated_returns_kurtosis": 0.3024791359489667,
+        "pop": 1.0,
+        "var_95": 0.10600449494471138,
+        "cvar_95": 0,
+        "max_drawdown_sim": 0.019726007528382956,
+        "sharpe_ratio_sim": 3.2029706836225924,
+        "simulation_method": "tfp_gbm_monte_carlo"
+      },
+      {
+        "proposal": {
+          "symbol": "QQQ",
+          "direction": "long",
+          "quantity": 90,
+          "roi_estimate": 0.02,
+          "confidence": 0.9,
+          "strategy_type": "Flow",
+          "setup": "flow"
+        },
+        "volatility_used": 0.2,
+        "simulated_returns_mean": 0.015602494966022305,
+        "simulated_returns_std": 0.055044397067809024,
+        "simulated_returns_skew": 0.14238502829417793,
+        "simulated_returns_kurtosis": -0.05216841361960434,
+        "pop": 0.583,
+        "var_95": -0.07574938421252085,
+        "cvar_95": -0.03528949391799643,
+        "max_drawdown_sim": 0.05237141810066662,
+        "sharpe_ratio_sim": 0.2834529179564205,
+        "simulation_method": "tfp_gbm_monte_carlo"
+      },
+      {
+        "proposal": {
+          "symbol": "SPY",
+          "direction": "long",
+          "quantity": 90,
+          "roi_estimate": 0.2,
+          "confidence": 0.9,
+          "strategy_type": "Ml",
+          "setup": "ml"
+        },
+        "volatility_used": 0.2,
+        "simulated_returns_mean": 0.2120196737423758,
+        "simulated_returns_std": 0.068570121885839,
+        "simulated_returns_skew": 0.2298569187966169,
+        "simulated_returns_kurtosis": 0.1281449058255455,
+        "pop": 1.0,
+        "var_95": 0.1007852211553722,
+        "cvar_95": 0,
+        "max_drawdown_sim": 0.019605542710572906,
+        "sharpe_ratio_sim": 3.092012496278817,
+        "simulation_method": "tfp_gbm_monte_carlo"
+      },
+      {
+        "proposal": {
+          "symbol": "NVDA",
+          "direction": "long",
+          "quantity": 70,
+          "roi_estimate": 0.82,
+          "confidence": 0.7,
+          "strategy_type": "Flow",
+          "setup": "flow"
+        },
+        "volatility_used": 0.2,
+        "simulated_returns_mean": 1.208024985036921,
+        "simulated_returns_std": 0.12199070738514264,
+        "simulated_returns_skew": 0.012031937757535933,
+        "simulated_returns_kurtosis": -0.10135519213652655,
+        "pop": 1.0,
+        "var_95": 1.0130784525864518,
+        "cvar_95": 0,
+        "max_drawdown_sim": 0.0003664708222934714,
+        "sharpe_ratio_sim": 9.90259841041013,
+        "simulation_method": "tfp_gbm_monte_carlo"
+      },
+      {
+        "proposal": {
+          "roi_estimate": 0.25,
+          "confidence": 0.85,
+          "symbol": "SPY",
+          "quantity": 100
+        },
+        "volatility_used": 0.2,
+        "simulated_returns_mean": 0.27420049632417703,
+        "simulated_returns_std": 0.07224774496787724,
+        "simulated_returns_skew": 0.22040274931183346,
+        "simulated_returns_kurtosis": 0.5884065496248216,
+        "pop": 1.0,
+        "var_95": 0.1564220584228906,
+        "cvar_95": 0,
+        "max_drawdown_sim": 0.015804959444200788,
+        "sharpe_ratio_sim": 3.7952810353609228,
+        "simulation_method": "tfp_gbm_monte_carlo"
+      },
+      {
+        "proposal": {
+          "roi_estimate": 0.1,
+          "holding_days": 30,
+          "volatility": 0.2
+        },
+        "volatility_used": 0.2,
+        "simulated_returns_mean": 0.10333120840525206,
+        "simulated_returns_std": 0.06272699413557134,
+        "simulated_returns_skew": 0.24242168093503766,
+        "simulated_returns_kurtosis": 0.18807350388575594,
+        "pop": 0.96,
+        "var_95": 0.004150891534002043,
+        "cvar_95": -0.022673902256798405,
+        "max_drawdown_sim": 0.03138040797868539,
+        "sharpe_ratio_sim": 1.6473164357584738,
+        "simulation_method": "tfp_gbm_monte_carlo"
+      },
+      {
+        "proposal": {
+          "roi_estimate": 0.1,
+          "holding_days": 30,
+          "volatility": 0.2
+        },
+        "volatility_used": 0.30000000000000004,
+        "simulated_returns_mean": 0.10521107748736924,
+        "simulated_returns_std": 0.09414276330784137,
+        "simulated_returns_skew": 0.2933286150426875,
+        "simulated_returns_kurtosis": 0.3166448482763191,
+        "pop": 0.866,
+        "var_95": -0.04344722105254411,
+        "cvar_95": -0.03884277310726569,
+        "max_drawdown_sim": 0.0560493523663051,
+        "sharpe_ratio_sim": 1.1175694635532964,
+        "simulation_method": "tfp_gbm_monte_carlo"
+      },
+      {
+        "proposal": {
+          "roi_estimate": 0.1,
+          "holding_days": 30,
+          "volatility": 0.2
+        },
+        "volatility_used": 0.4,
+        "simulated_returns_mean": 0.10418917231287347,
+        "simulated_returns_std": 0.12108023750378688,
+        "simulated_returns_skew": 0.3554439427968856,
+        "simulated_returns_kurtosis": 0.43577155140511303,
+        "pop": 0.814,
+        "var_95": -0.08077824914013586,
+        "cvar_95": -0.062208581446586,
+        "max_drawdown_sim": 0.08146780737161476,
+        "sharpe_ratio_sim": 0.86049692716877,
+        "simulation_method": "tfp_gbm_monte_carlo"
+      },
+      {
+        "proposal": {
+          "roi_estimate": 0.1,
+          "holding_days": 30,
+          "volatility": 0.2
+        },
+        "volatility_used": 0.2,
+        "simulated_returns_mean": 0.10039291509727409,
+        "simulated_returns_std": 0.06370337406218102,
+        "simulated_returns_skew": 0.21659542660766049,
+        "simulated_returns_kurtosis": 0.062110568754106144,
+        "pop": 0.95,
+        "var_95": 0.00016961217045682436,
+        "cvar_95": -0.02213366236559791,
+        "max_drawdown_sim": 0.031978028606797736,
+        "sharpe_ratio_sim": 1.575943450016954,
+        "simulation_method": "tfp_gbm_monte_carlo"
+      },
+      {
+        "proposal": {
+          "roi_estimate": 0.1,
+          "holding_days": 30,
+          "volatility": 0.2
+        },
+        "volatility_used": 0.30000000000000004,
+        "simulated_returns_mean": 0.10087044097721476,
+        "simulated_returns_std": 0.0909804479857086,
+        "simulated_returns_skew": 0.23243788767430618,
+        "simulated_returns_kurtosis": 0.05590417488455257,
+        "pop": 0.874,
+        "var_95": -0.03902313067983523,
+        "cvar_95": -0.04103303586899026,
+        "max_drawdown_sim": 0.05611517606437289,
+        "sharpe_ratio_sim": 1.1087045976412393,
+        "simulation_method": "tfp_gbm_monte_carlo"
+      },
+      {
+        "proposal": {
+          "roi_estimate": 0.1,
+          "holding_days": 30,
+          "volatility": 0.2
+        },
+        "volatility_used": 0.4,
+        "simulated_returns_mean": 0.1008201880048768,
+        "simulated_returns_std": 0.12086238340605937,
+        "simulated_returns_skew": 0.2988155089384956,
+        "simulated_returns_kurtosis": 0.05991396961344231,
+        "pop": 0.793,
+        "var_95": -0.08359183049517686,
+        "cvar_95": -0.05631016098875094,
+        "max_drawdown_sim": 0.08167088438820044,
+        "sharpe_ratio_sim": 0.8341734223968831,
+        "simulation_method": "tfp_gbm_monte_carlo"
+      },
+      {
+        "proposal": {
+          "roi_estimate": 0.1,
+          "holding_days": 30,
+          "volatility": 0.2
+        },
+        "volatility_used": 0.2,
+        "simulated_returns_mean": 0.10198575200778294,
+        "simulated_returns_std": 0.06396934019085007,
+        "simulated_returns_skew": 0.2738907183164528,
+        "simulated_returns_kurtosis": -0.029542312741117183,
+        "pop": 0.96,
+        "var_95": 0.00710825580227586,
+        "cvar_95": -0.024485683741232698,
+        "max_drawdown_sim": 0.03138762391017015,
+        "sharpe_ratio_sim": 1.5942911354644642,
+        "simulation_method": "tfp_gbm_monte_carlo"
+      },
+      {
+        "proposal": {
+          "roi_estimate": 0.1,
+          "holding_days": 30,
+          "volatility": 0.2
+        },
+        "volatility_used": 0.30000000000000004,
+        "simulated_returns_mean": 0.10345161062647318,
+        "simulated_returns_std": 0.09585430875207497,
+        "simulated_returns_skew": 0.2599620322670674,
+        "simulated_returns_kurtosis": -0.034692403863086696,
+        "pop": 0.858,
+        "var_95": -0.04071909791927029,
+        "cvar_95": -0.04012189062246282,
+        "max_drawdown_sim": 0.05629987029223617,
+        "sharpe_ratio_sim": 1.0792588457765468,
+        "simulation_method": "tfp_gbm_monte_carlo"
+      }
+    ]
+  }
+}

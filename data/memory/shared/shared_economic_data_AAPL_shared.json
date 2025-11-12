@@ -1,0 +1,27 @@
+{
+  "namespace": "shared:economic_data:AAPL",
+  "safe_namespace": "shared_economic_data_AAPL",
+  "timestamp": "2025-11-11T20:55:38.942102",
+  "version": "1.0",
+  "data": {
+    "data": {
+      "economic_indicators": {
+        "gdp_growth": "0.02",
+        "inflation_rate": "0.03",
+        "unemployment_rate": "0.045"
+      },
+      "timestamp": "2025-11-11T20:55:38.939505"
+    },
+    "timestamp": "2025-11-11T20:55:38.939505",
+    "memory_type": "shared",
+    "metadata": {
+      "shared_by": "economic_data",
+      "namespace": "economic_data",
+      "shared_at": "2025-11-11T20:55:38.939505",
+      "access_level": "shared",
+      "original_data_type": "dict"
+    },
+    "user": null,
+    "size": 140
+  }
+}

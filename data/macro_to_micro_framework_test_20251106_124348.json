@@ -1,0 +1,119 @@
+{
+  "timestamp": "2025-11-06T12:43:48.570942",
+  "framework_test": "macro_to_micro_analysis",
+  "macro_analysis": {
+    "sectors_analyzed": 38,
+    "selected_sectors": [
+      {
+        "ticker": "PL=F",
+        "name": "Platinum Futures",
+        "score": 2233386264417969.2,
+        "metrics": {
+          "momentum": 0.0,
+          "volatility": 2.220446049250313e-16,
+          "avg_performance": 1.653037902425598,
+          "risk_adjusted_return": 7444620881393229.0
+        }
+      },
+      {
+        "ticker": "XLK",
+        "name": "Technology",
+        "score": 2002495524454336.0,
+        "metrics": {
+          "momentum": 0.0,
+          "volatility": 1.1102230246251565e-16,
+          "avg_performance": 0.7410722126526773,
+          "risk_adjusted_return": 6674985081514453.0
+        }
+      },
+      {
+        "ticker": "ETH-USD",
+        "name": "Ethereum USD",
+        "score": 2.088416789893189,
+        "metrics": {
+          "momentum": 0.0,
+          "volatility": 0.0,
+          "avg_performance": 2.98345255699027,
+          "risk_adjusted_return": 2.98345255699027
+        }
+      },
+      {
+        "ticker": "EEM",
+        "name": "iShares MSCI Emerging Markets",
+        "score": 0.05714515100191353,
+        "metrics": {
+          "momentum": 0.0,
+          "volatility": 0.0,
+          "avg_performance": 0.08163593000273361,
+          "risk_adjusted_return": 0.08163593000273361
+        }
+      },
+      {
+        "ticker": "EMB",
+        "name": "iShares Emerging Markets Bond",
+        "score": -0.3666582893027953,
+        "metrics": {
+          "momentum": 0.0,
+          "volatility": 0.0,
+          "avg_performance": -0.5237975561468504,
+          "risk_adjusted_return": -0.5237975561468504
+        }
+      }
+    ],
+    "market_regime": "bear_strong",
+    "allocation_weights": {
+      "PL=F": 0.45524517946956267,
+      "XLK": 0.4081812666895685,
+      "ETH-USD": 0.04552451794695627,
+      "EEM": 0.04552451794695627,
+      "EMB": 0.04552451794695627
+    }
+  },
+  "micro_analysis": {
+    "symbols_processed": [
+      "PL=F",
+      "XLK",
+      "ETH-USD"
+    ],
+    "data_sources_used": [
+      "yfinance",
+      "sentiment",
+      "news",
+      "economic",
+      "institutional",
+      "fundamental",
+      "microstructure",
+      "kalshi"
+    ]
+  },
+  "strategy_generation": {
+    "strategies_created": 0,
+    "macro_context_integrated": true
+  },
+  "risk_assessment": {
+    "regime_aware": true,
+    "metrics_calculated": 5
+  },
+  "comparison": {
+    "hardcoded_symbols": [
+      "SPY",
+      "AAPL",
+      "MSFT",
+      "GOOGL",
+      "TSLA"
+    ],
+    "framework_symbols": [
+      "PL=F",
+      "XLK",
+      "ETH-USD",
+      "EEM",
+      "EMB"
+    ],
+    "framework_advantages": [
+      "systematic_selection",
+      "market_regime_awareness",
+      "comprehensive_coverage",
+      "dynamic_adaptation"
+    ]
+  }
+}

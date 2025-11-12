@@ -1,0 +1,67 @@
+streamlit>=1.39.0,<2.0  # Minimum from original; cap at <2.0 to avoid potential breaking changes in major version; latest stable as of Oct 2025 is 1.39.0
+pandas>=2.2.3,<3.0  # Minimum from original; cap at <3.0 for compatibility with Python 3.11 and deps like numpy/tensorflow; latest is 2.2.3
+matplotlib>=3.9.2,<4.0  # Minimum from original; cap at <4.0 to prevent API changes; latest is 3.9.2
+numpy>=2.1.1,<3.0  # Minimum from original; cap at <3.0 for broad compatibility (e.g., with tensorflow 2.x); latest is 2.1.1
+pyyaml>=6.0.2,<7.0  # Minimum from original; cap at <7.0 to avoid YAML parsing changes; latest is 6.0.2
+pydantic>=2.9.2,<3.0  # Minimum from original; cap at <3.0 for compatibility with langchain 1.x; latest is 2.9.2
+# tensorflow>=2.20.0,<3.0  # Minimum from original; cap at <3.0 to stay on stable 2.x series (3.x may require code changes); latest is 2.20.0 - REMOVED DUE TO WINDOWS LONG PATH ISSUE
+# tf-keras>=2.20.0,<3.0  # Added for TensorFlow Probability compatibility - REMOVED DUE TO WINDOWS LONG PATH ISSUE
+# tensorflow-probability>=0.24.0,<1.0  # Adjusted to working version; cap at <1.0 for minor version stability; latest tested is 0.24.0 - REMOVED DUE TO WINDOWS LONG PATH ISSUE
+langchain>=1.0.0,<2.0  # Updated to match installed version for compatibility
+langchain-core>=1.0.0,<2.0  # Compatible with langchain 1.x
+langgraph>=0.2.28,<2.0  # Adjusted to current stable; cap at <2.0
+langgraph-checkpoint>=1.0.12,<4.0  # Matches langgraph; cap at <4.0
+langgraph-sdk>=0.2.9,<1.0  # Minimum from original; cap at <1.0 for stability; latest is 0.2.9
+langchain-openai>=1.0.0,<2.0  # For xAI API integration; latest stable is 0.2.0
+langchain-xai>=1.0.0,<2.0  # For xAI/Grok API integration through LangChain; latest stable is 1.0.0
+yfinance>=0.2.44,<1.0  # Minimum from original; cap at <1.0; latest is 0.2.44
+backtrader>=1.9.78.123,<2.0  # Minimum from original; cap at <2.0 (no major updates expected); latest is 1.9.78.123
+pyfolio-reloaded>=0.9.9,<1.0  # Minimum from original; cap at <1.0; latest is 0.9.9
+nautilus-trader>=1.221.0,<2.0  # Minimum from original; cap at <2.0; latest is 1.221.0
+requests>=2.32.5,<3.0  # Minimum to satisfy langchain-community; cap at <3.0 for broad compatibility; latest is 2.32.5
+python-dotenv>=1.0.0,<2.0  # For loading environment variables from .env file; latest stable is 1.0.0
+plotly>=5.0.0,<6.0  # For interactive charts and visualizations in dashboard; latest stable is 5.x
+tweepy>=4.14.0,<5.0  # For Twitter API integration; latest stable is 4.14.0
+textblob>=0.19.0,<1.0  # For sentiment analysis; latest stable is 0.19.0
+nltk>=3.9.1,<4.0  # For VADER sentiment analysis; latest stable is 3.9.1
+psutil>=6.0.0,<7.0  # For system and process monitoring; latest stable is 6.x
+
+# Advanced Learning and Backtesting Libraries
+finrl>=0.3.6,<1.0  # For reinforcement learning in quantitative finance; latest stable is 0.3.6
+pyfolio-reloaded>=0.9.9,<1.0  # For performance analytics
+backtrader>=1.9.78.123,<2.0  # For backtesting framework
+
+# Advanced Memory Management Dependencies
+redis>=5.0.0,<6.0  # For in-memory storage and caching; latest stable is 5.x
+mem0ai>=0.1.0,<1.0  # For self-improving memory and recall; latest stable
+faiss-cpu>=1.8.0,<2.0  # For vector similarity search; CPU version for broad compatibility
+chromadb>=0.4.0,<1.0  # For vector database storage; latest stable is 0.4.x
+sentence-transformers>=2.7.0,<3.0  # For generating embeddings from text; latest stable is 2.7.x
+qdrant-client>=1.9.0,<2.0  # Alternative vector database; latest stable is 1.9.x
+cryptography>=46.0.0,<47.0  # For secure memory encryption and data protection; latest stable is 46.0.0
+ib-insync>=0.9.86,<1.0  # For Interactive Brokers API integration; latest stable is 0.9.86
+exchange-calendars>=4.5,<5.0  # For trading calendar and market hours; latest stable is 4.5
+ffn>=1.1.0,<2.0  # For advanced financial functions and portfolio optimization; latest stable is 1.1.2
+scipy>=1.14.1,<2.0  # For scientific computing and statistical functions; latest stable is 1.14.1
+statsmodels>=0.14.4,<1.0  # For statistical modeling and cointegration tests; latest stable is 0.14.4
+scikit-learn>=1.5.2,<2.0  # For machine learning algorithms; latest stable is 1.5.2
+
+# Additional API Dependencies for Data Sources
+alpha-vantage>=1.0.0,<2.0  # For Alpha Vantage financial data API
+newsapi-python>=0.2.7,<1.0  # For NewsAPI news and sentiment data
+fredapi>=0.5.2,<1.0  # For Federal Reserve Economic Data (FRED) API
+kalshi-python>=1.0.0,<2.0  # For Kalshi prediction market data
+fastapi>=0.115.0,<1.0  # For REST API endpoints and configuration management
+uvicorn>=0.32.0,<1.0  # ASGI server for FastAPI
+gunicorn>=23.0.0,<24.0  # WSGI server for production deployment
+
+# Missing critical dependencies identified in health check
+anthropic>=0.40.0,<1.0  # For Anthropic Claude API integration; latest stable is 0.40.x
+pymongo>=4.6.0,<5.0  # For MongoDB database integration; latest stable is 4.6.x
+pytest-asyncio>=0.23.0,<1.0  # For async pytest support; latest stable is 0.23.x
+websockets>=13.0,<14.0  # For WebSocket connections; latest stable is 13.x
+langchain-anthropic>=0.2.0,<1.0  # For Anthropic Claude integration with LangChain
+langchain-google-genai>=1.0.0,<4.0  # For Google Gemini integration with LangChain
+mem0ai>=0.1.0,<1.0  # For Mem0 AI memory system; latest stable
+newsdataapi>=0.1.0,<1.0  # For NewsData.io API news backup
+financialmodelingprep>=0.0.1,<1.0  # For Financial Modeling Prep API backup

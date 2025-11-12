@@ -1,0 +1,17 @@
+{
+  "namespace": "session:session_strategy_agent_1762798105.580548:event:1762798105.596546",
+  "safe_namespace": "session_session_strategy_agent_1762798105.580548_event_1762798105.596546",
+  "timestamp": "2025-11-10T12:08:25.609374",
+  "version": "1.0",
+  "data": {
+    "agent": "reflection_agent",
+    "timestamp": "2025-11-10T12:08:25.596546",
+    "insight": {
+      "type": "reflection_agent_analysis",
+      "content": "Analysis from reflection_agent",
+      "confidence": 1.12,
+      "agent": "reflection_agent"
+    },
+    "validated_by": []
+  }
+}

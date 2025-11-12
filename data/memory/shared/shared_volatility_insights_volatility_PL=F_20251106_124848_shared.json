@@ -1,0 +1,14 @@
+{
+  "namespace": "shared:volatility_insights:volatility_PL=F_20251106_124848",
+  "safe_namespace": "shared_volatility_insights_volatility_PL=F_20251106_124848",
+  "timestamp": "2025-11-06T12:48:48.836188",
+  "version": "1.0",
+  "data": {
+    "symbol": "PL=F",
+    "implied_volatility": 0.0,
+    "historical_volatility": 0.0,
+    "volatility_skew": 0.0,
+    "source_agent": "options_strategy_sub",
+    "timestamp": "2025-11-06T12:48:48.835189"
+  }
+}

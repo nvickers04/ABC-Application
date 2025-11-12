@@ -1,0 +1,18 @@
+{
+  "namespace": "session:session_strategy_agent_1762465620.178151:event:1762465620.210819",
+  "safe_namespace": "session_session_strategy_agent_1762465620.178151_event_1762465620.210819",
+  "timestamp": "2025-11-06T15:47:00.210819",
+  "version": "1.0",
+  "data": {
+    "agent": "strategy_agent",
+    "timestamp": "2025-11-06T15:47:00.209678",
+    "decision": {
+      "conclusion": "Proceed with bullish strategy",
+      "confidence": 0.88
+    },
+    "participants": [
+      "strategy_agent",
+      "data_agent"
+    ]
+  }
+}
