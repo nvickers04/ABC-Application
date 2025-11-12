@@ -144,6 +144,13 @@ ENV/
 env.bak/
 venv.bak/
 
+# SSH Keys (NEVER commit these!)
+*.pem
+*ssh*
+ABCSSH*
+id_rsa*
+id_ed25519*
+
 # Spyder project settings
 .spyderproject
 .spyproject
