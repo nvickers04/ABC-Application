@@ -569,8 +569,11 @@ Provide a clear AWARD/NO-AWARD recommendation with detailed rationale.
         Perform pre-execution sanity checks and mini-loops.
         """
         try:
+            # Convert proposal dict to readable string for sanity check tool
+            proposal_str = f"{proposal.get('direction', 'trade').title()} {proposal.get('quantity', 0)} shares of {proposal.get('symbol', 'UNKNOWN')} at ${proposal.get('price', 0):.2f}"
+
             # Use sanity check tool
-            sanity_result = sanity_check_tool.invoke({"proposal": proposal})
+            sanity_result = sanity_check_tool.invoke(proposal_str)
 
             if isinstance(sanity_result, dict) and sanity_result.get('proposal_valid', False):
                 # Additional checks for mini-loop

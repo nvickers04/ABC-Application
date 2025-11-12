@@ -142,6 +142,244 @@ def qlib_ml_refine_tool(data: Dict[str, Any]) -> Dict[str, Any]:
     except Exception as e:
         return {'error': f'Qlib ML refinement failed: {str(e)}'}
 
+@tool
+@circuit_breaker("sanity_check", failure_threshold=3, recovery_timeout=3600)
+def sanity_check_tool(proposal: str) -> Dict[str, Any]:
+    """
+    Perform sanity checks on trading proposals to ensure they make logical sense.
+    Args:
+        proposal: Trading proposal to validate.
+    Returns:
+        Dict with sanity check results and recommendations.
+    """
+    results = {
+        "proposal": proposal,
+        "timestamp": pd.Timestamp.now().isoformat(),
+        "checks": {},
+        "overall_sanity": "unknown",
+        "recommendations": []
+    }
+
+    try:
+        # Basic sanity checks
+        checks = {
+            "has_symbol": False,
+            "has_direction": False,
+            "has_quantity": False,
+            "has_price_logic": False,
+            "risk_reasonable": False,
+            "time_horizon_reasonable": False
+        }
+
+        proposal_lower = proposal.lower()
+
+        # Check for stock symbol (basic pattern)
+        import re
+        symbol_pattern = r'\b[A-Z]{1,5}\b'  # 1-5 uppercase letters
+        symbols = re.findall(symbol_pattern, proposal)
+        if symbols:
+            # Filter out common words that might match
+            valid_symbols = [s for s in symbols if s not in ['THE', 'AND', 'FOR', 'ARE', 'BUT', 'NOT', 'YOU', 'ALL', 'CAN', 'HER', 'WAS', 'ONE', 'OUR', 'HAD', 'BY', 'HOT', 'BUT', 'SAY', 'WHO', 'EACH', 'WHICH', 'THEIR', 'TIME', 'WILL', 'ABOUT', 'WOULD', 'THERE', 'COULD', 'OTHER']]
+            if valid_symbols:
+                checks["has_symbol"] = True
+                results["identified_symbols"] = valid_symbols
+
+        # Check for direction
+        if any(word in proposal_lower for word in ['buy', 'sell', 'long', 'short', 'purchase', 'acquire']):
+            checks["has_direction"] = True
+
+        # Check for quantity/position size
+        if any(word in proposal_lower for word in ['shares', 'position', 'size', 'allocation', 'percent', '%', 'dollars', '$']):
+            checks["has_quantity"] = True
+
+        # Check for price logic
+        if any(word in proposal_lower for word in ['price', 'valuation', 'pe', 'pb', 'growth', 'momentum', 'support', 'resistance']):
+            checks["has_price_logic"] = True
+
+        # Check for reasonable risk
+        risk_indicators = ['stop loss', 'risk management', 'position size', 'volatility', 'drawdown']
+        if any(indicator in proposal_lower for indicator in risk_indicators):
+            checks["risk_reasonable"] = True
+
+        # Check for time horizon
+        if any(word in proposal_lower for word in ['days', 'weeks', 'months', 'years', 'hold', 'exit', 'target']):
+            checks["time_horizon_reasonable"] = True
+
+        results["checks"] = checks
+
+        # Overall sanity assessment
+        passed_checks = sum(checks.values())
+        total_checks = len(checks)
+
+        if passed_checks >= total_checks * 0.8:
+            results["overall_sanity"] = "excellent"
+        elif passed_checks >= total_checks * 0.6:
+            results["overall_sanity"] = "good"
+        elif passed_checks >= total_checks * 0.4:
+            results["overall_sanity"] = "fair"
+        else:
+            results["overall_sanity"] = "poor"
+
+        # Generate recommendations
+        if not checks["has_symbol"]:
+            results["recommendations"].append("Specify which stock symbol(s) to trade")
+
+        if not checks["has_direction"]:
+            results["recommendations"].append("Clearly state buy/sell direction")
+
+        if not checks["has_quantity"]:
+            results["recommendations"].append("Define position size or allocation")
+
+        if not checks["has_price_logic"]:
+            results["recommendations"].append("Explain valuation or entry logic")
+
+        if not checks["risk_reasonable"]:
+            results["recommendations"].append("Include risk management parameters")
+
+        if not checks["time_horizon_reasonable"]:
+            results["recommendations"].append("Specify holding period or exit strategy")
+
+        return results
+
+    except Exception as e:
+        return {
+            "error": f"Sanity check failed: {str(e)}",
+            "proposal": proposal,
+            "overall_sanity": "error",
+            "recommendations": ["Unable to perform sanity check - review proposal manually"]
+        }
+
+@tool
+@circuit_breaker("convergence_check", failure_threshold=3, recovery_timeout=3600)
+def convergence_check_tool(performance_data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Check if the system's learning and performance are converging toward optimal behavior.
+    Args:
+        performance_data: Dict containing performance metrics and learning data.
+    Returns:
+        Dict with convergence analysis and recommendations.
+    """
+    results = {
+        "timestamp": pd.Timestamp.now().isoformat(),
+        "convergence_metrics": {},
+        "learning_progress": {},
+        "recommendations": [],
+        "overall_convergence": "unknown"
+    }
+
+    try:
+        # Extract performance metrics
+        metrics = performance_data.get("metrics", {})
+        learning_history = performance_data.get("learning_history", [])
+
+        # Convergence checks
+        convergence_checks = {
+            "sharpe_ratio_stable": False,
+            "win_rate_improving": False,
+            "drawdown_decreasing": False,
+            "learning_loss_converging": False,
+            "strategy_adaptation": False
+        }
+
+        # Sharpe ratio stability (should stabilize over time)
+        sharpe_history = [m.get("sharpe_ratio", 0) for m in learning_history[-10:]] if learning_history else []
+        if len(sharpe_history) >= 5:
+            recent_sharpe = sharpe_history[-3:]
+            older_sharpe = sharpe_history[:-3]
+            recent_avg = sum(recent_sharpe) / len(recent_sharpe)
+            older_avg = sum(older_sharpe) / len(older_sharpe)
+            # Sharpe should be positive and relatively stable
+            if recent_avg > 0.5 and abs(recent_avg - older_avg) < 0.5:
+                convergence_checks["sharpe_ratio_stable"] = True
+
+        # Win rate improvement
+        win_rates = [m.get("win_rate", 0) for m in learning_history[-10:]] if learning_history else []
+        if len(win_rates) >= 5:
+            recent_win_rate = sum(win_rates[-3:]) / 3
+            older_win_rate = sum(win_rates[:-3]) / len(win_rates[:-3])
+            if recent_win_rate > older_win_rate and recent_win_rate > 0.5:
+                convergence_checks["win_rate_improving"] = True
+
+        # Drawdown reduction
+        drawdowns = [m.get("max_drawdown", 0) for m in learning_history[-10:]] if learning_history else []
+        if len(drawdowns) >= 5:
+            recent_dd = sum(drawdowns[-3:]) / 3
+            older_dd = sum(drawdowns[:-3]) / len(drawdowns[:-3])
+            if recent_dd < older_dd and recent_dd < 0.15:  # Less than 15% drawdown
+                convergence_checks["drawdown_decreasing"] = True
+
+        # Learning loss convergence (if available)
+        losses = [m.get("learning_loss", 0) for m in learning_history[-10:]] if learning_history else []
+        if len(losses) >= 5:
+            recent_loss = sum(losses[-3:]) / 3
+            older_loss = sum(losses[:-3]) / len(losses[:-3])
+            if recent_loss < older_loss * 0.9 and recent_loss < 0.1:  # Converging and low
+                convergence_checks["learning_loss_converging"] = True
+
+        # Strategy adaptation (diversity of strategies used)
+        strategies_used = set()
+        for m in learning_history[-20:]:
+            strategy = m.get("strategy_type", "")
+            if strategy:
+                strategies_used.add(strategy)
+        if len(strategies_used) >= 3:  # Using multiple strategy types
+            convergence_checks["strategy_adaptation"] = True
+
+        results["convergence_metrics"] = convergence_checks
+
+        # Learning progress assessment
+        passed_checks = sum(convergence_checks.values())
+        total_checks = len(convergence_checks)
+
+        if passed_checks >= total_checks * 0.8:
+            results["overall_convergence"] = "excellent"
+            results["learning_progress"]["status"] = "Well converged - system performing optimally"
+        elif passed_checks >= total_checks * 0.6:
+            results["overall_convergence"] = "good"
+            results["learning_progress"]["status"] = "Converging well - continue current learning approach"
+        elif passed_checks >= total_checks * 0.4:
+            results["overall_convergence"] = "fair"
+            results["learning_progress"]["status"] = "Partial convergence - may need parameter tuning"
+        else:
+            results["overall_convergence"] = "poor"
+            results["learning_progress"]["status"] = "Not converging - review learning algorithm"
+
+        # Generate recommendations
+        if not convergence_checks["sharpe_ratio_stable"]:
+            results["recommendations"].append("Sharpe ratio not stable - review risk-return optimization")
+
+        if not convergence_checks["win_rate_improving"]:
+            results["recommendations"].append("Win rate not improving - consider different entry/exit signals")
+
+        if not convergence_checks["drawdown_decreasing"]:
+            results["recommendations"].append("Drawdowns not decreasing - strengthen risk management")
+
+        if not convergence_checks["learning_loss_converging"]:
+            results["recommendations"].append("Learning not converging - adjust learning rate or architecture")
+
+        if not convergence_checks["strategy_adaptation"]:
+            results["recommendations"].append("Limited strategy diversity - explore additional strategy types")
+
+        # Performance summary
+        if learning_history:
+            latest_metrics = learning_history[-1]
+            results["current_performance"] = {
+                "sharpe_ratio": latest_metrics.get("sharpe_ratio", 0),
+                "win_rate": latest_metrics.get("win_rate", 0),
+                "max_drawdown": latest_metrics.get("max_drawdown", 0),
+                "total_return": latest_metrics.get("total_return", 0),
+                "strategy_type": latest_metrics.get("strategy_type", "unknown")
+            }
+
+        return results
+
+    except Exception as e:
+        return {
+            "error": f"Convergence check failed: {str(e)}",
+            "overall_convergence": "error",
+            "recommendations": ["Unable to assess convergence - check performance data format"]
+        }
+
 def get_available_tools() -> Dict[str, Any]:
     '''
     Get a dictionary of all available tools and their functions.
@@ -167,7 +405,9 @@ def get_available_tools() -> Dict[str, Any]:
         zipline_backtest_tool,
         twitter_sentiment_tool,
         currents_news_tool,
-        qlib_ml_refine_tool
+        qlib_ml_refine_tool,
+        sanity_check_tool,
+        convergence_check_tool
     ]
 
     # Create mapping from function name to function

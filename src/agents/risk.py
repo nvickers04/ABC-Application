@@ -108,9 +108,6 @@ class RiskAgent(BaseAgent):
             # Save initial memory structure
             self.save_memory()
 
-        # Initialize comprehensive crisis detection system.
-        self._initialize_crisis_detection()
-
     async def process_input(self, proposal: Dict[str, Any]) -> Dict[str, Any]:
         """
         Processes a strategy proposal: Loads YAMLs fresh, re-runs stochastics, vets with POP checks, adjusts post-batch.

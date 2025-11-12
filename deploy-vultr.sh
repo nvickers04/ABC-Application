@@ -24,7 +24,8 @@ sudo apt-get install -y \
     wget \
     git \
     ufw \
-    fail2ban
+    fail2ban \
+    xvfb  # For headless IBKR TWS/Gateway
 
 # Configure firewall
 echo "🔒 Configuring firewall..."
@@ -49,6 +50,53 @@ sudo systemctl enable redis-server
 
 # Test Redis connection
 redis-cli ping
+
+# Download and setup IBKR TWS/Gateway for paper trading
+echo "📥 Setting up IBKR TWS for paper trading..."
+cd /opt
+wget https://download2.interactivebrokers.com/installers/tws/latest/tws-latest-linux-x64.sh -O ibkr-installer.sh
+chmod +x ibkr-installer.sh
+
+# Run IBKR installer (non-interactive)
+echo "Installing IBKR TWS..."
+sudo -u $USER xvfb-run -a ./ibkr-installer.sh -q -dir /opt/ibkr
+
+# Create IBKR configuration script
+echo "⚙️ Creating IBKR configuration..."
+sudo tee /usr/local/bin/setup-ibkr-paper.sh > /dev/null <<'EOF'
+#!/bin/bash
+# Setup IBKR Paper Trading Configuration
+
+echo "Setting up IBKR Paper Trading..."
+
+# Create IBKR configuration directory
+mkdir -p ~/.ibkr
+
+# Create TWS configuration for paper trading
+cat > ~/.ibkr/tws.xml << IBKR_EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration>
+    <PaperTrading>true</PaperTrading>
+    <ApiPort>7497</ApiPort>
+    <ApiEnabled>true</ApiEnabled>
+    <ReadOnlyApi>false</ReadOnlyApi>
+    <TrustAllApiClients>true</TrustAllApiClients>
+    <AutoRestart>true</AutoRestart>
+    <MinimizeToTray>true</MinimizeToTray>
+</Configuration>
+IBKR_EOF
+
+echo "IBKR Paper Trading configuration created"
+echo "To start IBKR TWS Paper Trading:"
+echo "  cd /opt/ibkr && xvfb-run -a ./tws &"
+echo ""
+echo "Make sure to:"
+echo "1. Log in with your IBKR paper trading credentials"
+echo "2. Enable API connections in TWS settings"
+echo "3. Set API port to 7497"
+EOF
+
+sudo chmod +x /usr/local/bin/setup-ibkr-paper.sh
 
 # Clone or copy application code
 echo "📁 Setting up application directory..."
@@ -82,17 +130,39 @@ sudo tee /etc/systemd/system/abc-application.service > /dev/null <<EOF
 [Unit]
 Description=ABC Application Multi-Agent Trading System
 After=network.target postgresql.service redis-server.service
+Wants=ibkr-tws.service
 
 [Service]
 Type=simple
 User=$USER
 WorkingDirectory=/opt/abc-application
 Environment=PATH=/opt/abc-application/venv/bin
+Environment=DISPLAY=:99
+ExecStartPre=/usr/local/bin/setup-ibkr-paper.sh
 ExecStart=/opt/abc-application/venv/bin/python src/main.py
 Restart=always
 RestartSec=5
 StandardOutput=journal
 StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Create IBKR TWS systemd service
+echo "🔧 Creating IBKR TWS service..."
+sudo tee /etc/systemd/system/ibkr-tws.service > /dev/null <<EOF
+[Unit]
+Description=IBKR Trader Workstation Paper Trading
+After=network.target
+
+[Service]
+Type=simple
+User=$USER
+Environment=DISPLAY=:99
+ExecStart=/opt/ibkr/tws
+Restart=always
+RestartSec=10
 
 [Install]
 WantedBy=multi-user.target
@@ -209,14 +279,26 @@ echo "🎉 ABC Application deployment completed!"
 echo ""
 echo "📋 Next steps:"
 echo "1. Upload your .env file with API keys to /opt/abc-application/"
-echo "2. Test the application: curl http://localhost:8000/health"
-echo "3. Check logs: journalctl -u abc-application -f"
-echo "4. Monitor backups: ls -la /backups/abc_application/"
+echo "2. Configure IBKR Paper Trading:"
+echo "   - Run: sudo systemctl start ibkr-tws"
+echo "   - Log into IBKR TWS with your paper trading credentials"
+echo "   - Enable API connections in TWS settings (File > Global Configuration > API)"
+echo "   - Set API port to 7497 and enable 'Create API message log'"
+echo "3. Test the application: curl http://localhost:8000/health"
+echo "4. Check logs: journalctl -u abc-application -f"
+echo "5. Monitor IBKR connection: journalctl -u ibkr-tws -f"
 echo ""
 echo "🔧 Useful commands:"
-echo "- Start service: sudo systemctl start abc-application"
-echo "- Stop service: sudo systemctl stop abc-application"
-echo "- Restart service: sudo systemctl restart abc-application"
-echo "- View logs: journalctl -u abc-application -f"
+echo "- Start services: sudo systemctl start abc-application ibkr-tws"
+echo "- Stop services: sudo systemctl stop abc-application ibkr-tws"
+echo "- Restart services: sudo systemctl restart abc-application ibkr-tws"
+echo "- View ABC logs: journalctl -u abc-application -f"
+echo "- View IBKR logs: journalctl -u ibkr-tws -f"
 echo "- Manual backup: /usr/local/bin/abc-backup.sh"
 echo "- Health check: /usr/local/bin/abc-health-check.sh"
+echo ""
+echo "💰 IBKR Paper Trading Notes:"
+echo "- Paper trading uses virtual money, not real funds"
+echo "- All trades are simulated but use real market data"
+echo "- Perfect for testing strategies before live trading"
+echo "- IBKR account required (free to create paper account)"
