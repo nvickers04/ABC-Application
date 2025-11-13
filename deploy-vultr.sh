@@ -16,8 +16,6 @@ sudo apt-get install -y \
     python3.11 \
     python3.11-venv \
     python3-pip \
-    postgresql \
-    postgresql-contrib \
     redis-server \
     build-essential \
     curl \
@@ -27,21 +25,18 @@ sudo apt-get install -y \
     fail2ban \
     xvfb  # For headless IBKR TWS/Gateway
 
+# Mount block storage (assuming /dev/vdb1 is partitioned and ready)
+echo "💾 Mounting block storage..."
+sudo mkdir -p /mnt/blockstorage
+sudo mount /dev/vdb1 /mnt/blockstorage
+# Add to fstab for persistence
+echo "UUID=$(sudo blkid /dev/vdb1 | awk '{print $2}' | sed 's/UUID=//' | sed 's/\"//g') /mnt/blockstorage ext4 defaults 0 2" | sudo tee -a /etc/fstab
+
 # Configure firewall
 echo "🔒 Configuring firewall..."
 sudo ufw allow ssh
 sudo ufw allow 8000  # Application port
 sudo ufw --force enable
-
-# Configure PostgreSQL
-echo "🗄️ Setting up PostgreSQL..."
-sudo systemctl start postgresql
-sudo systemctl enable postgresql
-
-# Create database and user
-sudo -u postgres psql -c "CREATE DATABASE abc_application;" || echo "Database already exists"
-sudo -u postgres psql -c "CREATE USER abc_user WITH PASSWORD 'secure_password_here';" || echo "User already exists"
-sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE abc_application TO abc_user;"
 
 # Configure Redis
 echo "🔄 Configuring Redis..."
@@ -53,13 +48,13 @@ redis-cli ping
 
 # Download and setup IBKR TWS/Gateway for paper trading
 echo "📥 Setting up IBKR TWS for paper trading..."
-cd /opt
+cd /mnt/blockstorage
 wget https://download2.interactivebrokers.com/installers/tws/latest/tws-latest-linux-x64.sh -O ibkr-installer.sh
 chmod +x ibkr-installer.sh
 
 # Run IBKR installer (non-interactive)
 echo "Installing IBKR TWS..."
-sudo -u $USER xvfb-run -a ./ibkr-installer.sh -q -dir /opt/ibkr
+sudo -u $USER xvfb-run -a ./ibkr-installer.sh -q -dir /mnt/blockstorage/ibkr
 
 # Create IBKR configuration script
 echo "⚙️ Creating IBKR configuration..."
@@ -129,7 +124,7 @@ echo "🔧 Creating systemd service..."
 sudo tee /etc/systemd/system/abc-application.service > /dev/null <<EOF
 [Unit]
 Description=ABC Application Multi-Agent Trading System
-After=network.target postgresql.service redis-server.service
+After=network.target redis-server.service
 Wants=ibkr-tws.service
 
 [Service]
@@ -160,7 +155,7 @@ After=network.target
 Type=simple
 User=$USER
 Environment=DISPLAY=:99
-ExecStart=/opt/ibkr/tws
+ExecStart=/mnt/blockstorage/ibkr/tws
 Restart=always
 RestartSec=10
 
@@ -202,10 +197,13 @@ BACKUP_DIR="/backups/abc_application"
 mkdir -p $BACKUP_DIR
 
 # PostgreSQL backup
-pg_dump -U abc_user -h localhost abc_application > $BACKUP_DIR/postgres_$DATE.sql
+# pg_dump -U abc_user -h localhost abc_application > $BACKUP_DIR/postgres_$DATE.sql
 
 # Redis backup
 redis-cli --rdb $BACKUP_DIR/redis_$DATE.rdb
+
+# SQLite database backup
+cp /opt/abc-application/abc_application.db $BACKUP_DIR/sqlite_$DATE.db 2>/dev/null || echo "No SQLite database to backup"
 
 # Configuration backup
 tar -czf $BACKUP_DIR/config_$DATE.tar.gz /opt/abc-application/config/
@@ -216,6 +214,7 @@ tar -czf $BACKUP_DIR/logs_$DATE.tar.gz /opt/abc-application/logs/
 # Retention policy (keep last 30 days)
 find $BACKUP_DIR -name "*.sql" -mtime +30 -delete
 find $BACKUP_DIR -name "*.rdb" -mtime +30 -delete
+find $BACKUP_DIR -name "*.db" -mtime +30 -delete
 find $BACKUP_DIR -name "*.tar.gz" -mtime +30 -delete
 
 echo "Backup completed: $DATE"
@@ -244,9 +243,9 @@ if ! systemctl is-active --quiet abc-application; then
     HEALTH_STATUS=1
 fi
 
-# Check database connection
-if ! pg_isready -h localhost -U abc_user -d abc_application >/dev/null 2>&1; then
-    echo "❌ PostgreSQL connection failed"
+# Check database connection (SQLite - just check if file exists)
+if [ ! -f "/opt/abc-application/abc_application.db" ]; then
+    echo "❌ SQLite database file not found"
     HEALTH_STATUS=1
 fi
 
@@ -278,7 +277,7 @@ echo "0,5,10,15,20,25,30,35,40,45,50,55 * * * * $USER /usr/local/bin/abc-health-
 echo "🎉 ABC Application deployment completed!"
 echo ""
 echo "📋 Next steps:"
-echo "1. Upload your .env file with API keys to /opt/abc-application/"
+echo "1. Your .env file should already be configured with API keys"
 echo "2. Configure IBKR Paper Trading:"
 echo "   - Run: sudo systemctl start ibkr-tws"
 echo "   - Log into IBKR TWS with your paper trading credentials"
@@ -302,3 +301,4 @@ echo "- Paper trading uses virtual money, not real funds"
 echo "- All trades are simulated but use real market data"
 echo "- Perfect for testing strategies before live trading"
 echo "- IBKR account required (free to create paper account)"
+echo "- Database: SQLite (file-based, no server needed)"

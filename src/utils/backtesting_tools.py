@@ -6,7 +6,7 @@ Provides tools for strategy backtesting and portfolio analysis.
 
 import os
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import pandas as pd
 
 from .validation import circuit_breaker, DataValidator
@@ -264,3 +264,42 @@ def risk_analytics_tool(portfolio_data: str, risk_model: str = "historical") -> 
 
     except Exception as e:
         return {"error": f"Risk analytics failed: {str(e)}"}
+
+
+def tf_quant_monte_carlo_tool(returns: List[float], simulations: int = 1000, periods: int = 252) -> Dict[str, Any]:
+    """
+    Perform Monte Carlo simulation using TensorFlow for quantitative projections.
+    
+    Args:
+        returns: Historical returns data
+        simulations: Number of simulation paths
+        periods: Number of periods to simulate
+        
+    Returns:
+        Dict with simulation results (mean, std, var95)
+    """
+    try:
+        import tensorflow as tf
+        import numpy as np
+        
+        mean = np.mean(returns)
+        std = np.std(returns)
+        
+        sims = tf.random.normal([simulations, periods], mean, std)
+        paths = tf.cumprod(1 + sims, axis=1)
+        
+        final_values = paths[:, -1]
+        mean_final = tf.reduce_mean(final_values).numpy()
+        std_final = tf.math.reduce_std(final_values).numpy()
+        var_95 = np.percentile(final_values.numpy(), 5)
+        
+        return {
+            "mean_final": mean_final,
+            "std_final": std_final,
+            "var_95": var_95,
+            "simulations": simulations
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+# end of file

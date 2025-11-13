@@ -1,4 +1,4 @@
-#!C:\Users\nvick\ABC-Application-ABC-main-main\myenv\Scripts\python.exe
+#!C:\Users\nvick\ABC-Application\myenv\Scripts\python.exe
 
 import datetime
 import os

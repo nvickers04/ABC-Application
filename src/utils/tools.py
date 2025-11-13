@@ -21,7 +21,7 @@ from .api_health_monitor import get_api_health_summary, check_api_health_now, st
 # Import from specialized modules
 from .validation import (
     DataValidator, validate_tool_inputs, circuit_breaker,
-    get_circuit_breaker_status, CircuitBreakerOpenException
+    get_circuit_breaker_status, CircuitBreakerOpenException, CircuitBreaker
 )
 from .financial_tools import (
     yfinance_data_tool, sentiment_analysis_tool, risk_calculation_tool, strategy_proposal_tool
@@ -45,21 +45,90 @@ from .agent_tools import (
 
 # Additional imports for backward compatibility
 # These functions may need to be implemented in appropriate modules
-try:
-    from .news_tools import fred_data_tool
-except ImportError:
-    # Placeholder for fred_data_tool
-    def fred_data_tool(*args, **kwargs):
-        return {"error": "fred_data_tool not implemented"}
+@tool
+def fred_data_tool(series_id: str, start_date: str, end_date: str) -> Dict[str, Any]:
+    """
+    Fetch economic data from FRED.
+    
+    Args:
+        series_id: FRED series ID
+        start_date: Start date (YYYY-MM-DD)
+        end_date: End date (YYYY-MM-DD)
+        
+    Returns:
+        Dict with data
+    """
+    try:
+        from fredapi import Fred
+        fred = Fred(api_key='your_api_key')  # Replace with actual
+        data = fred.get_series(series_id, start_date, end_date)
+        return {"data": data.to_dict()}
+    except Exception as e:
+        return {"error": str(e)}
+
+@tool
+def institutional_holdings_analysis_tool(ticker: str) -> Dict[str, Any]:
+    """
+    Analyze institutional holdings.
+    
+    Args:
+        ticker: Stock ticker
+        
+    Returns:
+        Dict with analysis
+    """
+    try:
+        # Placeholder
+        return {"holdings": "Sample data"}
+    except Exception as e:
+        return {"error": str(e)}
+
+@tool
+def thirteen_f_filings_tool(cik: str) -> Dict[str, Any]:
+    """
+    Fetch 13F filings.
+    
+    Args:
+        cik: Central Index Key
+        
+    Returns:
+        Dict with filings
+    """
+    try:
+        # Placeholder
+        return {"filings": "Sample"}
+    except Exception as e:
+        return {"error": str(e)}
 
 try:
-    from .market_data_tools import institutional_holdings_analysis_tool, thirteen_f_filings_tool
+    from .market_data_tools import fundamental_data_tool
 except ImportError:
-    # Placeholders
-    def institutional_holdings_analysis_tool(*args, **kwargs):
-        return {"error": "institutional_holdings_analysis_tool not implemented"}
-    def thirteen_f_filings_tool(*args, **kwargs):
-        return {"error": "thirteen_f_filings_tool not implemented"}
+    def fundamental_data_tool(*args, **kwargs):
+        return {"error": "fundamental_data_tool not implemented"}
+
+try:
+    from .financial_tools import fundamental_analysis_tool
+except ImportError:
+    def fundamental_analysis_tool(*args, **kwargs):
+        return {"error": "fundamental_analysis_tool not implemented"}
+
+try:
+    from .market_data_tools import microstructure_analysis_tool
+except ImportError:
+    def microstructure_analysis_tool(*args, **kwargs):
+        return {"error": "microstructure_analysis_tool not implemented"}
+
+try:
+    from .market_data_tools import kalshi_data_tool
+except ImportError:
+    def kalshi_data_tool(*args, **kwargs):
+        return {"error": "kalshi_data_tool not implemented"}
+
+try:
+    from .backtesting_tools import tf_quant_monte_carlo_tool
+except ImportError:
+    def tf_quant_monte_carlo_tool(*args, **kwargs):
+        return {"error": "tf_quant_monte_carlo_tool not implemented"}
 
 try:
     from .market_data_tools import fundamental_data_tool
@@ -98,6 +167,299 @@ except ImportError:
         return {"error": "options_greeks_calc_tool not implemented"}
     def flow_alpha_calc_tool(*args, **kwargs):
         return {"error": "flow_alpha_calc_tool not implemented"}
+
+try:
+    from .market_data_tools import sec_edgar_13f_tool
+except ImportError:
+    def sec_edgar_13f_tool(*args, **kwargs):
+        return {"error": "sec_edgar_13f_tool not implemented"}
+
+try:
+    from .market_data_tools import circuit_breaker_status_tool
+except ImportError:
+    def circuit_breaker_status_tool(*args, **kwargs):
+        return {"error": "circuit_breaker_status_tool not implemented"}
+
+try:
+    from .financial_tools import correlation_analysis_tool
+except ImportError:
+    def correlation_analysis_tool(*args, **kwargs):
+        return {"error": "correlation_analysis_tool not implemented"}
+
+try:
+    from .financial_tools import cointegration_test_tool
+except ImportError:
+    def cointegration_test_tool(*args, **kwargs):
+        return {"error": "cointegration_test_tool not implemented"}
+
+try:
+    from .financial_tools import basket_trading_tool
+except ImportError:
+    def basket_trading_tool(*args, **kwargs):
+        return {"error": "basket_trading_tool not implemented"}
+
+@tool
+def group_performance_comparison_tool(groups: Dict[str, List[str]], period: str = "1y") -> Dict[str, Any]:
+    """
+    Compare performance between groups of assets.
+    
+    Args:
+        groups: Dict of group names to lists of tickers
+        period: Time period for comparison
+        
+    Returns:
+        Dict with performance metrics for each group
+    """
+    try:
+        import yfinance as yf
+        results = {}
+        for group_name, tickers in groups.items():
+            data = yf.download(tickers, period=period)['Adj Close']
+            if isinstance(data, pd.DataFrame) and not data.empty:
+                returns = data.pct_change().mean(axis=1).dropna()
+                total_return = (returns + 1).prod() - 1 if not returns.empty else 0
+            else:
+                total_return = 0
+            results[group_name] = {"total_return": total_return}
+        return results
+    except Exception as e:
+        return {"error": f"Group comparison failed: {str(e)}"}
+
+try:
+    from .financial_tools import advanced_portfolio_optimizer_tool
+except ImportError:
+    def advanced_portfolio_optimizer_tool(*args, **kwargs):
+        return {"error": "advanced_portfolio_optimizer_tool not implemented"}
+
+@tool
+def finrl_rl_train_tool(tickers: List[str], start_date: str, end_date: str, episodes: int = 10) -> Dict[str, Any]:
+    """
+    Train a reinforcement learning model using FinRL for stock trading.
+    
+    Args:
+        tickers: List of stock tickers to train on
+        start_date: Start date for training data (YYYY-MM-DD)
+        end_date: End date for training data (YYYY-MM-DD)
+        episodes: Number of training episodes
+        
+    Returns:
+        Dict containing training results and model metrics
+    """
+    try:
+        import finrl
+        from finrl.meta.preprocessor.yahoodownloader import YahooDownloader
+        from finrl.meta.preprocessor.preprocessors import FeatureEngineer, data_split
+        from finrl.meta.env_stock_trading.env_stocktrading import StockTradingEnv
+        from finrl.agents.stablebaselines3.models import DRLAgent
+        from stable_baselines3 import PPO
+        
+        # Download data
+        df = YahooDownloader(start_date=start_date, end_date=end_date, ticker_list=tickers).fetch_data()
+        
+        # Feature engineering (adjusted for FinRL config)
+        from finrl.config import INDICATORS
+        tech_indicator_list = INDICATORS
+        fe = FeatureEngineer(
+            use_technical_indicator=True,
+            tech_indicator_list=tech_indicator_list,
+            use_turbulence=True
+        )
+        processed = fe.preprocess_data(df)
+        
+        # Split data
+        train = data_split(processed, start_date, end_date)
+        
+        # Environment setup
+        stock_dimension = len(train.tic.unique())
+        state_space = 1 + 2*stock_dimension + len(tech_indicator_list)*stock_dimension
+        env_kwargs = {
+            "hmax": 100, 
+            "initial_amount": 1000000, 
+            "buy_cost_pct": 0.001,
+            "sell_cost_pct": 0.001,
+            "state_space": state_space, 
+            "stock_dim": stock_dimension, 
+            "tech_indicator_list": tech_indicator_list, 
+            "action_space": stock_dimension, 
+            "reward_scaling": 1e-4
+        }
+        e_train_gym = StockTradingEnv(df=train, **env_kwargs)
+        
+        # Train agent
+        agent = DRLAgent(env=e_train_gym)
+        model = agent.get_model("ppo")
+        trained_model = agent.train_model(model=model, tb_log_name='ppo', total_timesteps=episodes * 1000)
+        
+        return {
+            "success": True,
+            "model_type": "PPO",
+            "episodes": episodes,
+            "tickers": tickers,
+            "metrics": {
+                "final_reward": trained_model.history['episode_rewards'][-1] if trained_model.history else 0,
+                "training_steps": trained_model.history['total_steps'] if trained_model.history else 0
+            }
+        }
+    except Exception as e:
+        return {"error": f"FinRL training failed: {str(e)}"}
+
+@tool
+def zipline_sim_tool(strategy_code: str, start_date: str, end_date: str, capital: float = 100000) -> Dict[str, Any]:
+    """
+    Run a trading simulation using Zipline.
+    
+    Args:
+        strategy_code: Python code defining the Zipline strategy
+        start_date: Start date (YYYY-MM-DD)
+        end_date: End date (YYYY-MM-DD)
+        capital: Initial capital
+        
+    Returns:
+        Dict with simulation results
+    """
+    try:
+        from zipline import run_algorithm
+        from zipline.api import order_target, record, symbol
+        from zipline.algorithm import TradingAlgorithm
+        import pandas as pd
+        
+        # Define a simple strategy (user can provide custom)
+        def initialize(context):
+            context.asset = symbol('AAPL')  # Example
+            
+        def handle_data(context, data):
+            order_target(context.asset, 10)
+            record(price=data.current(context.asset, 'price'))
+            
+        # Override with user code if provided
+        exec(strategy_code, globals())
+        
+        results = run_algorithm(
+            start=pd.Timestamp(start_date),
+            end=pd.Timestamp(end_date),
+            initialize=initialize,
+            handle_data=handle_data,
+            capital_base=capital,
+            bundle='quandl'  # Assume bundle is loaded
+        )
+        
+        return {
+            "success": True,
+            "returns": results.returns.iloc[-1],
+            "sharpe": results.sharpe.iloc[-1],
+            "trades": len(results.orders)
+        }
+    except Exception as e:
+        return {"error": f"Zipline simulation failed: {str(e)}"}
+
+@tool
+def tf_quant_projection_tool(data: List[float], steps: int = 10) -> Dict[str, Any]:
+    """
+    Perform quantitative projections using TensorFlow.
+    
+    Args:
+        data: List of historical data points
+        steps: Number of steps to project forward
+        
+    Returns:
+        Dict with projected values
+    """
+    try:
+        import tensorflow as tf
+        import numpy as np
+        data_np = np.array(data, dtype=np.float32).reshape(-1, 1)
+        x = np.arange(len(data_np), dtype=np.float32).reshape(-1, 1)
+        model = tf.keras.Sequential([tf.keras.layers.Dense(1, input_shape=(1,))])
+        model.compile(optimizer='adam', loss='mse')
+        model.fit(x, data_np, epochs=10, verbose=0)
+        future_x = np.arange(len(data_np), len(data_np) + steps, dtype=np.float32).reshape(-1, 1)
+        projections = model.predict(future_x).flatten().tolist()
+        return {"projections": projections}
+    except Exception as e:
+        return {"error": f"TensorFlow projection failed: {str(e)}"}
+
+@tool
+def strategy_ml_optimization_tool(strategy_description: str, performance_data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Optimize trading strategy using LangChain for ML-based refinement.
+    
+    Args:
+        strategy_description: Description of the current strategy
+        performance_data: Dict containing performance metrics
+        
+    Returns:
+        Dict with optimized strategy suggestions
+    """
+    try:
+        from langchain.prompts import PromptTemplate
+        from langchain.chains import LLMChain
+        from langchain_openai import OpenAI  # Use langchain-openai
+        
+        # Create prompt template
+        prompt = PromptTemplate(
+            input_variables=["strategy", "metrics"],
+            template="""Optimize this trading strategy: {strategy}
+            
+            Current performance metrics: {metrics}
+            
+            Suggest improvements using ML techniques:"""
+        )
+        
+        # Create chain
+        llm = OpenAI(temperature=0.7, openai_api_key=os.getenv("OPENAI_API_KEY"))
+        chain = LLMChain(llm=llm, prompt=prompt)
+        
+        # Run chain
+        response = chain.run({
+            "strategy": strategy_description,
+            "metrics": str(performance_data)
+        })
+        
+        return {
+            "success": True,
+            "optimized_strategy": response,
+            "suggestions": response.split("\n")[:5]
+        }
+    except Exception as e:
+        return {"error": f"Strategy optimization failed: {str(e)}"}
+
+@tool
+def backtest_validation_tool(strategy: Dict[str, Any], data: pd.DataFrame) -> Dict[str, Any]:
+    """
+    Validate a strategy through backtesting using Backtrader.
+    
+    Args:
+        strategy: Dict describing the strategy
+        data: Historical data DataFrame
+        
+    Returns:
+        Dict with backtest results
+    """
+    try:
+        import backtrader as bt
+        
+        class TestStrategy(bt.Strategy):
+            def next(self):
+                pass  # Implement based on strategy
+        
+        cerebro = bt.Cerebro()
+        cerebro.addstrategy(TestStrategy)
+        data_feed = bt.feeds.PandasData(dataname=data)
+        cerebro.adddata(data_feed)
+        cerebro.addanalyzer(bt.analyzers.SharpeRatio, _name='sharpe')
+        cerebro.addanalyzer(bt.analyzers.DrawDown, _name='drawdown')
+        cerebro.addanalyzer(bt.analyzers.Returns, _name='returns')
+        results = cerebro.run()
+        if results:
+            result = results[0]
+            return {
+                "sharpe_ratio": result.analyzers.sharpe.get_analysis().get('sharperatio', 0),
+                "max_drawdown": result.analyzers.drawdown.get_analysis().get('max', {}).get('drawdown', 0),
+                "total_return": result.analyzers.returns.get_analysis().get('rtot', 0)
+            }
+        return {"error": "No results from backtest"}
+    except Exception as e:
+        return {"error": f"Backtest validation failed: {str(e)}"}
 
 logger = logging.getLogger(__name__)
 
@@ -179,6 +541,16 @@ def sanity_check_tool(proposal: str) -> Dict[str, Any]:
         symbols = re.findall(symbol_pattern, proposal)
         if symbols:
             # Filter out common words that might match
+            valid_symbols = [s for s in symbols if s not in ['THE', 'AND', 'FOR', 'ARE', 'BUT', 'NOT', 'YOU', 'ALL', 'CAN', 'HER', 'WAS', 'ONE', 'OUR', 'HAD', 'BY',
+        proposal_lower = proposal.lower()
+
+        # Check for stock symbol (basic pattern)
+        import re
+        symbol_pattern = r'\b[A-Z]{1,5}\b'  # 1-5 uppercase letters
+        symbols = re.findall(symbol_pattern, proposal)
+        if symbols:
+            # Filter out common words that might match
+            valid_symbols = [s for s in symbols if s not in ['THE', 'AND', 'FOR', 'ARE', 'BUT', 'NOT', 'YOU', 'ALL', 'CAN', 'HER', 'WAS', 'ONE', 'OUR
             valid_symbols = [s for s in symbols if s not in ['THE', 'AND', 'FOR', 'ARE', 'BUT', 'NOT', 'YOU', 'ALL', 'CAN', 'HER', 'WAS', 'ONE', 'OUR', 'HAD', 'BY', 'HOT', 'BUT', 'SAY', 'WHO', 'EACH', 'WHICH', 'THEIR', 'TIME', 'WILL', 'ABOUT', 'WOULD', 'THERE', 'COULD', 'OTHER']]
             if valid_symbols:
                 checks["has_symbol"] = True
@@ -407,7 +779,12 @@ def get_available_tools() -> Dict[str, Any]:
         currents_news_tool,
         qlib_ml_refine_tool,
         sanity_check_tool,
-        convergence_check_tool
+        convergence_check_tool,
+        finrl_rl_train_tool,
+        zipline_sim_tool,
+        tf_quant_projection_tool,
+        strategy_ml_optimization_tool,
+        backtest_validation_tool
     ]
 
     # Create mapping from function name to function

@@ -21,7 +21,7 @@ class ExecutionAgent(BaseAgent):
     
     def __init__(self, historical_mode: bool = False):
         config_paths = {"risk": "config/risk-constraints.yaml", "profit": "config/profitability-targets.yaml"}
-        prompt_paths = {"base": "base_prompt.txt", "role": "agents/execution-agent-complete.md"}
+        prompt_paths = {"base": "base_prompt.txt", "role": "docs/AGENTS/main-agents/execution-agent.md"}
         
         super().__init__(role="execution", config_paths=config_paths, prompt_paths=prompt_paths)
         self.historical_mode = historical_mode

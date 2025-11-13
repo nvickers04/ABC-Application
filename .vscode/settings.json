@@ -1,7 +1,8 @@
 {
     "python.analysis.typeCheckingMode": "basic",
-    "python.linting.enabled": false,
+    "python.linting.enabled": true,  // Enable linting
     "python.linting.pylintEnabled": false,
     "python.linting.flake8Enabled": false,
-    "python.linting.mypyEnabled": false
+    "python.linting.mypyEnabled": false,
+    "python.defaultInterpreterPath": "C:/Users/nvick/ABC-Application/myenv/Scripts/python.exe"
 }

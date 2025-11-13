@@ -6,7 +6,7 @@ Provides tools for stock data, sentiment analysis, risk calculation, and strateg
 
 import os
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import pandas as pd
 import requests
 
@@ -233,3 +233,165 @@ def strategy_proposal_tool(data: str, sentiment: Dict[str, Any]) -> Dict[str, An
 
     except Exception as e:
         return {"error": f"Strategy proposal failed: {str(e)}"}
+
+
+@circuit_breaker("fundamental_analysis")
+def fundamental_analysis_tool(ticker: str) -> Dict[str, Any]:
+    """
+    Perform fundamental analysis on a stock.
+    
+    Args:
+        ticker: Stock ticker symbol
+        
+    Returns:
+        Dict with analysis results
+    """
+    try:
+        import yfinance as yf
+        stock = yf.Ticker(ticker)
+        info = stock.info
+        return {
+            "pe_ratio": info.get("forwardPE", "N/A"),
+            "eps": info.get("forwardEps", "N/A"),
+            "market_cap": info.get("marketCap", "N/A"),
+            "revenue_growth": info.get("revenueGrowth", "N/A")
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@circuit_breaker("options_greeks_calc")
+def options_greeks_calc_tool(option_data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Calculate options Greeks.
+    
+    Args:
+        option_data: Dict with option parameters (strike, spot, time, vol, rate)
+        
+    Returns:
+        Dict with Greeks (delta, gamma, theta, vega, rho)
+    """
+    try:
+        from py_vollib.black_scholes.greeks.analytical import delta, gamma, theta, vega, rho
+        flag = 'c' if option_data.get('type', 'call') == 'call' else 'p'
+        greeks = {
+            "delta": delta(flag, option_data['spot'], option_data['strike'], option_data['time'], option_data['rate'], option_data['vol']),
+            "gamma": gamma(flag, option_data['spot'], option_data['strike'], option_data['time'], option_data['rate'], option_data['vol']),
+            "theta": theta(flag, option_data['spot'], option_data['strike'], option_data['time'], option_data['rate'], option_data['vol']),
+            "vega": vega(flag, option_data['spot'], option_data['strike'], option_data['time'], option_data['rate'], option_data['vol']),
+            "rho": rho(flag, option_data['spot'], option_data['strike'], option_data['time'], option_data['rate'], option_data['vol'])
+        }
+        return greeks
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@circuit_breaker("flow_alpha_calc")
+def flow_alpha_calc_tool(flow_data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Calculate flow alpha from order flow data.
+    
+    Args:
+        flow_data: Dict with buy_volume, sell_volume, price
+        
+    Returns:
+        Dict with flow alpha metrics
+    """
+    try:
+        net_flow = flow_data['buy_volume'] - flow_data['sell_volume']
+        alpha = net_flow / (flow_data['buy_volume'] + flow_data['sell_volume']) if (flow_data['buy_volume'] + flow_data['sell_volume']) > 0 else 0
+        return {"net_flow": net_flow, "flow_alpha": alpha}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@circuit_breaker("correlation_analysis")
+def correlation_analysis_tool(tickers: List[str], period: str = "1y") -> Dict[str, Any]:
+    """
+    Perform correlation analysis between assets.
+    
+    Args:
+        tickers: List of stock tickers
+        period: Time period
+        
+    Returns:
+        Dict with correlation matrix
+    """
+    try:
+        import yfinance as yf
+        data = yf.download(tickers, period=period)['Close']
+        corr = data.pct_change().corr()
+        return {"correlation_matrix": corr.to_dict()}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@circuit_breaker("cointegration_test")
+def cointegration_test_tool(ticker1: str, ticker2: str, period: str = "1y") -> Dict[str, Any]:
+    """
+    Perform cointegration test between two assets.
+    
+    Args:
+        ticker1: First ticker
+        ticker2: Second ticker
+        period: Time period
+        
+    Returns:
+        Dict with test results
+    """
+    try:
+        import yfinance as yf
+        from statsmodels.tsa.stattools import coint
+        data1 = yf.download(ticker1, period=period)['Close']
+        data2 = yf.download(ticker2, period=period)['Close']
+        score, pvalue, _ = coint(data1, data2)
+        return {"cointegrated": pvalue < 0.05, "pvalue": pvalue, "score": score}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@circuit_breaker("basket_trading")
+def basket_trading_tool(basket: List[str], weights: List[float]) -> Dict[str, Any]:
+    """
+    Create a trading basket with weights.
+    
+    Args:
+        basket: List of tickers
+        weights: List of weights (must sum to 1)
+        
+    Returns:
+        Dict with basket details
+    """
+    try:
+        if sum(weights) != 1:
+            raise ValueError("Weights must sum to 1")
+        return {"basket": dict(zip(basket, weights))}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@circuit_breaker("advanced_portfolio_optimizer")
+def advanced_portfolio_optimizer_tool(assets: List[str], constraints: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Perform advanced portfolio optimization.
+    
+    Args:
+        assets: List of assets
+        constraints: Optimization constraints
+        
+    Returns:
+        Dict with optimal weights
+    """
+    try:
+        from pypfopt import EfficientFrontier, risk_models, expected_returns
+        import yfinance as yf
+        data = yf.download(assets)['Close']
+        mu = expected_returns.mean_historical_return(data)
+        S = risk_models.sample_cov(data)
+        ef = EfficientFrontier(mu, S)
+        weights = ef.max_sharpe()
+        return {"weights": weights}
+    except Exception as e:
+        return {"error": str(e)}
+
+# end of file

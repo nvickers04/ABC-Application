@@ -77,7 +77,7 @@ class RiskAgent(BaseAgent):
     """
     def __init__(self):
         config_paths = {'risk': 'config/risk-constraints.yaml', 'profit': 'config/profitability-targets.yaml'}  # Relative to root.
-        prompt_paths = {'base': 'base_prompt.txt', 'role': 'agents/risk-agent-complete.md'}
+        prompt_paths = {'base': 'base_prompt.txt', 'role': 'docs/AGENTS/main-agents/risk-agent.md'}
         super().__init__(role='risk', config_paths=config_paths, prompt_paths=prompt_paths)
         
         # Ensure configs are loaded.
@@ -1716,7 +1716,7 @@ Provide actionable insights that would help improve future risk management and s
 
 
             return {
-               
+                'level': level,
                 'score': severity_score,
                 'confidence': min(1.0, len(confidence_factors) / 3),  # Confidence based on number of confirming indicators
                 'confirming_factors': confidence_factors

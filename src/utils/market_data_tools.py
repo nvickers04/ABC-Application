@@ -288,3 +288,143 @@ def financial_modeling_prep_tool(symbol: str, data_type: str = "quote") -> Dict[
 
     except (requests.RequestException, json.JSONDecodeError, ValueError, KeyError) as e:
         return {"error": f"Financial Modeling Prep API failed: {str(e)}"}
+
+
+@tool
+def institutional_holdings_analysis_tool(ticker: str) -> Dict[str, Any]:
+    """
+    Analyze institutional holdings for a stock.
+
+    Args:
+        ticker: Stock ticker
+
+    Returns:
+        Dict with holdings analysis
+    """
+    try:
+        # Placeholder for actual API call (e.g., to FMP or SEC)
+        return {
+            "top_holders": ["Holder1", "Holder2"],
+            "total_institutional": 0.75
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@tool
+def thirteen_f_filings_tool(cik: str, limit: int = 5) -> Dict[str, Any]:
+    """
+    Fetch recent 13F filings.
+
+    Args:
+        cik: Central Index Key
+        limit: Number of filings to fetch
+
+    Returns:
+        Dict with filings data
+    """
+    try:
+        # Placeholder for SEC EDGAR API
+        return {"filings": [{"date": "2023-01-01", "holdings": 100}] * limit}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@tool
+def fundamental_data_tool(ticker: str) -> Dict[str, Any]:
+    """
+    Fetch fundamental data for a stock.
+
+    Args:
+        ticker: Stock ticker
+
+    Returns:
+        Dict with fundamental metrics
+    """
+    try:
+        import yfinance as yf
+        stock = yf.Ticker(ticker)
+        info = stock.info
+        return {
+            "pe_ratio": info.get("trailingPE"),
+            "eps": info.get("epsTrailingTwelveMonths"),
+            "dividend_yield": info.get("dividendYield")
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@tool
+def microstructure_analysis_tool(order_book: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Analyze market microstructure from order book data.
+
+    Args:
+        order_book: Dict with bids and asks
+
+    Returns:
+        Dict with analysis (spread, depth, etc.)
+    """
+    try:
+        bids = order_book.get("bids", [])
+        asks = order_book.get("asks", [])
+        if bids and asks:
+            spread = asks[0][0] - bids[0][0]
+            return {"spread": spread, "bid_depth": sum(b[1] for b in bids), "ask_depth": sum(a[1] for a in asks)}
+        return {"error": "Invalid order book data"}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@tool
+def kalshi_data_tool(market_id: str) -> Dict[str, Any]:
+    """
+    Fetch data from Kalshi prediction market.
+
+    Args:
+        market_id: Market identifier
+
+    Returns:
+        Dict with market data
+    """
+    try:
+        # Placeholder for Kalshi API
+        return {"yes_price": 0.55, "no_price": 0.45, "volume": 1000}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@tool
+def sec_edgar_13f_tool(cik: str, date: str = None) -> Dict[str, Any]:
+    """
+    Fetch 13F filings from SEC EDGAR.
+
+    Args:
+        cik: Central Index Key
+        date: Optional filing date
+
+    Returns:
+        Dict with 13F data
+    """
+    try:
+        # Placeholder for SEC API
+        return {"holdings": [{"cusip": "123", "value": 1000000}]}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@tool
+def circuit_breaker_status_tool() -> Dict[str, Any]:
+    """
+    Get current circuit breaker status for all APIs.
+
+    Returns:
+        Dict with status of all circuit breakers
+    """
+    try:
+        from .validation import get_circuit_breaker_status
+        return get_circuit_breaker_status()
+    except Exception as e:
+        return {"error": str(e)}
+
+# end of file

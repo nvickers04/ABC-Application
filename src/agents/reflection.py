@@ -31,7 +31,7 @@ class ReflectionAgent(BaseAgent):
     """
     def __init__(self):
         config_paths = {'risk': 'config/risk-constraints.yaml', 'profit': 'config/profitability-targets.yaml'}  # Relative to root.
-        prompt_paths = {'base': 'base_prompt.txt', 'role': 'agents/reflection-agent-complete.md'}  # Relative to root.
+        prompt_paths = {'base': 'base_prompt.txt', 'role': 'docs/AGENTS/main-agents/reflection-agent.md'}  # Relative to root.
         super().__init__(role='reflection', config_paths=config_paths, prompt_paths=prompt_paths)
 
         # Initialize tools
