@@ -7,7 +7,7 @@
 
 import os
 import yaml
-from langchain.prompts import PromptTemplate  # Using LangChain PromptTemplate for advanced templating
+from langchain_core.prompts import PromptTemplate  # Using LangChain PromptTemplate for advanced templating
 import logging
 
 # Setup logging for traceability (output to console/file for audits)

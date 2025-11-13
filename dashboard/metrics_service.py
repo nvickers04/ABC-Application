@@ -2,12 +2,22 @@
 # Purpose: Centralized metrics service for dashboard and agent data access
 # Provides real-time data from agents and cost tracking for both human dashboard and agent queries
 
+import sys
+from pathlib import Path
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+
+external_root = r'C:\Users\nvick\Documents\Grok-IBKR'
+if external_root in sys.path:
+    sys.path.remove(external_root)
+if external_root + r'\src' in sys.path:
+    sys.path.remove(external_root + r'\src')
+
 import json
 import os
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional
 import pandas as pd
-from pathlib import Path
 
 # Import agents for data access
 from src.agents.reflection import ReflectionAgent

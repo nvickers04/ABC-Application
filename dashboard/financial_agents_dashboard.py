@@ -4,7 +4,7 @@ import plotly.express as px
 from datetime import datetime
 
 # Import your metrics service
-from src.dashboard.metrics_service import get_metrics_service
+from metrics_service import get_metrics_service
 
 # Import for memory monitoring
 from src.utils.optimized_pipeline import OptimizedPipelineProcessor
