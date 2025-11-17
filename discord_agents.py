@@ -623,13 +623,19 @@ class DiscordAgentBot(commands.Bot):
 
     async def on_ready(self):
         """Called when bot is ready"""
-        logger.info(f"{self.agent_name} bot is ready! Logged in as {self.user}")
-        # Start status updates if we have a channel configured
-        if hasattr(self, 'status_update') and self.status_channel_id:
-            try:
-                self.status_update.start()
-            except Exception as e:
-                logger.error(f"Failed to start status updates for {self.agent_name}: {e}")
+        try:
+            logger.info(f"{self.agent_name} bot is ready! Logged in as {self.user}")
+            # Start status updates if we have a channel configured (with delay to ensure bot is fully ready)
+            if hasattr(self, 'status_update') and self.status_channel_id:
+                try:
+                    # Delay starting the status update to ensure bot is fully connected
+                    await asyncio.sleep(5)
+                    self.status_update.start()
+                except Exception as e:
+                    logger.error(f"Failed to start status updates for {self.agent_name}: {e}")
+        except Exception as e:
+            logger.error(f"Error in on_ready for {self.agent_name}: {e}")
+            raise
 
     @tasks.loop(minutes=5)
     async def status_update(self):

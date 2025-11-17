@@ -95,7 +95,7 @@ def _get_realtime_pyramiding_monitor(strategy_agent=None):
             engine = _get_pyramiding_engine()
             if engine:
                 # Pass A2A protocol from strategy agent for inter-agent communication
-                a2a_protocol = strategy_agent.shared_memory_coordinator.a2a_protocol if strategy_agent else None
+                a2a_protocol = strategy_agent.shared_memory_coordinator.a2a_protocol if strategy_agent and strategy_agent.shared_memory_coordinator else None
                 _realtime_monitor = RealTimePyramidingMonitor(
                     pyramiding_engine=engine,
                     a2a_protocol=a2a_protocol
