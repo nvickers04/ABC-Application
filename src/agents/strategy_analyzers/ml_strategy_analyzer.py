@@ -46,16 +46,16 @@ class MLMemory:
         """Get recent ML insights."""
         return self.session_insights[-limit:]
 
-class MLStrategySub(BaseAgent):
+class MLStrategyAnalyzer(BaseAgent):
     """
-    Comprehensive ML Strategy Subagent implementing full specification.
+    Comprehensive ML Strategy Analyzer implementing full specification.
     Advanced machine learning models, feature engineering, model training, and signal generation.
     """
 
     def __init__(self):
         config_paths = {'risk': 'config/risk-constraints.yaml'}  # Relative to root.
         prompt_paths = {'base': 'base_prompt.txt', 'role': 'agents/strategy-agent-prompt.md'}  # Relative to root.
-        tools = []  # MLStrategySub uses internal methods instead of tools
+        tools = []  # MLStrategyAnalyzer uses internal methods instead of tools
         super().__init__(role='ml_strategy', config_paths=config_paths, prompt_paths=prompt_paths, tools=tools)
 
         # Initialize Redis cache manager
@@ -118,7 +118,7 @@ class MLStrategySub(BaseAgent):
         """
         Comprehensive ML strategy analysis with advanced models and feature engineering.
         """
-        logger.info(f"MLStrategySub processing input: {input_data or 'Default analysis'}")
+        logger.info(f"MLStrategyAnalyzer processing input: {input_data or 'Default analysis'}")
 
         # Extract analysis parameters
         symbols = input_data.get('symbols', ['SPY']) if input_data else ['SPY']
@@ -204,11 +204,11 @@ class MLStrategySub(BaseAgent):
             # Cache the result
             self._cache_data(cache_key, {"ml_strategy": result})
 
-            logger.info(f"MLStrategySub completed analysis: {len(alpha_signals)} alpha signals generated")
+            logger.info(f"MLStrategyAnalyzer completed analysis: {len(alpha_signals)} alpha signals generated")
             return {"ml_strategy": result}
 
         except Exception as e:
-            logger.error(f"MLStrategySub failed: {e}")
+            logger.error(f"MLStrategyAnalyzer failed: {e}")
             result = {
                 "ml_strategy": {
                     "error": str(e),
@@ -1441,9 +1441,9 @@ class MLStrategySub(BaseAgent):
                 obv[i] = obv[i-1]
         return obv
 
-class MLStrategySub(BaseAgent):
+class MLStrategyAnalyzer(BaseAgent):
     """
-    ML Strategy Subagent with LLM integration and collaborative memory.
+    ML Strategy Analyzer with LLM integration and collaborative memory.
     Reasoning: Generates ML-refined proposals using predictive models, pattern recognition, and deep analysis.
     """
 

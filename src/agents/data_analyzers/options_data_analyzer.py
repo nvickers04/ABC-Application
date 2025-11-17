@@ -41,9 +41,9 @@ class OptionsMemory:
         """Get recent options insights."""
         return self.session_insights[-limit:]
 
-class OptionsDatasub(BaseAgent):
+class OptionsDataAnalyzer(BaseAgent):
     """
-    Comprehensive Options Data Subagent implementing full specification.
+    Comprehensive Options Data Analyzer implementing full specification.
     Advanced options analytics with multi-source data, Greeks modeling, and strategy insights.
     """
 
@@ -94,7 +94,7 @@ class OptionsDatasub(BaseAgent):
         Returns:
             Dict with structured options data and LLM analysis.
         """
-        logger.info(f"OptionsDatasub processing input: {input_data}")
+        logger.info(f"OptionsDataAnalyzer processing input: {input_data}")
 
         try:
             symbol = input_data.get('symbol', 'AAPL') if input_data else 'AAPL'
@@ -127,11 +127,11 @@ class OptionsDatasub(BaseAgent):
                 "symbol": symbol
             })
 
-            logger.info(f"OptionsDatasub output: LLM-enhanced options data collected for {symbol}")
+            logger.info(f"OptionsDataAnalyzer output: LLM-enhanced options data collected for {symbol}")
             return result
 
         except Exception as e:
-            logger.error(f"OptionsDatasub failed: {e}")
+            logger.error(f"OptionsDataAnalyzer failed: {e}")
             return {"calls": [], "puts": [], "error": str(e), "enhanced": False}
 
     def _is_cache_valid(self, cache_key):
@@ -1491,7 +1491,7 @@ class OptionsDatasub(BaseAgent):
 # Standalone test
 if __name__ == "__main__":
     import asyncio
-    agent = OptionsDatasub()
+    agent = OptionsDataAnalyzer()
     result = asyncio.run(agent.process_input({
         'symbols': ['AAPL'],
         'option_types': ['call', 'put'],

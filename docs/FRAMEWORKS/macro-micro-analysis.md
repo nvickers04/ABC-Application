@@ -148,25 +148,25 @@ Composite Score = (Relative Strength × 0.40) + (Momentum × 0.30) + (Risk-Adjus
 
 ### Strategy Generation Process
 
-#### Options Strategies (OptionsStrategySub)
+#### Options Strategies (OptionsStrategyAnalyzer)
 - **Single-Leg**: Covered calls, protective puts, cash-secured puts
 - **Multi-Leg**: Spreads, straddles, condors, butterflies
 - **Dynamic Hedging**: Real-time delta and gamma management
 - **Volatility Plays**: Long/short volatility positioning
 
-#### Flow-Based Strategies (FlowStrategySub)
+#### Flow-Based Strategies (FlowStrategyAnalyzer)
 - **Order Imbalance**: Bid/ask stack analysis for directional bias
 - **Institutional Flows**: Smart money positioning and accumulation
 - **Dark Pool Detection**: Large order identification and analysis
 - **Liquidity Edges**: Optimal execution in high-liquidity periods
 
-#### ML-Driven Strategies (MLStrategySub)
+#### ML-Driven Strategies (MLStrategyAnalyzer)
 - **Predictive Modeling**: Time series forecasting and pattern recognition
 - **Feature Engineering**: Advanced technical and fundamental indicators
 - **Model Validation**: Out-of-sample testing and overfitting prevention
 - **Adaptive Learning**: Strategy adjustment based on market feedback
 
-#### Multi-Asset Strategies (MultiInstrumentStrategySub)
+#### Multi-Asset Strategies (MultiInstrumentStrategyAnalyzer)
 - **Statistical Arbitrage**: Mean-reversion and cointegration strategies
 - **Cross-Market Plays**: Related asset class correlation exploitation
 - **Thematic Investing**: Sector rotation based on macro themes

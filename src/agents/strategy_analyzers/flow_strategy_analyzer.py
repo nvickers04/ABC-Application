@@ -1,5 +1,5 @@
 # src/agents/strategy_subs/flow_strategy_sub.py
-# Comprehensive FlowStrategySub agent implementing full specification
+# Comprehensive FlowStrategyAnalyzer agent implementing full specification
 # Advanced order flow analysis, market impact modeling, and institutional activity detection
 
 import sys
@@ -41,16 +41,16 @@ class FlowMemory:
         """Get recent flow insights."""
         return self.session_insights[-limit:]
 
-class FlowStrategySub(BaseAgent):
+class FlowStrategyAnalyzer(BaseAgent):
     """
-    Comprehensive Flow Strategy Subagent implementing full specification.
+    Comprehensive Flow Strategy Analyzer implementing full specification.
     Advanced order flow analysis, market impact modeling, and institutional activity detection.
     """
 
     def __init__(self):
         config_paths = {'risk': 'config/risk-constraints.yaml'}  # Relative to root.
         prompt_paths = {'base': 'base_prompt.txt', 'role': 'agents/strategy-agent-prompt.md'}  # Relative to root.
-        tools = []  # FlowStrategySub uses internal methods instead of tools
+        tools = []  # FlowStrategyAnalyzer uses internal methods instead of tools
         super().__init__(role='flow_strategy', config_paths=config_paths, prompt_paths=prompt_paths, tools=tools)
 
         # Initialize Redis cache manager
@@ -87,7 +87,7 @@ class FlowStrategySub(BaseAgent):
         """
         Comprehensive flow strategy analysis with advanced order flow and institutional detection.
         """
-        logger.info(f"FlowStrategySub processing input: {input_data or 'Default analysis'}")
+        logger.info(f"FlowStrategyAnalyzer processing input: {input_data or 'Default analysis'}")
 
         # Extract analysis parameters
         symbols = input_data.get('symbols', ['SPY']) if input_data else ['SPY']
@@ -179,11 +179,11 @@ class FlowStrategySub(BaseAgent):
             # Cache the result
             self._cache_data(cache_key, {"flow_strategy": result})
 
-            logger.info(f"FlowStrategySub completed analysis: {len(alpha_signals)} alpha signals generated")
+            logger.info(f"FlowStrategyAnalyzer completed analysis: {len(alpha_signals)} alpha signals generated")
             return {"flow": result}
 
         except Exception as e:
-            logger.error(f"FlowStrategySub failed: {e}")
+            logger.error(f"FlowStrategyAnalyzer failed: {e}")
             result = {
                 "flow_strategy": {
                     "error": str(e),
@@ -1910,9 +1910,9 @@ class FlowAnalyzer:
                 'flow_components': {}
             }
 
-class FlowStrategySub(BaseAgent):
+class FlowStrategyAnalyzer(BaseAgent):
     """
-    Flow Strategy Subagent with LLM integration and collaborative memory.
+    Flow Strategy Analyzer with LLM integration and collaborative memory.
     Reasoning: Generates flow-based proposals with deep institutional flow analysis and market microstructure insights.
     """
 
@@ -1936,7 +1936,7 @@ class FlowStrategySub(BaseAgent):
         """
         Process input with LLM-enhanced flow strategy generation.
         """
-        logger.info(f"Flow Subagent processing input: {input_data or 'Default SPY flows'}")
+        logger.info(f"Flow Analyzer processing input: {input_data or 'Default SPY flows'}")
 
         symbol = input_data.get('symbols', ['SPY'])[0] if input_data else 'SPY'
         dataframe = input_data.get('dataframe') if input_data else None

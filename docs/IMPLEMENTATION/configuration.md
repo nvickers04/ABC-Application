@@ -25,7 +25,7 @@ The ABC Application system uses a hierarchical configuration management approach
 
 4. **Agent-Specific Configs** (`config/agents/`)
    - Individual agent configurations
-   - Subagent parameters
+   - Analyzer parameters
    - Specialized settings
 
 ## Core Configuration Files
@@ -99,7 +99,7 @@ agents:
   data_agent:
     enabled: true
     priority: "high"
-    subagents:
+    analyzers:
       market_data:
         enabled: true
         update_frequency_seconds: 60
@@ -128,7 +128,7 @@ agents:
   strategy_agent:
     enabled: true
     priority: "high"
-    subagents:
+    analyzers:
       options:
         enabled: true
         max_complexity: 3
@@ -159,7 +159,7 @@ agents:
   risk_agent:
     enabled: true
     priority: "critical"
-    subagents:
+    analyzers:
       portfolio_risk:
         enabled: true
         var_confidence_level: 0.95
@@ -187,7 +187,7 @@ agents:
   execution_agent:
     enabled: true
     priority: "high"
-    subagents:
+    analyzers:
       order_management:
         enabled: true
         smart_routing: true
@@ -209,7 +209,7 @@ agents:
   macro_agent:
     enabled: true
     priority: "high"
-    subagents:
+    analyzers:
       sector_analysis:
         enabled: true
         sectors: ["XLK", "XLE", "XLF", "XLV", "XLY", "XLI", "XLB", "XLRE", "XLC", "XLU"]
@@ -233,7 +233,7 @@ agents:
   learning_agent:
     enabled: true
     priority: "medium"
-    subagents:
+    analyzers:
       performance_analysis:
         enabled: true
         attribution_analysis: true
@@ -253,7 +253,7 @@ agents:
   reflection_agent:
     enabled: true
     priority: "medium"
-    subagents:
+    analyzers:
       decision_review:
         enabled: true
         success_criteria: ["pnl", "risk_adjusted_return", "execution_quality"]
@@ -273,7 +273,7 @@ agents:
   memory_agent:
     enabled: true
     priority: "medium"
-    subagents:
+    analyzers:
       short_term_memory:
         enabled: true
         ttl_hours: 24
@@ -650,13 +650,13 @@ class SystemConfig(BaseModel):
 class AgentConfig(BaseModel):
     enabled: bool = True
     priority: str = Field(..., regex=r'^(low|medium|high|critical)$')
-    subagents: Dict[str, Dict] = Field(default_factory=dict)
+    analyzers: Dict[str, Dict] = Field(default_factory=dict)
 
-    @validator('subagents')
-    def validate_subagents(cls, v):
+    @validator('analyzers')
+    def validate_analyzers(cls, v):
         for name, config in v.items():
             if not isinstance(config, dict):
-                raise ValueError(f"Subagent {name} must be a dictionary")
+                raise ValueError(f"Analyzer {name} must be a dictionary")
             if 'enabled' not in config:
                 config['enabled'] = True
         return v

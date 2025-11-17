@@ -389,7 +389,7 @@ class AgentHealthChecker:
         self.agent_manager = agent_manager
 
     async def check_data_agent_health(self) -> Dict:
-        """Check data agent health and subagents"""
+        """Check data agent health and analyzers"""
         try:
             data_agent = self.agent_manager.get_agent('data_agent')
 
@@ -402,21 +402,21 @@ class AgentHealthChecker:
             # Check agent responsiveness
             health_status = await data_agent.health_check()
 
-            # Check subagent status
-            subagent_status = {}
-            for subagent_name in ['market_data', 'sentiment', 'economic', 'options_data']:
-                subagent = getattr(data_agent, f'{subagent_name}_subagent', None)
-                if subagent:
-                    subagent_status[subagent_name] = await subagent.health_check()
+            # Check analyzer status
+            analyzer_status = {}
+            for analyzer_name in ['market_data', 'sentiment', 'economic', 'options_data']:
+                analyzer = getattr(data_agent, f'{analyzer_name}_analyzer', None)
+                if analyzer:
+                    analyzer_status[analyzer_name] = await analyzer.health_check()
 
-            healthy_subagents = sum(1 for s in subagent_status.values() if s.get('status') == 'healthy')
-            total_subagents = len(subagent_status)
+            healthy_analyzers = sum(1 for s in analyzer_status.values() if s.get('status') == 'healthy')
+            total_analyzers = len(analyzer_status)
 
-            overall_status = 'healthy' if healthy_subagents == total_subagents else 'degraded'
+            overall_status = 'healthy' if healthy_analyzers == total_analyzers else 'degraded'
 
             return {
                 'status': overall_status,
-                'message': f'Data agent: {healthy_subagents}/{total_subagents} subagents healthy',
+                'message': f'Data agent: {healthy_analyzers}/{total_analyzers} analyzers healthy',
                 'details': {
                     'agent_status': health_status,
                     'subagent_status': subagent_status,

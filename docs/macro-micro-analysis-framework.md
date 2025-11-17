@@ -148,7 +148,7 @@ Based on actual system testing:
 For each of the 5 selected sectors/assets from the macro loop:
 
 1. **Map to representative tickers** within the sector
-2. **Apply existing micro analysis** (11 data subagents)
+2. **Apply existing micro analysis** (11 data analyzers)
 3. **Generate strategy proposals** using current framework
 4. **Validate with integrated backtesting** framework
 5. **Risk assessment** and position sizing

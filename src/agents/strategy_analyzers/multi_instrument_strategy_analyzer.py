@@ -19,7 +19,7 @@ import asyncio
 
 logger = logging.getLogger(__name__)
 
-class MultiInstrumentStrategySub(BaseAgent):
+class MultiInstrumentStrategyAnalyzer(BaseAgent):
     """
     Multi-Instrument Strategy Subagent.
     Reasoning: Generates complex cross-asset strategies for enhanced diversification and alpha.
@@ -342,7 +342,7 @@ class MultiInstrumentStrategySub(BaseAgent):
         """
         Generate multi-instrument strategy proposals based on comprehensive market analysis.
         """
-        logger.info("MultiInstrumentStrategySub processing input for cross-asset strategies")
+        logger.info("MultiInstrumentStrategyAnalyzer processing input for cross-asset strategies")
 
         try:
             # Extract available data
@@ -427,12 +427,12 @@ class MultiInstrumentStrategySub(BaseAgent):
             # Select best multi-instrument strategy
             best_strategy = await self._select_best_multi_instrument_strategy(strategies, input_data)
 
-            logger.info(f"MultiInstrumentStrategySub generated {len(strategies)} strategies, selected: {best_strategy.get('strategy_type', 'none')}")
+            logger.info(f"MultiInstrumentStrategyAnalyzer generated {len(strategies)} strategies, selected: {best_strategy.get('strategy_type', 'none')}")
 
             return {'multi_instrument': best_strategy}
 
         except Exception as e:
-            logger.error(f"MultiInstrumentStrategySub error: {e}")
+            logger.error(f"MultiInstrumentStrategyAnalyzer error: {e}")
             return {'multi_instrument': None}
 
     async def _generate_statistical_arbitrage_strategy(self, dataframe: pd.DataFrame,
@@ -693,7 +693,7 @@ Provide your recommendation with detailed rationale focusing on which strategy o
                     for strategy in strategies:
                         strategy_type = strategy['strategy_type'].upper()
                         if strategy_type in llm_response.upper():
-                            logger.info(f"MultiInstrumentStrategySub LLM selected: {strategy_type}")
+                            logger.info(f"MultiInstrumentStrategyAnalyzer LLM selected: {strategy_type}")
                             return strategy
 
                 except Exception as e:
@@ -701,7 +701,7 @@ Provide your recommendation with detailed rationale focusing on which strategy o
 
             # Fallback: Select strategy with best risk-adjusted ROI
             best_strategy = max(strategies, key=lambda x: x['risk_adjusted_roi'])
-            logger.info(f"MultiInstrumentStrategySub fallback selection: {best_strategy['strategy_type']}")
+            logger.info(f"MultiInstrumentStrategyAnalyzer fallback selection: {best_strategy['strategy_type']}")
             return best_strategy
 
         except Exception as e:

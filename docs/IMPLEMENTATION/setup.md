@@ -230,7 +230,7 @@ data:
 ```yaml
 # config/agents/data_agent.yaml
 data_agent:
-  subagents:
+  analyzers:
     market_data:
       update_frequency_seconds: 60
       sources: [ibkr, yahoo_finance, alpha_vantage]
@@ -243,7 +243,7 @@ data_agent:
 
 # config/agents/strategy_agent.yaml
 strategy_agent:
-  subagents:
+  analyzers:
     options: {enabled: true, max_complexity: 3}
     ml_models: {enabled: true, retrain_frequency_days: 7}
     pairs_trading: {enabled: true, correlation_threshold: 0.8}

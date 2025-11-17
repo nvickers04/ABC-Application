@@ -157,7 +157,7 @@
 
 **Collaborative Memory System**:
 - **Model Insights Storage**: Maintains ML model outputs and feature analysis during research
-- **Cross-Subagent Collaboration**: Shares predictive insights with OptionsStrategySub and FlowStrategySub
+- **Cross-Analyzer Collaboration**: Shares predictive insights with OptionsStrategyAnalyzer and FlowStrategyAnalyzer
 - **Base Agent Transfer**: Delivers ML-driven strategies with complete model context
 - **Memory Cleanup**: Removes temporary model data after successful integration
 

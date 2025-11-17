@@ -2,13 +2,13 @@
 
 ## Overview
 
-The StrategyAgent serves as the **strategy architect** in the collaborative reasoning framework, coordinating 4 specialized strategy subagents to develop sophisticated trade setups through integrated deliberation. It participates actively in both iterations, transforming DataAgent intelligence into actionable strategies while collaborating with all other agents throughout the reasoning process.
+The StrategyAgent serves as the **strategy architect** in the collaborative reasoning framework, coordinating 4 specialized strategy analyzers to develop sophisticated trade setups through integrated deliberation. It participates actively in both iterations, transforming DataAgent intelligence into actionable strategies while collaborating with all other agents throughout the reasoning process.
 
 ## Core Responsibilities
 
 ### **Framework Integration**
 - **Macro Context Utilization**: Receives MacroAgent's market regime context and prioritized opportunities
-- **Iteration 1 Collaboration**: All 4 subagents participate in comprehensive multi-agent strategy development with full data access
+- **Iteration 1 Collaboration**: All 4 analyzers participate in comprehensive multi-agent strategy development with full data access
 - **Iteration 2 Leadership**: Leads executive-level strategic synthesis and refinement
 - **Cross-Agent Integration**: Incorporates insights from Data, Risk, Execution, and other agents throughout both iterations
 
@@ -23,35 +23,35 @@ The StrategyAgent serves as the **strategy architect** in the collaborative reas
 
 ### Collaborative Development
 - **Integrated Strategy Formation**: Strategy development begins immediately with data collection, not as a separate phase
-- **Comprehensive Debate Participation**: All subagents contribute to multi-agent deliberation with complete information access
+- **Comprehensive Debate Participation**: All analyzers contribute to multi-agent deliberation with complete information access
 - **Risk Integration**: Risk considerations built into strategy design from the earliest stages
 - **Execution Feasibility**: Execution constraints considered throughout strategy development
 
 ## Architecture
 
-### Subagent Coordination
-The StrategyAgent leverages 4 specialized subagents for comprehensive strategy development:
+### Analyzer Coordination
+The StrategyAgent leverages 4 specialized analyzers for comprehensive strategy development:
 
 #### Options Strategies
-- **OptionsStrategySub**: Complex options positioning (strangles, collars, spreads)
+- **OptionsStrategyAnalyzer**: Complex options positioning (strangles, collars, spreads)
 - **Greeks Analysis**: Delta, gamma, theta, vega, rho optimization
 - **Volatility Trading**: Implied vs. realized volatility strategies
 - **Risk Management**: Options-specific risk controls and adjustments
 
 #### Flow-Based Strategies
-- **FlowStrategySub**: Order flow analysis and dark pool detection
+- **FlowStrategyAnalyzer**: Order flow analysis and dark pool detection
 - **Institutional Tracking**: Smart money positioning and accumulation patterns
 - **Liquidity Analysis**: Market depth and trading cost optimization
 - **Execution Algorithms**: Optimal execution strategies for large orders
 
 #### Machine Learning Strategies
-- **MLStrategySub**: Predictive modeling and pattern recognition
+- **MLStrategyAnalyzer**: Predictive modeling and pattern recognition
 - **Feature Engineering**: Advanced technical indicators and market microstructure
 - **Model Training**: Continuous learning from market data and outcomes
 - **Signal Generation**: ML-based entry and exit signal generation
 
 #### Multi-Asset Strategies
-- **MultiInstrumentStrategySub**: Cross-market and cross-asset arbitrage
+- **MultiInstrumentStrategyAnalyzer**: Cross-market and cross-asset arbitrage
 - **Correlation Trading**: Statistical arbitrage and pairs trading
 - **Thematic Investing**: Sector rotation and macro-driven strategies
 - **Portfolio Construction**: Multi-asset portfolio optimization
@@ -59,7 +59,7 @@ The StrategyAgent leverages 4 specialized subagents for comprehensive strategy d
 ### Strategy Development Pipeline
 
 ```
-Market Data → StrategyAgent → Subagent Analysis → Strategy Synthesis → Risk Validation → Execution Planning
+Market Data → StrategyAgent → Analyzer Analysis → Strategy Synthesis → Risk Validation → Execution Planning
                               ↓
                        Backtesting → Optimization → A2A Debate → Final Selection
 ```
@@ -274,13 +274,13 @@ Enable detailed strategy logging:
 ```python
 import logging
 logging.getLogger('strategy_agent').setLevel(logging.DEBUG)
-logging.getLogger('strategy_subagents').setLevel(logging.DEBUG)
+logging.getLogger('strategy_analyzers').setLevel(logging.DEBUG)
 ```
 
 ## Conclusion
 
-The StrategyAgent serves as the creative engine of the ABC Application system, generating sophisticated trading strategies that leverage multiple data sources and analytical approaches. Through its coordinated subagent architecture and collaborative development process, it creates strategies that are both innovative and robust, maximizing alpha while maintaining strict risk controls.
+The StrategyAgent serves as the creative engine of the ABC Application system, generating sophisticated trading strategies that leverage multiple data sources and analytical approaches. Through its coordinated analyzer architecture and collaborative development process, it creates strategies that are both innovative and robust, maximizing alpha while maintaining strict risk controls.
 
 ---
 
-*For detailed subagent documentation, see the subagents/ directory.*
+*For detailed analyzer documentation, see the analyzers/ directory.*

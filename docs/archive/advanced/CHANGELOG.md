@@ -42,7 +42,7 @@
   - Removed code-skeleton.md and config/profit-projections.md
 
 ### 2025-11-04 (Enhanced Subagents Implementation)
-- **Added**: Implemented OptionsStrategySub, FlowStrategySub, and MLStrategySub with LLM integration, collaborative memory, and advanced processing pipelines.
+- **Added**: Implemented OptionsStrategyAnalyzer, FlowStrategyAnalyzer, and MLStrategyAnalyzer with LLM integration, collaborative memory, and advanced processing pipelines.
 - **Added**: Shared memory coordinator for cross-agent insight sharing and research sessions.
 - **Added**: test_enhanced_subagents.py for validation of subagent functionality.
 - **Changed**: Updated agent documentation to reflect implemented features.

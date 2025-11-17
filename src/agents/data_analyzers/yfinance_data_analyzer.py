@@ -42,9 +42,9 @@ class MarketDataMemory:
         """Get recent market data insights."""
         return self.session_insights[-limit:]
 
-class YfinanceDatasub(BaseAgent):
+class YfinanceDataAnalyzer(BaseAgent):
     """
-    Yfinance Data Subagent with LLM-powered exploration.
+    Yfinance Data Analyzer with LLM-powered exploration.
     Reasoning: Intelligently explores multiple market data sources and aggregates comprehensive data.
     Uses LLM to prioritize data types, sources, and time horizons for optimal market intelligence.
     """
@@ -143,7 +143,7 @@ class YfinanceDatasub(BaseAgent):
         Returns:
             Dict with structured market data and LLM analysis.
         """
-        logger.info(f"YfinanceDatasub processing input: {input_data}")
+        logger.info(f"YfinanceDataAnalyzer processing input: {input_data}")
 
         try:
             symbols = input_data.get('symbols', ['SPY']) if input_data else ['SPY']
@@ -178,11 +178,11 @@ class YfinanceDatasub(BaseAgent):
                         "symbol": symbol
                     })
 
-            logger.info(f"YfinanceDatasub output: LLM-enhanced market data collected for {symbols}")
+            logger.info(f"YfinanceDataAnalyzer output: LLM-enhanced market data collected for {symbols}")
             return result
 
         except Exception as e:
-            logger.error(f"YfinanceDatasub failed: {e}")
+            logger.error(f"YfinanceDataAnalyzer failed: {e}")
             return {"price_data": {}, "error": str(e), "enhanced": False}
 
     async def _plan_data_exploration(self, symbols: List[str], context: Dict[str, Any]) -> Dict[str, Any]:
@@ -1316,7 +1316,7 @@ Example response:
 # Standalone test
 if __name__ == "__main__":
     import asyncio
-    agent = YfinanceDatasub()
+    agent = YfinanceDataAnalyzer()
     result = asyncio.run(agent.process_input({
         'symbols': ['AAPL'],
         'data_types': ['quotes', 'historical'],
@@ -1597,6 +1597,6 @@ if __name__ == "__main__":
 # Standalone test (run python src/agents/yfinance_agent.py to verify)
 if __name__ == "__main__":
     import asyncio
-    agent = YfinanceDatasub()
+    agent = YfinanceDataAnalyzer()
     result = asyncio.run(agent.process_input({'symbols': ['SPY']}))
     print("Yfinance Agent Test Result (Sample DataFrame):\n", result)

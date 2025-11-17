@@ -64,7 +64,7 @@ The collaborative reasoning process operates in two distinct iterations, each bu
 The MacroAgent establishes the strategic foundation before any detailed analysis begins, scanning 39+ sectors/assets and identifying top opportunities for focused analysis.
 
 **Iteration 1: Comprehensive Multi-Agent Deliberation (All 22 Agents)**
-All agents, including subagents, participate in the complete 7-phase process to ensure maximum information gathering, diverse perspectives, and thorough analysis on the MacroAgent's prioritized opportunities.
+All agents, including analyzers, participate in the complete 7-phase process to ensure maximum information gathering, diverse perspectives, and thorough analysis on the MacroAgent's prioritized opportunities.
 
 **Iteration 2: Executive-Level Strategic Oversight (Main 8 Agents Only)**
 Following the comprehensive deliberation, the main agents conduct a focused strategic review, applying executive-level judgment and risk sensitivity.
@@ -93,19 +93,19 @@ The ReflectionAgent serves as the system's final arbiter with unilateral authori
 
 * Pre-Execution Review: Risk Agent outputs to the Execution Agent, which initiates a preliminary check before final commitment.
 
-#### Data Subagents (10)
+#### Data Analyzers (10)
 
-- EconomicDatasub, SentimentDatasub, YfinanceDatasub, OptionsDatasub* Final Reflection Before Execution: To enforce time constraints and common-sense clarity, the Execution Agent triggers one last reflection loop—pulling from the Reflection Agent for a quick validation. This uses exchange-calendars concepts (e.g., check if current time is within market hours, holidays, or valid sessions) to avoid executions outside trading windows. Additionally, apply a common-sense test: Cross-verify trade details against predefined sanity rules (e.g., ensure quantities are feasible, no delusional elements like impossible prices, and alignment with overall portfolio logic). If it fails, loop back to Strategy/Risk for iteration; if passes, proceed—else, opt for "no trade" (USD hold benchmarked vs inflation/gold/crypto/FX costs from YAML). (See execution-agent-notes.md for USD-benchmarked logic and multi-asset paper testing.) Langchain: Reflection as mini-chain in LangGraph; tools for time/sanity checks; memory for outcome reflections.
+- EconomicDataAnalyzer, SentimentDataAnalyzer, YfinanceDataAnalyzer, OptionsDataAnalyzer* Final Reflection Before Execution: To enforce time constraints and common-sense clarity, the Execution Agent triggers one last reflection loop—pulling from the Reflection Agent for a quick validation. This uses exchange-calendars concepts (e.g., check if current time is within market hours, holidays, or valid sessions) to avoid executions outside trading windows. Additionally, apply a common-sense test: Cross-verify trade details against predefined sanity rules (e.g., ensure quantities are feasible, no delusional elements like impossible prices, and alignment with overall portfolio logic). If it fails, loop back to Strategy/Risk for iteration; if passes, proceed—else, opt for "no trade" (USD hold benchmarked vs inflation/gold/crypto/FX costs from YAML). (See execution-agent-notes.md for USD-benchmarked logic and multi-asset paper testing.) Langchain: Reflection as mini-chain in LangGraph; tools for time/sanity checks; memory for outcome reflections.
 
-- InstitutionalDatasub, NewsDatasub, FundamentalDatasub, MicrostructureDatasub
+- InstitutionalDataAnalyzer, NewsDataAnalyzer, FundamentalDataAnalyzer, MicrostructureDataAnalyzer
 
-- KalshiDatasub, MarketDataAppDatasub* Micro Execution: Execution Agent handles IBKR-linked trades (e.g., via current LangChain tools and IBKR integration; multi-asset options/FX) or no-trade holds, logging outcomes (slippage live-only; no sim accuracy); ongoing A2A pings to Risk/Strategy for scaling assessments while active (continuous/vol/news/corr). (See execution-agent-notes.md for support for POP evaluations.) Langchain: Async edges for pings; tools for IBKR executions (e.g., ibkr_execute_tool); memory for drag weighing.
+- KalshiDataAnalyzer, MarketDataAppDataAnalyzer* Micro Execution: Execution Agent handles IBKR-linked trades (e.g., via current LangChain tools and IBKR integration; multi-asset options/FX) or no-trade holds, logging outcomes (slippage live-only; no sim accuracy); ongoing A2A pings to Risk/Strategy for scaling assessments while active (continuous/vol/news/corr). (See execution-agent-notes.md for support for POP evaluations.) Langchain: Async edges for pings; tools for IBKR executions (e.g., ibkr_execute_tool); memory for drag weighing.
 
 
 
-#### Strategy Subagents (4)* Post-Execution Reflection and Learning: Outcomes feed back via A2A to the Reflection Agent (Zipline-inspired backtests for reviews) and Learning Agent (FinRL/tf-quant-finance for ML refinements), closing the loop for experiential edge-finding (e.g., update probabilities based on real results). (See learning-agent-notes.md for parallel simulation training.) Langchain: Reflection/Learning as closing nodes; memory for convergence metrics (e.g., loss <0.01); tools for offline sims.
+#### Strategy Analyzers (4)* Post-Execution Reflection and Learning: Outcomes feed back via A2A to the Reflection Agent (Zipline-inspired backtests for reviews) and Learning Agent (FinRL/tf-quant-finance for ML refinements), closing the loop for experiential edge-finding (e.g., update probabilities based on real results). (See learning-agent-notes.md for parallel simulation training.) Langchain: Reflection/Learning as closing nodes; memory for convergence metrics (e.g., loss <0.01); tools for offline sims.
 
-- FlowStrategySub, MLStrategySub, OptionsStrategySub, MultiInstrumentStrategySub
+- FlowStrategyAnalyzer, MLStrategyAnalyzer, OptionsStrategyAnalyzer, MultiInstrumentStrategyAnalyzer
 
 Weekly Stochastic Batching and POP Evaluations
 

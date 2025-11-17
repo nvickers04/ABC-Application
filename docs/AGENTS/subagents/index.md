@@ -1,23 +1,23 @@
-# Data Subagents - Specialized Market Intelligence
+# Data Analyzers - Specialized Market Intelligence
 
 ## Overview
 
-The DataAgent coordinates 10 specialized subagents that form the backbone of **Iteration 1's comprehensive multi-agent deliberation** in the collaborative reasoning framework. Each subagent focuses on specific domains of market intelligence and data processing, providing specialized insights that contribute to the full spectrum of collaborative decision-making. All subagents participate actively in the comprehensive debate with complete information access, ensuring no specialized knowledge is siloed.
+The DataAgent coordinates 10 specialized analyzers that form the backbone of **Iteration 1's comprehensive multi-agent deliberation** in the collaborative reasoning framework. Each analyzer focuses on specific domains of market intelligence and data processing, providing specialized insights that contribute to the full spectrum of collaborative decision-making. All analyzers participate actively in the comprehensive debate with complete information access, ensuring no specialized knowledge is siloed.
 
 ## Framework Integration
 
 ### Iteration 1 Participation
-- **Comprehensive Deliberation**: All 10 subagents contribute specialized insights to multi-agent debate
-- **Full Information Access**: Each subagent has access to complete market intelligence from all other agents
+- **Comprehensive Deliberation**: All 10 analyzers contribute specialized insights to multi-agent debate
+- **Full Information Access**: Each analyzer has access to complete market intelligence from all other agents
 - **Specialized Validation**: Domain-specific expertise applied across all decision dimensions
-- **Collaborative Intelligence**: Subagent insights integrated into collective reasoning process
+- **Collaborative Intelligence**: Analyzer insights integrated into collective reasoning process
 
 ### Specialized Contributions
-- **Data Subagents**: Provide market intelligence validation and cross-domain insights
-- **Strategy Subagents**: Contribute specialized approach variations and alternative perspectives
-- **Integrated Deliberation**: All subagents participate in comprehensive multi-agent challenge and validation
+- **Data Analyzers**: Provide market intelligence validation and cross-domain insights
+- **Strategy Analyzers**: Contribute specialized approach variations and alternative perspectives
+- **Integrated Deliberation**: All analyzers participate in comprehensive multi-agent challenge and validation
 
-## Data Collection Subagents
+## Data Collection Analyzers
 
 ### YfinanceDatasub
 **Role**: Primary market data collection and technical analysis
@@ -46,7 +46,7 @@ The DataAgent coordinates 10 specialized subagents that form the backbone of **I
 - High-frequency data processing
 - Flow toxicity detection
 
-## Economic & Fundamental Subagents
+## Economic & Fundamental Analyzers
 
 ### EconomicDatasub
 **Role**: Macroeconomic data aggregation and policy analysis
@@ -75,7 +75,7 @@ The DataAgent coordinates 10 specialized subagents that form the backbone of **I
 - Institutional sentiment analysis
 - Smart money positioning
 
-## Sentiment & News Subagents
+## Sentiment & News Analyzers
 
 ### SentimentDatasub
 **Role**: Multi-dimensional sentiment analysis
@@ -95,7 +95,7 @@ The DataAgent coordinates 10 specialized subagents that form the backbone of **I
 - Source credibility assessment
 - Event detection algorithms
 
-## Derivatives Subagents
+## Derivatives Analyzers
 
 ### OptionsDatasub
 **Role**: Options market data and derivatives analysis
@@ -117,13 +117,13 @@ The DataAgent coordinates 10 specialized subagents that form the backbone of **I
 
 ---
 
-# Strategy Subagents - Specialized Trading Strategies
+# Strategy Analyzers - Specialized Trading Strategies
 
 ## Overview
 
-The StrategyAgent leverages 4 specialized subagents to generate sophisticated trading strategies across all asset classes and market conditions.
+The StrategyAgent leverages 4 specialized analyzers to generate sophisticated trading strategies across all asset classes and market conditions.
 
-## Options Strategy Subagent
+## Options Strategy Analyzer
 **Role**: Complex options positioning and derivatives strategies
 **Capabilities**:
 - Multi-leg options strategies (straddles, strangles, spreads)
@@ -131,7 +131,7 @@ The StrategyAgent leverages 4 specialized subagents to generate sophisticated tr
 - Volatility-based strategies
 - Risk management for options portfolios
 
-## Flow Strategy Subagent
+## Flow Strategy Analyzer
 **Role**: Order flow analysis and dark pool strategies
 **Capabilities**:
 - Institutional order flow detection
@@ -139,7 +139,7 @@ The StrategyAgent leverages 4 specialized subagents to generate sophisticated tr
 - Liquidity analysis and optimal execution
 - Smart money positioning strategies
 
-## ML Strategy Subagent
+## ML Strategy Analyzer
 **Role**: Machine learning-based predictive strategies
 **Capabilities**:
 - Feature engineering and selection
@@ -147,7 +147,7 @@ The StrategyAgent leverages 4 specialized subagents to generate sophisticated tr
 - Pattern recognition algorithms
 - Adaptive strategy optimization
 
-## Multi-Instrument Strategy Subagent
+## Multi-Instrument Strategy Analyzer
 **Role**: Cross-market and multi-asset strategies
 **Capabilities**:
 - Statistical arbitrage and pairs trading
@@ -157,4 +157,4 @@ The StrategyAgent leverages 4 specialized subagents to generate sophisticated tr
 
 ---
 
-*For detailed implementation of individual subagents, see their respective documentation files.*
+*For detailed implementation of individual analyzers, see their respective documentation files.*

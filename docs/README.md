@@ -14,7 +14,7 @@ Agent documentation and implementation guides.
 
 - [index.md](AGENTS/index.md) - Agent overview and inventory
 - [main-agents/](AGENTS/main-agents/) - Documentation for 8 main agents
-- [subagents/](AGENTS/subagents/) - Documentation for 10 data and 4 strategy subagents
+- [analyzers/](AGENTS/analyzers/) - Documentation for 10 data and 4 strategy analyzers
 
 ### [FRAMEWORKS/](FRAMEWORKS/)
 Core frameworks and protocols.

@@ -13,23 +13,23 @@
 - MemoryAgent
 - MacroAgent
 
-## Data Subagents (10)
-- EconomicDatasub
-- SentimentDatasub
-- YfinanceDatasub
-- OptionsDatasub
-- InstitutionalDatasub
-- NewsDatasub
-- FundamentalDatasub
-- MicrostructureDatasub
-- KalshiDatasub
-- MarketDataAppDatasub
+## Data Analyzers (10)
+- EconomicDataAnalyzer
+- SentimentDataAnalyzer
+- YfinanceDataAnalyzer
+- OptionsDataAnalyzer
+- InstitutionalDataAnalyzer
+- NewsDataAnalyzer
+- FundamentalDataAnalyzer
+- MicrostructureDataAnalyzer
+- KalshiDataAnalyzer
+- MarketDataAppDataAnalyzer
 
-## Strategy Subagents (4)
-- FlowStrategySub
-- MLStrategySub
-- OptionsStrategySub
-- MultiInstrumentStrategySub
+## Strategy Analyzers (4)
+- FlowStrategyAnalyzer
+- MLStrategyAnalyzer
+- OptionsStrategyAnalyzer
+- MultiInstrumentStrategyAnalyzer
 
 ## Token Usage Warning
 All 22 agents have been implemented. No additional agents should be created to preserve token budget for system integration and testing.

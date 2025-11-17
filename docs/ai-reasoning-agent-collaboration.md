@@ -18,25 +18,25 @@ Traditional AI systems rely on single models for decision-making, limited by ind
 ### The 22-Agent Architecture
 Each agent represents a specialized domain of financial expertise, working in orchestrated reasoning loops:
 
-#### Data Analysis Agents (10 Subagents)
-- **Yfinance Subagent**: Primary market data collection via yfinance API
-- **MarketDataApp Subagent**: Premium real-time trading data from MarketDataApp
-- **Economic Data Subagent**: Macroeconomic indicators and trends
-- **Fundamental Data Subagent**: Company financials and valuation metrics
-- **Sentiment Subagent**: News and social media sentiment analysis
-- **Institutional Data Subagent**: 13F filings and institutional holdings
-- **Options Data Subagent**: Options chain analysis and Greeks
-- **News Data Subagent**: Real-time news impact assessment
-- **Kalshi Data Subagent**: Prediction market data integration
-- **Microstructure Subagent**: High-frequency trading patterns
+#### Data Analysis Agents (10 Analyzers)
+- **Yfinance Analyzer**: Primary market data collection via yfinance API
+- **MarketDataApp Analyzer**: Premium real-time trading data from MarketDataApp
+- **Economic Data Analyzer**: Macroeconomic indicators and trends
+- **Fundamental Data Analyzer**: Company financials and valuation metrics
+- **Sentiment Analyzer**: News and social media sentiment analysis
+- **Institutional Data Analyzer**: 13F filings and institutional holdings
+- **Options Data Analyzer**: Options chain analysis and Greeks
+- **News Data Analyzer**: Real-time news impact assessment
+- **Kalshi Data Analyzer**: Prediction market data integration
+- **Microstructure Analyzer**: High-frequency trading patterns
 
 **Reasoning Role**: Data agents collectively validate information quality, cross-reference sources, and provide comprehensive market intelligence. They debate data reliability and consensus on market signals.
 
-#### Strategy Generation Agents (4 Subagents)
-- **Options Strategy Subagent**: Complex options strategies and spreads
-- **Flow Strategy Subagent**: Order flow-based trading strategies
-- **ML Strategy Subagent**: Machine learning-driven quantitative strategies
-- **Multi-Instrument Strategy Subagent**: Complex multi-asset and cross-market strategies
+#### Strategy Generation Agents (4 Analyzers)
+- **Options Strategy Analyzer**: Complex options strategies and spreads
+- **Flow Strategy Analyzer**: Order flow-based trading strategies
+- **ML Strategy Analyzer**: Machine learning-driven quantitative strategies
+- **Multi-Instrument Strategy Analyzer**: Complex multi-asset and cross-market strategies
 
 **Reasoning Role**: Strategy agents independently generate proposals, then debate approaches, challenge assumptions, and refine strategies through collaborative reasoning.
 
@@ -77,7 +77,7 @@ The collaborative reasoning process operates in two distinct iterations, each bu
 **Strategic Output**: MacroAgent delivers a focused investment universe and market context that constrains and guides all subsequent analysis, ensuring resources are allocated to the most promising opportunities.
 
 #### **Iteration 1: Comprehensive Multi-Agent Deliberation (All 22 Agents)**
-All agents, including subagents, participate in the complete 7-phase process to ensure maximum information gathering, diverse perspectives, and thorough analysis on the MacroAgent's prioritized opportunities.
+All agents, including analyzers, participate in the complete 7-phase process to ensure maximum information gathering, diverse perspectives, and thorough analysis on the MacroAgent's prioritized opportunities.
 
 ### Phase 1: Integrated Intelligence Gathering & Analysis
 **All agents collaboratively collect, validate, and analyze market intelligence simultaneously:**
@@ -87,7 +87,7 @@ All agents, including subagents, participate in the complete 7-phase process to 
 - Macro agents provide market regime context to guide data prioritization
 - Reflection agents ensure analytical consistency across all data sources
 - Learning agents draw on historical patterns to validate current data significance
-- **Subagents actively contribute**: Each of the 10 data subagents and 4 strategy subagents provides specialized insights
+- **Analyzers actively contribute**: Each of the 10 data analyzers and 4 strategy analyzers provides specialized insights
 
 **Key Improvement**: Eliminates information silos - strategy development begins immediately with data collection, creating more informed initial proposals.
 
@@ -100,7 +100,7 @@ All agents, including subagents, participate in the complete 7-phase process to 
 - Macro agents ensure strategies align with broader market regime analysis
 - Reflection agents mediate cross-domain considerations and logical consistency
 - Learning agents incorporate historical precedent and performance patterns
-- **Subagents provide depth**: Strategy subagents offer specialized approach variations, data subagents validate source-specific assumptions
+- **Analyzers provide depth**: Strategy analyzers offer specialized approach variations, data analyzers validate source-specific assumptions
 
 **Key Improvement**: Strategy generation becomes a collaborative process rather than isolated proposal development, ensuring all domain expertise influences initial strategy formation.
 
@@ -114,7 +114,7 @@ All agents, including subagents, participate in the complete 7-phase process to 
 - **Reflection agents** ensure logical consistency and identify cognitive biases
 - **Learning agents** draw on historical outcomes to challenge optimistic assumptions
 - **Memory agents** provide relevant historical context and precedent
-- **All subagents participate**: Data and strategy subagents contribute specialized validations and alternative perspectives
+- **All analyzers participate**: Data and strategy analyzers contribute specialized validations and alternative perspectives
 
 **Key Improvement**: Full agent participation with complete data access creates more robust challenge and refinement than limited agent debates.
 
@@ -135,13 +135,13 @@ Following the comprehensive deliberation, the main agents conduct a focused stra
 
 ### Phase 1-7: Executive Strategic Review
 **The main 8 agents (DataAgent, StrategyAgent, RiskAgent, ExecutionAgent, ReflectionAgent, LearningAgent, MemoryAgent, MacroAgent) repeat the 7-phase process with enhanced strategic focus:**
-- **Elevated strategic perspective**: Main agents synthesize subagent inputs into cohesive strategic narratives
+- **Elevated strategic perspective**: Main agents synthesize analyzer inputs into cohesive strategic narratives
 - **Risk sensitivity amplification**: RiskAgent applies more conservative probability thresholds
 - **Executive judgment**: Agents consider broader market implications and systemic risks
 - **Implementation focus**: ExecutionAgent emphasizes practical constraints and market impact
 - **Historical context**: LearningAgent provides deeper pattern recognition and precedent analysis
 
-**Key Enhancement**: Executive-level agents apply institutional-grade judgment to subagent recommendations, ensuring strategic coherence and risk management.
+**Key Enhancement**: Executive-level agents apply institutional-grade judgment to analyzer recommendations, ensuring strategic coherence and risk management.
 
 #### **Reflection Agent's Supreme Oversight Authority**
 The ReflectionAgent serves as the system's final arbiter with extraordinary authority to ensure decision quality and risk management:

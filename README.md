@@ -32,7 +32,7 @@ For comprehensive documentation of the ABC-Application system, see the [`docs/`]
 - **Multi-Agent Architecture**: Specialized agents for data collection, strategy development, risk management, execution, learning, and reflection.
 - **LLM Integration**: Grok API-powered reasoning for market analysis, strategy optimization, and risk assessment.
 - **Collaborative Memory**: Shared memory coordinator enabling cross-agent insight sharing and temporary research sessions.
-- **Enhanced Subagents**: OptionsStrategySub, FlowStrategySub, and MLStrategySub with advanced capabilities including Greeks calculations, institutional flow analysis, and predictive modeling.
+- **Enhanced Analyzers**: OptionsStrategyAnalyzer, FlowStrategyAnalyzer, and MLStrategyAnalyzer with advanced capabilities including Greeks calculations, institutional flow analysis, and predictive modeling.
 - **IBKR Integration**: Unified interface for IBKR connectivity with LangChain tool integration for seamless trading operations
 - **IBKR Historical Data**: Professional-grade historical market data for accurate backtesting and simulation, with direct integration to IBKR's comprehensive data feeds.
 - **API Health Monitoring**: Automated monitoring system tracking response times, success rates, and circuit breaker status for all data APIs (MarketDataApp, Kalshi, yFinance, NewsAPI, FRED, Currents, Twitter, Whale Wisdom, Grok) with real-time dashboard and alerts.

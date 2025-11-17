@@ -2,13 +2,13 @@
 
 ## Overview
 
-The DataAgent serves as the **intelligence engine** of the collaborative reasoning framework, coordinating 10 specialized data subagents to provide comprehensive market intelligence throughout both iterations of the reasoning process. It transforms the MacroAgent's prioritized opportunities into deep, actionable market insights that inform all subsequent agent deliberations.
+The DataAgent serves as the **intelligence engine** of the collaborative reasoning framework, coordinating 10 specialized data analyzers to provide comprehensive market intelligence throughout both iterations of the reasoning process. It transforms the MacroAgent's prioritized opportunities into deep, actionable market insights that inform all subsequent agent deliberations.
 
 ## Core Responsibilities
 
 ### **Framework Integration**
 - **Macro Context Processing**: Receives MacroAgent's prioritized opportunity set and market regime context
-- **Iteration 1 Leadership**: Coordinates all 10 data subagents for comprehensive intelligence gathering on selected assets
+- **Iteration 1 Leadership**: Coordinates all 10 data analyzers for comprehensive intelligence gathering on selected assets
 - **Iteration 2 Synthesis**: Provides executive-level data synthesis for strategic oversight
 - **Cross-Iteration Intelligence**: Maintains data continuity and context throughout the entire reasoning process
 
@@ -26,37 +26,37 @@ The DataAgent serves as the **intelligence engine** of the collaborative reasoni
 
 ### Collaborative Intelligence
 - **A2A Data Sharing**: Structured data exchange with all other agents across both iterations
-- **Comprehensive Debate**: All 10 subagents participate in Iteration 1 multi-agent deliberation
+- **Comprehensive Debate**: All 10 analyzers participate in Iteration 1 multi-agent deliberation
 - **Executive Synthesis**: Provides consolidated intelligence for Iteration 2 strategic review
 - **Context Provision**: Supplies market intelligence that informs strategy development and risk assessment
 
 ## Architecture
 
-### Subagent Coordination
-The DataAgent orchestrates 10 specialized subagents, each focusing on specific data domains:
+### Analyzer Coordination
+The DataAgent orchestrates 10 specialized analyzers, each focusing on specific data domains:
 
-#### Market Data Subagents
-- **YfinanceDatasub**: Primary market data collection and technical indicators
-- **MarketDataAppDatasub**: Premium real-time trading data and order book depth
-- **MicrostructureDatasub**: Order flow analysis and market microstructure intelligence
+#### Market Data Analyzers
+- **YfinanceDataAnalyzer**: Primary market data collection and technical indicators
+- **MarketDataAppDataAnalyzer**: Premium real-time trading data and order book depth
+- **MicrostructureDataAnalyzer**: Order flow analysis and market microstructure intelligence
 
-#### Economic & Fundamental Subagents
-- **EconomicDatasub**: Macroeconomic indicators and policy impact analysis
-- **FundamentalDatasub**: Company financials, earnings, and valuation metrics
-- **InstitutionalDatasub**: 13F filings, ETF flows, and smart money positioning
+#### Economic & Fundamental Analyzers
+- **EconomicDataAnalyzer**: Macroeconomic indicators and policy impact analysis
+- **FundamentalDataAnalyzer**: Company financials, earnings, and valuation metrics
+- **InstitutionalDataAnalyzer**: 13F filings, ETF flows, and smart money positioning
 
-#### Sentiment & News Subagents
-- **SentimentDatasub**: Multi-source sentiment analysis and behavioral finance insights
-- **NewsDatasub**: Real-time news aggregation and market impact assessment
+#### Sentiment & News Analyzers
+- **SentimentDataAnalyzer**: Multi-source sentiment analysis and behavioral finance insights
+- **NewsDataAnalyzer**: Real-time news aggregation and market impact assessment
 
-#### Derivatives Subagents
-- **OptionsDatasub**: Options chains, Greeks calculations, and volatility analysis
-- **KalshiDatasub**: Prediction market data and event-driven probabilities
+#### Derivatives Analyzers
+- **OptionsDataAnalyzer**: Options chains, Greeks calculations, and volatility analysis
+- **KalshiDataAnalyzer**: Prediction market data and event-driven probabilities
 
 ### Data Processing Pipeline
 
 ```
-Raw Data Sources → DataAgent → Subagent Processing → Intelligence Synthesis → A2A Distribution
+Raw Data Sources → DataAgent → Analyzer Processing → Intelligence Synthesis → A2A Distribution
                               ↓
                        Quality Validation → Memory Storage → Learning Integration
 ```
@@ -80,7 +80,7 @@ Raw Data Sources → DataAgent → Subagent Processing → Intelligence Synthesi
 - **Predictive Modeling**: Forward-looking analysis using historical patterns
 - **Risk Intelligence**: Market condition assessment and volatility forecasting
 - **Opportunity Discovery**: Identification of asymmetric opportunities and market inefficiencies
-- **Cross-Agent Analysis**: Aggregated insights from multiple data subagents for comprehensive intelligence
+- **Cross-Agent Analysis**: Aggregated insights from multiple data analyzers for comprehensive intelligence
 
 ## LangChain Integration
 
@@ -273,8 +273,8 @@ logging.getLogger('data_agent').setLevel(logging.DEBUG)
 
 ## Conclusion
 
-The DataAgent serves as the nervous system of the ABC Application trading platform, providing comprehensive market intelligence that enables informed decision-making across all system components. Through its sophisticated subagent architecture and advanced data processing capabilities, it ensures that all trading decisions are based on the most current and comprehensive market data available.
+The DataAgent serves as the nervous system of the ABC Application trading platform, providing comprehensive market intelligence that enables informed decision-making across all system components. Through its sophisticated analyzer architecture and advanced data processing capabilities, it ensures that all trading decisions are based on the most current and comprehensive market data available.
 
 ---
 
-*For detailed subagent documentation, see the subagents/ directory.*
+*For detailed analyzer documentation, see the analyzers/ directory.*

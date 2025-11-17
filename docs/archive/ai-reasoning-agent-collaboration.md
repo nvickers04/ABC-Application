@@ -11,25 +11,25 @@ Traditional AI systems rely on single models for decision-making, limited by ind
 ### The 22-Agent Architecture
 Each agent represents a specialized domain of financial expertise, working in orchestrated reasoning loops:
 
-#### Data Analysis Agents (11 Subagents)
-- **Market Data Subagent**: Real-time price and volume analysis
-- **Economic Data Subagent**: Macroeconomic indicators and trends
-- **Fundamental Data Subagent**: Company financials and valuation metrics
-- **Technical Data Subagent**: Chart patterns and technical indicators
-- **Sentiment Subagent**: News and social media sentiment analysis
-- **Institutional Data Subagent**: 13F filings and institutional holdings
-- **Options Data Subagent**: Options chain analysis and Greeks
-- **Flow Data Subagent**: Order flow and dark pool analysis
-- **News Data Subagent**: Real-time news impact assessment
-- **Kalshi Data Subagent**: Prediction market data integration
-- **Microstructure Data Subagent**: High-frequency trading patterns
+#### Data Analysis Agents (11 Analyzers)
+- **Market Data Analyzer**: Real-time price and volume analysis
+- **Economic Data Analyzer**: Macroeconomic indicators and trends
+- **Fundamental Data Analyzer**: Company financials and valuation metrics
+- **Technical Data Analyzer**: Chart patterns and technical indicators
+- **Sentiment Analyzer**: News and social media sentiment analysis
+- **Institutional Data Analyzer**: 13F filings and institutional holdings
+- **Options Data Analyzer**: Options chain analysis and Greeks
+- **Flow Data Analyzer**: Order flow and dark pool analysis
+- **News Data Analyzer**: Real-time news impact assessment
+- **Kalshi Data Analyzer**: Prediction market data integration
+- **Microstructure Data Analyzer**: High-frequency trading patterns
 
 **Reasoning Role**: Data agents collectively validate information quality, cross-reference sources, and provide comprehensive market intelligence. They debate data reliability and consensus on market signals.
 
-#### Strategy Generation Agents (3 Subagents)
-- **Options Strategy Subagent**: Complex options strategies and spreads
-- **Flow Strategy Subagent**: Order flow-based trading strategies
-- **ML Strategy Subagent**: Machine learning-driven quantitative strategies
+#### Strategy Generation Agents (3 Analyzers)
+- **Options Strategy Analyzer**: Complex options strategies and spreads
+- **Flow Strategy Analyzer**: Order flow-based trading strategies
+- **ML Strategy Analyzer**: Machine learning-driven quantitative strategies
 
 **Reasoning Role**: Strategy agents independently generate proposals, then debate approaches, challenge assumptions, and refine strategies through collaborative reasoning.
 

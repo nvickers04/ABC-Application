@@ -34,33 +34,33 @@ The ABC Application system employs a sophisticated multi-agent architecture with
 - **MemoryAgent**: Memory coordination, retrieval, and collaborative intelligence sharing
 - **MacroAgent**: Sector analysis, asset class selection, and market regime assessment - establishes foundational market context and prioritizes opportunities for all subsequent analysis
 
-### Data Subagents (10)
+### Data Analyzers (10)
 
 #### Market Data Collection
-- **YfinanceDatasub**: Primary market data collection via yfinance API
-- **MarketDataAppDatasub**: Premium real-time trading data from MarketDataApp
-- **MicrostructureDatasub**: Market microstructure analysis and order flow intelligence
+- **YfinanceDataAnalyzer**: Primary market data collection via yfinance API
+- **MarketDataAppDataAnalyzer**: Premium real-time trading data from MarketDataApp
+- **MicrostructureDataAnalyzer**: Market microstructure analysis and order flow intelligence
 
 #### Economic & Fundamental Analysis
-- **EconomicDatasub**: Macroeconomic indicators and policy impact analysis
-- **FundamentalDatasub**: Company financial analysis and valuation metrics
-- **InstitutionalDatasub**: Institutional holdings analysis and flow detection
+- **EconomicDataAnalyzer**: Macroeconomic indicators and policy impact analysis
+- **FundamentalDataAnalyzer**: Company financial analysis and valuation metrics
+- **InstitutionalDataAnalyzer**: Institutional holdings analysis and flow detection
 
 #### Sentiment & News Analysis
-- **SentimentDatasub**: Multi-dimensional sentiment analysis across news and social media
-- **NewsDatasub**: Real-time news aggregation and market impact assessment
+- **SentimentDataAnalyzer**: Multi-dimensional sentiment analysis across news and social media
+- **NewsDataAnalyzer**: Real-time news aggregation and market impact assessment
 
 #### Derivatives & Prediction Markets
-- **OptionsDatasub**: Options market data and derivatives analysis
-- **KalshiDatasub**: Event contract data and prediction market intelligence
+- **OptionsDataAnalyzer**: Options market data and derivatives analysis
+- **KalshiDataAnalyzer**: Event contract data and prediction market intelligence
 
-### Strategy Subagents (4)
+### Strategy Analyzers (4)
 
 #### Strategy Generation
-- **FlowStrategySub**: Order flow analysis and dark pool strategy generation
-- **MLStrategySub**: Machine learning-based predictive strategy development
-- **OptionsStrategySub**: Options strategy generation and Greeks analysis
-- **MultiInstrumentStrategySub**: Complex multi-asset and cross-market strategies
+- **FlowStrategyAnalyzer**: Order flow analysis and dark pool strategy generation
+- **MLStrategyAnalyzer**: Machine learning-based predictive strategy development
+- **OptionsStrategyAnalyzer**: Options strategy generation and Greeks analysis
+- **MultiInstrumentStrategyAnalyzer**: Complex multi-asset and cross-market strategies
 
 ## Agent Communication Protocol (A2A)
 
@@ -98,8 +98,8 @@ The ABC Application system employs a sophisticated multi-agent architecture with
 | Agent Category | Data Processing | Strategy Generation | Risk Management | Execution | Learning | Memory |
 |----------------|-----------------|---------------------|-----------------|-----------|----------|---------|
 | Main Agents | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Data Subagents | ✓ | - | - | - | ✓ | ✓ |
-| Strategy Subagents | - | ✓ | ✓ | - | ✓ | ✓ |
+| Data Analyzers | ✓ | - | - | - | ✓ | ✓ |
+| Strategy Analyzers | - | ✓ | ✓ | - | ✓ | ✓ |
 
 ## Agent Development Framework
 
@@ -123,14 +123,14 @@ All agents inherit from a common `BaseAgent` class providing:
 ## Agent Specialization
 
 ### DataAgent Ecosystem
-The DataAgent coordinates 10 specialized subagents for comprehensive market intelligence:
+The DataAgent coordinates 10 specialized analyzers for comprehensive market intelligence:
 - **Real-time Processing**: Live data feeds from multiple sources
 - **Sentiment Analysis**: Multi-dimensional sentiment interpretation
 - **Fundamental Research**: Deep company and industry analysis
 - **Flow Intelligence**: Institutional and retail order flow patterns
 
 ### StrategyAgent Framework
-The StrategyAgent leverages 4 subagents for sophisticated trade generation:
+The StrategyAgent leverages 4 analyzers for sophisticated trade generation:
 - **Options Strategies**: Complex derivatives positioning
 - **Flow-Based Alpha**: Order book and dark pool opportunities
 - **ML Predictions**: Data-driven forecasting models
@@ -187,4 +187,4 @@ Comprehensive risk management across multiple dimensions:
 
 ---
 
-*For detailed documentation on individual agents, see the main-agents/ and subagents/ directories.*
+*For detailed documentation on individual agents, see the main-agents/ and analyzers/ directories.*
