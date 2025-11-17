@@ -64,11 +64,11 @@ class DataAgent(BaseAgent):
     indices_db: Optional[Any]
     memory_manager: AdvancedMemoryManager
     
-    def __init__(self, historical_mode: bool = False, historical_date: Optional[str] = None):
+    def __init__(self, historical_mode: bool = False, historical_date: Optional[str] = None, a2a_protocol: Any = None):
         config_paths = {'risk': 'config/risk-constraints.yaml', 'profit': 'config/profitability-targets.yaml'}  # Relative to root.
         prompt_paths = {'base': 'base_prompt.txt', 'role': 'docs/AGENTS/main-agents/data-agent.md'}  # Relative to root.
         tools: List[Any] = []  # DataAgent uses subagents instead of tools
-        super().__init__(role='data', config_paths=config_paths, prompt_paths=prompt_paths, tools=tools)
+        super().__init__(role='data', config_paths=config_paths, prompt_paths=prompt_paths, tools=tools, a2a_protocol=a2a_protocol)
         
         # Historical mode settings
         self.historical_mode = historical_mode
@@ -2530,6 +2530,45 @@ class DataAgent(BaseAgent):
             'sources_reset': True,
             'validation_passed': True
         }
+
+    async def fetch_market_data(self, symbol: str, data_type: str = "quotes") -> Dict[str, Any]:
+        """
+        Fetch market data for Discord integration.
+        
+        Args:
+            symbol: Stock symbol to fetch
+            data_type: Type of data to fetch
+            
+        Returns:
+            Dict: Market data
+        """
+        try:
+            input_data = {
+                'symbols': [symbol],
+                'data_type': data_type,
+                'period': '1mo'  # Default period
+            }
+            
+            result = await self.process_input(input_data)
+            
+            # Format for Discord
+            if symbol in result and 'dataframe' in result[symbol]:
+                df = result[symbol]['dataframe']
+                if not df.empty:
+                    latest = df.iloc[-1]
+                    return {
+                        'symbol': symbol,
+                        'price': latest.get('Close', latest.get('close', 'N/A')),
+                        'change': latest.get('change_pct', 'N/A'),
+                        'volume': latest.get('Volume', latest.get('volume', 'N/A')),
+                        'timestamp': str(latest.name) if hasattr(latest, 'name') else 'N/A'
+                    }
+            
+            return {'symbol': symbol, 'error': 'Data not available'}
+            
+        except Exception as e:
+            logger.error(f"Error fetching market data for {symbol}: {e}")
+            return {'symbol': symbol, 'error': str(e)}
 
 # Standalone test (run python src/agents/data.py to verify)
 if __name__ == "__main__":

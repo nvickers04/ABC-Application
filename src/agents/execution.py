@@ -19,11 +19,11 @@ logger = logging.getLogger(__name__)
 class ExecutionAgent(BaseAgent):
     """Execution Agent for trade execution and optimization."""
     
-    def __init__(self, historical_mode: bool = False):
+    def __init__(self, historical_mode: bool = False, a2a_protocol=None):
         config_paths = {"risk": "config/risk-constraints.yaml", "profit": "config/profitability-targets.yaml"}
         prompt_paths = {"base": "base_prompt.txt", "role": "docs/AGENTS/main-agents/execution-agent.md"}
         
-        super().__init__(role="execution", config_paths=config_paths, prompt_paths=prompt_paths)
+        super().__init__(role="execution", config_paths=config_paths, prompt_paths=prompt_paths, a2a_protocol=a2a_protocol)
         self.historical_mode = historical_mode
         
         # Initialize memory

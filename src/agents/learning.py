@@ -105,10 +105,10 @@ class LearningAgent(BaseAgent):
     Learning Agent subclass.
     Reasoning: Aggregates/refines via sims; distributes directives for system-wide edges.
     """
-    def __init__(self):
+    def __init__(self, a2a_protocol=None):
         config_paths = {'risk': 'config/risk-constraints.yaml', 'profit': 'config/profitability-targets.yaml'}  # Relative to root.
         prompt_paths = {'base': 'base_prompt.txt', 'role': 'docs/AGENTS/main-agents/learning-agent.md'}  # Relative to root.
-        super().__init__(role='learning', config_paths=config_paths, prompt_paths=prompt_paths)
+        super().__init__(role='learning', config_paths=config_paths, prompt_paths=prompt_paths, a2a_protocol=a2a_protocol)
         
         # Import role-specific tools
         from src.utils.tools import (

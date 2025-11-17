@@ -50,7 +50,7 @@ class YfinanceDatasub(BaseAgent):
     """
     def __init__(self):
         config_paths = {'risk': 'config/risk-constraints.yaml'}  # Relative to root.
-        prompt_paths = {'base': 'base_prompt.txt', 'role': 'agents/data-agent-complete.md'}  # Relative to root.
+        prompt_paths = {'base': 'base_prompt.txt', 'role': 'docs/AGENTS/main-agents/data-agent.md'}  # Relative to root.
         tools = []  # MarketDataSub uses internal methods instead of tools
         super().__init__(role='market_data', config_paths=config_paths, prompt_paths=prompt_paths, tools=tools)
 

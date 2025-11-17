@@ -11,6 +11,7 @@ from uuid import uuid4
 import logging
 from pydantic import BaseModel, ValidationError  # For schemas/validation (installed via requirements.txt).
 import os  # For path handling (Windows-friendly normpath).
+import datetime  # For timestamps
 from langgraph.graph import StateGraph, END
 
 # Import reducer for handling multiple updates
@@ -62,14 +63,18 @@ class AgentState(BaseModel):
 
 class A2AProtocol:
     """
-    A2A protocol with StateGraph for orchestration.
+    A2A protocol with StateGraph for orchestration and Discord monitoring.
     """
-    def __init__(self, max_agents: int = 50):
+    def __init__(self, max_agents: int = 50, discord_bot=None, monitoring_channel_id=None):
         self.max_agents = max_agents
         self.agent_queues: Dict[str, asyncio.Queue] = {}  # Per-agent queue for messages
         self.agent_callbacks: Dict[str, Callable] = {}  # Optional callbacks for receive handling (e.g., ReAct observe)
         self.agents: Dict[str, Any] = {}  # Store agent instances
         self.logger = logger  # For audits
+        
+        # Discord monitoring integration
+        self.discord_bot = discord_bot  # Reference to Discord bot for monitoring
+        self.monitoring_channel_id = monitoring_channel_id  # Channel ID for A2A monitoring
         
         # StateGraph setup
         self.graph = StateGraph(AgentState)
@@ -101,6 +106,58 @@ class A2AProtocol:
         self.graph.add_conditional_edges("risk", self._check_risk_approval, {True: "execution", False: "reflection"})
         
         self.graph.set_entry_point("macro")
+
+    async def log_to_discord(self, summary: str, details: Optional[Dict[str, Any]] = None) -> None:
+        """
+        Log a one-line summary of A2A communication to Discord for monitoring.
+        
+        Args:
+            summary: One-line summary of the data exchange
+            details: Optional additional details for the embed
+        """
+        if not self.discord_bot or not self.monitoring_channel_id:
+            return  # Silently skip if Discord monitoring not configured
+            
+        try:
+            channel = self.discord_bot.get_channel(int(self.monitoring_channel_id))
+            if not channel:
+                self.logger.warning(f"Could not find monitoring channel {self.monitoring_channel_id}")
+                return
+                
+            embed = {
+                "title": "🔄 A2A Data Exchange",
+                "description": summary,
+                "color": 0x3498db,  # Blue for monitoring
+                "timestamp": datetime.datetime.now().isoformat()
+            }
+            
+            if details:
+                # Add key details as fields (limit to avoid embed limits)
+                for key, value in list(details.items())[:5]:  # Max 5 fields
+                    if isinstance(value, (str, int, float)):
+                        embed.setdefault("fields", []).append({
+                            "name": str(key).replace('_', ' ').title(),
+                            "value": str(value)[:200],  # Limit field value length
+                            "inline": True
+                        })
+            
+            await channel.send(embed=embed)
+            self.logger.info(f"Logged A2A exchange to Discord: {summary}")
+            
+        except Exception as e:
+            self.logger.error(f"Failed to log to Discord: {e}")
+
+    def set_discord_monitoring(self, discord_bot, monitoring_channel_id: str) -> None:
+        """
+        Configure Discord monitoring for A2A communications.
+        
+        Args:
+            discord_bot: Reference to the Discord bot instance
+            monitoring_channel_id: Discord channel ID for monitoring logs
+        """
+        self.discord_bot = discord_bot
+        self.monitoring_channel_id = monitoring_channel_id
+        self.logger.info(f"Discord monitoring configured for channel {monitoring_channel_id}")
 
     async def _run_macro_agent(self, state: AgentState) -> AgentState:
         if "macro" in self.agents:
@@ -230,7 +287,18 @@ class A2AProtocol:
             if not message.id:
                 message.id = str(uuid4())
             if not message.timestamp:
-                message.timestamp = asyncio.get_event_loop().time()  # Simple timestamp (expand to ISO).
+                message.timestamp = datetime.datetime.now().isoformat()
+            
+            # Create monitoring summary for Discord
+            data_size = len(str(message.data)) if message.data else 0
+            summary = f"📤 {message.sender} → {message.receiver}: {message.type} ({data_size} chars)"
+            
+            # Log to Discord if configured
+            await self.log_to_discord(summary, {
+                "message_type": message.type,
+                "data_size": f"{data_size} chars",
+                "timestamp": message.timestamp
+            })
             
             # Broadcast if receiver is list or "all"
             receivers = message.receiver if isinstance(message.receiver, list) else [message.receiver]
@@ -242,13 +310,32 @@ class A2AProtocol:
                     await self.agent_queues[rec].put(message)
                     self.logger.info(f"Sent message {message.id} from {message.sender} to {rec}")
                 else:
-                    err_msg = ErrorMessage(type="error", sender="a2a_system", receiver=message.sender, timestamp=message.timestamp, data={}, id=str(uuid4()), reply_to=message.id, code=404, reason=f"Receiver {rec} not found")
+                    err_msg = ErrorMessage(
+                        type="error", 
+                        sender="a2a_system", 
+                        receiver=message.sender, 
+                        timestamp=message.timestamp, 
+                        data={}, 
+                        id=str(uuid4()), 
+                        reply_to=message.id, 
+                        code=404, 
+                        reason=f"Receiver {rec} not found"
+                    )
                     await self.send_message(err_msg)
                     self.logger.warning(f"Receiver {rec} not registered—sent 404 error for message {message.id}")
             
             return message.id
         except ValidationError as e:
-            err_msg = ErrorMessage(type="error", sender="a2a_system", receiver=message.sender, timestamp="", data={}, id=str(uuid4()), code=400, reason=str(e))
+            err_msg = ErrorMessage(
+                type="error", 
+                sender="a2a_system", 
+                receiver=message.sender, 
+                timestamp=datetime.datetime.now().isoformat(), 
+                data={}, 
+                id=str(uuid4()), 
+                code=400, 
+                reason=str(e)
+            )
             await self.send_message(err_msg)  # Reply error
             self.logger.error(f"Validation error on send: {e}")
             return ""

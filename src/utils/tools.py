@@ -537,20 +537,12 @@ def sanity_check_tool(proposal: str) -> Dict[str, Any]:
 
         # Check for stock symbol (basic pattern)
         import re
-        symbol_pattern = r'\b[A-Z]{1,5}\b'  # 1-5 uppercase letters
-        symbols = re.findall(symbol_pattern, proposal)
-        if symbols:
-            # Filter out common words that might match
-            valid_symbols = [s for s in symbols if s not in ['THE', 'AND', 'FOR', 'ARE', 'BUT', 'NOT', 'YOU', 'ALL', 'CAN', 'HER', 'WAS', 'ONE', 'OUR', 'HAD', 'BY',
-        proposal_lower = proposal.lower()
-
         # Check for stock symbol (basic pattern)
         import re
         symbol_pattern = r'\b[A-Z]{1,5}\b'  # 1-5 uppercase letters
         symbols = re.findall(symbol_pattern, proposal)
         if symbols:
             # Filter out common words that might match
-            valid_symbols = [s for s in symbols if s not in ['THE', 'AND', 'FOR', 'ARE', 'BUT', 'NOT', 'YOU', 'ALL', 'CAN', 'HER', 'WAS', 'ONE', 'OUR
             valid_symbols = [s for s in symbols if s not in ['THE', 'AND', 'FOR', 'ARE', 'BUT', 'NOT', 'YOU', 'ALL', 'CAN', 'HER', 'WAS', 'ONE', 'OUR', 'HAD', 'BY', 'HOT', 'BUT', 'SAY', 'WHO', 'EACH', 'WHICH', 'THEIR', 'TIME', 'WILL', 'ABOUT', 'WOULD', 'THERE', 'COULD', 'OTHER']]
             if valid_symbols:
                 checks["has_symbol"] = True

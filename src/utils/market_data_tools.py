@@ -12,6 +12,7 @@ from typing import Dict, Any, Optional
 import websockets
 import requests
 
+from langchain.tools import tool
 from .validation import circuit_breaker, DataValidator
 
 logger = logging.getLogger(__name__)

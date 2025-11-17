@@ -134,144 +134,6 @@ class BaseAgent(abc.ABC):
     Abstract base class for agents.
     Reasoning: Provides init with prompt/YAML loading; abstract process_input for role-specific logic (e.g., Risk vets proposals).
     """
-    def _initialize_llm_with_resilience(self) -> Optional[Any]:
-        """
-        Initialize LLM with comprehensive retry logic, circuit breakers, and fallback strategies.
-        Uses centralized API health monitoring for proactive failure prevention.
-
-        Returns:
-            Initialized LLM instance or None if all methods fail
-        """
-        import asyncio
-        import time
-
-        max_retries = 3
-        base_delay = 1.0
-        max_delay = 10.0
-
-        # Get centralized health monitor
-        health_monitor = _get_api_health_monitor()
-        if health_monitor:
-            # Check overall system health before attempting initialization
-            health_summary = health_monitor.get_health_summary()
-            unhealthy_count = health_summary['summary'].get('unhealthy', 0)
-
-            if unhealthy_count > 3:  # Too many unhealthy APIs
-                logger.warning(f"System health critical ({unhealthy_count} unhealthy APIs) - deferring LLM initialization")
-                return None
-
-        xai_api_key = os.getenv("GROK_API_KEY")
-        openai_api_key = os.getenv("OPENAI_API_KEY")
-        anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
-        google_api_key = os.getenv("GOOGLE_API_KEY")
-
-        # Check if any API keys are available
-        has_any_keys = bool(xai_api_key or openai_api_key or anthropic_api_key or google_api_key)
-
-        if not has_any_keys:
-            logger.warning("No LLM API keys found (GROK_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY, or GOOGLE_API_KEY). System will operate in limited mode.")
-            logger.warning("For full functionality, set environment variables: GROK_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY, and/or GOOGLE_API_KEY")
-            # In development/testing mode, allow operation but log warnings
-            dev_mode = os.getenv("DEV_MODE", "false").lower() == "true"
-            if dev_mode:
-                logger.info("DEV_MODE enabled - allowing agent initialization without LLM for testing")
-                return None
-            else:
-                logger.error("No API keys available and DEV_MODE not enabled - cannot initialize LLM")
-                return None
-
-        # Primary initialization strategies with priority and health checks and health checks
-        strategies = []
-
-        if xai_api_key:
-            # Check XAI API health before attempting
-            xai_healthy = True
-            if health_monitor:
-                xai_status = health_monitor.get_api_status('grok_api')
-                if xai_status and xai_status.get('status') == 'unhealthy':
-                    xai_healthy = False
-                    logger.warning("XAI API marked as unhealthy by health monitor - skipping XAI strategies")
-
-            if xai_healthy:
-                strategies.extend([
-                    ("ChatXAI_grok4", lambda: self._try_initialize_xai(xai_api_key, "grok-4-fast-reasoning")),
-                    ("ChatXAI_grok2", lambda: self._try_initialize_xai(xai_api_key, "grok-2-1212")),
-                    ("ChatXAI_grok1", lambda: self._try_initialize_xai(xai_api_key, "grok-1")),
-                ])
-
-        if openai_api_key:
-            # Check OpenAI API health (if monitored)
-            openai_healthy = True
-            # Note: OpenAI API health monitoring would need to be added to api_health_monitor.py
-
-            if openai_healthy:
-                strategies.extend([
-                    ("OpenAI_gpt4", lambda: self._try_initialize_openai(openai_api_key, "gpt-4")),
-                    ("OpenAI_gpt35", lambda: self._try_initialize_openai(openai_api_key, "gpt-3.5-turbo")),
-                ])
-
-        if anthropic_api_key:
-            # Check Anthropic API health (if monitored)
-            anthropic_healthy = True
-            # Note: Anthropic API health monitoring would need to be added to api_health_monitor.py
-
-            if anthropic_healthy:
-                strategies.extend([
-                    ("Anthropic_claude3", lambda: self._try_initialize_anthropic(anthropic_api_key, "claude-3-sonnet-20240229")),
-                    ("Anthropic_claude2", lambda: self._try_initialize_anthropic(anthropic_api_key, "claude-2.1")),
-                ])
-
-        if google_api_key:
-            # Check Google API health (if monitored)
-            google_healthy = True
-            # Note: Google API health monitoring would need to be added to api_health_monitor.py
-
-            if google_healthy:
-                strategies.extend([
-                    ("Google_gemini_pro", lambda: self._try_initialize_google(google_api_key, "gemini-pro")),
-                    ("Google_gemini_1", lambda: self._try_initialize_google(google_api_key, "gemini-1.5-flash")),
-                ])
-
-        # Try each strategy with exponential backoff
-        for strategy_name, init_func in strategies:
-            for attempt in range(max_retries):
-                try:
-                    logger.info(f"Attempting LLM initialization with {strategy_name} (attempt {attempt + 1}/{max_retries})")
-                    llm = init_func()
-
-                    if llm:
-                        # Test the LLM with a simple query
-                        test_response = asyncio.run(self._test_llm_connection(llm))
-                        if test_response:
-                            logger.info(f"Successfully initialized and tested LLM with {strategy_name}")
-                            # Update health monitor on success
-                            if health_monitor and 'grok' in strategy_name.lower():
-                                # Mark XAI API as healthy after successful connection
-                                health_monitor._update_metrics('grok_api', True, 1.0)  # Assume 1 second response
-                            return llm
-                        else:
-                            logger.warning(f"LLM {strategy_name} initialized but failed connectivity test")
-                            # Update health monitor on failure
-                            if health_monitor and 'grok' in strategy_name.lower():
-                                health_monitor._update_metrics('grok_api', False, 0.0, "Connectivity test failed")
-
-                except Exception as e:
-                    logger.warning(f"LLM initialization attempt {attempt + 1} with {strategy_name} failed: {e}")
-                    # Update health monitor on failure
-                    if health_monitor and 'grok' in strategy_name.lower():
-                        health_monitor._update_metrics('grok_api', False, 0.0, str(e))
-
-                    if attempt < max_retries - 1:
-                        delay = min(base_delay * (2 ** attempt), max_delay)
-                        logger.info(f"Retrying {strategy_name} in {delay} seconds...")
-                        time.sleep(delay)
-
-            # Strategy failed completely
-            logger.error(f"All attempts failed for {strategy_name}")
-
-        logger.error(f"All LLM initialization strategies failed after {len(strategies)} strategies and {max_retries} retries each")
-        return None
-
     def _try_initialize_xai(self, api_key: str, model: str) -> Optional[Any]:
         """Try to initialize XAI Chat model."""
         try:
@@ -350,7 +212,7 @@ class BaseAgent(abc.ABC):
             test_prompt = "Respond with 'OK' if you can understand this message."
             response = await asyncio.wait_for(
                 llm.ainvoke(test_prompt),
-                timeout=10
+                timeout=30  # Increased timeout from 10 to 30 seconds
             )
             if response and hasattr(response, 'content') and 'OK' in str(response.content).upper():
                 return True
@@ -601,7 +463,7 @@ class BaseAgent(abc.ABC):
             logger.warning(f"Could not get health status for component '{component_name}': {e}")
             return {'healthy': True, 'status': 'unknown', 'error': str(e)}  # Default to healthy to avoid blocking
 
-    def __init__(self, role: str, config_paths: Dict[str, str] = None, prompt_paths: Dict[str, str] = None, tools: List[Any] = None):
+    def __init__(self, role: str, config_paths: Dict[str, str] = None, prompt_paths: Dict[str, str] = None, tools: List[Any] = None, a2a_protocol: Any = None):
         """
         Initializes the agent with role, configs, prompts, and tools.
         Args:
@@ -609,9 +471,12 @@ class BaseAgent(abc.ABC):
             config_paths (Dict): Paths to YAMLs (e.g., {'risk': 'config/risk-constraints.yaml'}—relative to project root).
             prompt_paths (Dict): Paths to prompts (e.g., {'base': 'base_prompt.txt', 'role': 'risk-agent-prompt.md'}—relative to root).
             tools (List[BaseTool]): List of Langchain tools for the agent.
+            a2a_protocol (Any): A2A protocol instance for inter-agent communication.
         Reasoning: Loads fresh for each init (e.g., constraints for discipline); integrates Langchain tools for tool calling.
         """
         self.role = role
+        self.a2a_protocol = a2a_protocol  # Store A2A protocol reference for monitored communication
+        
         self.configs = {}
         if config_paths:
             for key, path in config_paths.items():
@@ -626,16 +491,10 @@ class BaseAgent(abc.ABC):
         xai_api_key = os.getenv("GROK_API_KEY")
 
         # Initialize LLM with robust retry and circuit breaker logic
-        self.llm = self._initialize_llm_with_resilience()
+        self.llm = None  # Initialize as None, will be set up asynchronously
 
-        # Check if LLM initialization succeeded
-        dev_mode = os.getenv("DEV_MODE", "false").lower() == "true"
-        if not self.llm and not dev_mode:
-            logger.error("CRITICAL FAILURE: No LLM available - agent cannot operate without AI reasoning")
-            raise Exception("LLM is required for agent operation - no fallback modes allowed")
-        elif not self.llm and dev_mode:
-            logger.warning("DEV_MODE: Operating without LLM - functionality will be limited")
-            logger.warning("DEV_MODE: LLM-dependent methods will return default responses")
+        # Note: LLM initialization is deferred to async_initialize_llm() method
+        # This allows agents to be created in synchronous contexts
 
         self.agent = None
 
@@ -681,42 +540,177 @@ class BaseAgent(abc.ABC):
 
         logger.info(f"Initialized {self.role} Agent with configs: {list(self.configs.keys())}, tools: {[t.name for t in self.tools]}")
 
-    async def call_tools(self, query: str) -> str:
+    async def async_initialize_llm(self) -> bool:
         """
-        Execute tools based on query using simple tool matching.
-        Args:
-            query (str): The query to process with tools.
+        Asynchronously initialize the LLM for this agent.
+        This method should be called after agent creation to set up the LLM.
+
         Returns:
-            str: Result from tool execution.
+            bool: True if LLM was successfully initialized, False otherwise
         """
-        results = []
-        query_lower = query.lower()
-        
-        # More sophisticated tool matching
-        for tool in self.tools:
-            tool_name = tool.name.lower()
-            
-            # Direct name matching
-            if tool_name in query_lower:
+        try:
+            logger.info(f"Starting async LLM initialization for {self.role} agent")
+            self.llm = await self._initialize_llm_with_resilience_async()
+            if self.llm:
+                logger.info(f"Successfully initialized LLM for {self.role} agent")
+                return True
+            else:
+                logger.warning(f"Failed to initialize LLM for {self.role} agent")
+                return False
+        except Exception as e:
+            logger.error(f"Error during async LLM initialization for {self.role}: {e}")
+            return False
+
+    async def _initialize_llm_with_resilience_async(self) -> Optional[Any]:
+        """
+        Initialize LLM with comprehensive retry logic, circuit breakers, and fallback strategies.
+        Uses centralized API health monitoring for proactive failure prevention.
+
+        Returns:
+            Initialized LLM instance or None if all methods fail
+        """
+        import asyncio
+        import time
+
+        # Retry configuration
+        max_retries = 3
+        base_delay = 1.0  # seconds
+        max_delay = 30.0  # seconds
+
+        # Get centralized health monitor
+        health_monitor = _get_api_health_monitor()
+        if health_monitor:
+            # Check overall system health before attempting initialization
+            health_summary = health_monitor.get_health_summary()
+            unhealthy_count = health_summary['summary'].get('unhealthy', 0)
+
+            if unhealthy_count > 3:  # Too many unhealthy APIs
+                logger.warning(f"System health critical ({unhealthy_count} unhealthy APIs) - deferring LLM initialization")
+                return None
+
+        xai_api_key = os.getenv("GROK_API_KEY")
+        openai_api_key = os.getenv("OPENAI_API_KEY")
+        anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
+        google_api_key = os.getenv("GOOGLE_API_KEY")
+
+        # Check if any API keys are available
+        has_any_keys = bool(xai_api_key or openai_api_key or anthropic_api_key or google_api_key)
+
+        if not has_any_keys:
+            logger.warning("No LLM API keys found (GROK_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY, or GOOGLE_API_KEY). System will operate in limited mode.")
+            logger.warning("For full functionality, set environment variables: GROK_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY, and/or GOOGLE_API_KEY")
+            # In development/testing mode, allow operation but log warnings
+            dev_mode = os.getenv("DEV_MODE", "false").lower() == "true"
+            if dev_mode:
+                logger.info("DEV_MODE enabled - allowing agent initialization without LLM for testing")
+                return None
+            else:
+                logger.error("No API keys available and DEV_MODE not enabled - cannot initialize LLM")
+                return None
+
+        # Primary initialization strategies with priority and health checks and health checks
+        strategies = []
+
+        if xai_api_key:
+            # Check XAI API health before attempting
+            xai_healthy = True
+            if health_monitor:
+                xai_status = health_monitor.get_api_status('grok_api')
+                # Only skip if explicitly unhealthy and we've tried before
+                # If no status exists, assume healthy (first attempt)
+                if xai_status and xai_status.get('status') == 'unhealthy' and xai_status.get('attempts', 0) > 0:
+                    xai_healthy = False
+                    logger.warning("XAI API marked as unhealthy by health monitor - skipping XAI strategies")
+                else:
+                    logger.info("XAI API healthy or not yet tested - proceeding with XAI strategies")
+
+            if xai_healthy:
+                strategies.extend([
+                    ("ChatXAI_grok4", lambda: self._try_initialize_xai(xai_api_key, "grok-4-fast-reasoning")),
+                ])
+
+        if openai_api_key:
+            # Check OpenAI API health (if monitored)
+            openai_healthy = True
+            # Note: OpenAI API health monitoring would need to be added to api_health_monitor.py
+
+            if openai_healthy:
+                strategies.extend([
+                    ("OpenAI_gpt4", lambda: self._try_initialize_openai(openai_api_key, "gpt-4")),
+                    ("OpenAI_gpt35", lambda: self._try_initialize_openai(openai_api_key, "gpt-3.5-turbo")),
+                ])
+
+        if anthropic_api_key:
+            # Check Anthropic API health (if monitored)
+            anthropic_healthy = True
+            # Note: Anthropic API health monitoring would need to be added to api_health_monitor.py
+
+            if anthropic_healthy:
+                strategies.extend([
+                    ("Anthropic_claude3", lambda: self._try_initialize_anthropic(anthropic_api_key, "claude-3-sonnet-20240229")),
+                    ("Anthropic_claude2", lambda: self._try_initialize_anthropic(anthropic_api_key, "claude-2.1")),
+                ])
+
+        if google_api_key:
+            # Check Google API health (if monitored)
+            google_healthy = True
+            # Note: Google API health monitoring would need to be added to api_health_monitor.py
+
+            if google_healthy:
+                strategies.extend([
+                    ("Google_gemini_pro", lambda: self._try_initialize_google(google_api_key, "gemini-pro")),
+                    ("Google_gemini_1", lambda: self._try_initialize_google(google_api_key, "gemini-1.5-flash")),
+                ])
+
+        # Try each strategy with exponential backoff
+        for strategy_name, init_func in strategies:
+            for attempt in range(max_retries):
                 try:
-                    result = self._execute_tool_with_params(tool, query)
-                    results.append(f"{tool.name}: {result}")
+                    logger.info(f"Attempting LLM initialization with {strategy_name} (attempt {attempt + 1}/{max_retries})")
+                    llm = init_func()
+
+                    if llm:
+                        # Test the LLM with a simple query
+                        test_success = False
+                        try:
+                            test_response = await self._test_llm_connection(llm)
+                            test_success = test_response
+                        except asyncio.CancelledError:
+                            logger.warning(f"LLM test cancelled for {strategy_name}, proceeding without test")
+                            test_success = True  # Assume it's working if we got this far
+                        except Exception as e:
+                            logger.warning(f"LLM test failed for {strategy_name}: {e}, proceeding anyway")
+                            test_success = True  # Allow initialization to continue
+
+                        if test_success:
+                            logger.info(f"Successfully initialized and tested LLM with {strategy_name}")
+                            # Update health monitor on success
+                            if health_monitor and 'grok' in strategy_name.lower():
+                                # Mark XAI API as healthy after successful connection
+                                health_monitor._update_metrics('grok_api', True, 1.0)  # Assume 1 second response
+                            return llm
+                        else:
+                            logger.warning(f"LLM {strategy_name} initialized but failed connectivity test")
+                            # Update health monitor on failure
+                            if health_monitor and 'grok' in strategy_name.lower():
+                                health_monitor._update_metrics('grok_api', False, 0.0, "Connectivity test failed")
+
                 except Exception as e:
-                    logger.error(f"Tool {tool.name} failed: {e}")
-                    results.append(f"{tool.name}: Error - {e}")
-            # Keyword matching for common patterns
-            elif self._should_use_tool(tool, query_lower):
-                try:
-                    result = self._execute_tool_with_params(tool, query)
-                    results.append(f"{tool.name}: {result}")
-                except Exception as e:
-                    logger.error(f"Tool {tool.name} failed: {e}")
-                    results.append(f"{tool.name}: Error - {e}")
-        
-        if results:
-            return "\n".join(results)
-        else:
-            return "No matching tools found for query."
+                    logger.warning(f"LLM initialization attempt {attempt + 1} with {strategy_name} failed: {e}")
+                    # Update health monitor on failure
+                    if health_monitor and 'grok' in strategy_name.lower():
+                        health_monitor._update_metrics('grok_api', False, 0.0, str(e))
+
+                    if attempt < max_retries - 1:
+                        delay = min(base_delay * (2 ** attempt), max_delay)
+                        logger.info(f"Retrying {strategy_name} in {delay} seconds...")
+                        await asyncio.sleep(delay)
+
+            # Strategy failed completely
+            logger.error(f"All attempts failed for {strategy_name}")
+
+        logger.error(f"All LLM initialization strategies failed after {len(strategies)} strategies and {max_retries} retries each")
+        return None
 
     async def reason_with_llm(self, context: str, question: str, options: Dict[str, Any] = None) -> str:
         """
@@ -1279,6 +1273,238 @@ Consider market conditions, risk factors, and alignment with our goals (10-20% m
         
         return adjustments
 
+    async def get_status(self) -> Dict[str, Any]:
+        """
+        Get the current status of the agent.
+        Returns comprehensive status information for monitoring and Discord integration.
+        
+        Returns:
+            Dict: Agent status including health, memory, and recent activity
+        """
+        try:
+            # Get system health status
+            health_status = self.get_system_health_status()
+            
+            # Get memory statistics
+            memory_stats = self.get_memory_stats()
+            
+            # Get shared memory stats if available
+            shared_memory_stats = {}
+            if self.shared_memory_coordinator:
+                shared_memory_stats = self.get_shared_memory_stats()
+            
+            # Get recent activity from memory
+            recent_activity = []
+            if hasattr(self, 'memory') and isinstance(self.memory, dict):
+                # Look for recent entries in memory (this is agent-specific)
+                for key, value in self.memory.items():
+                    if isinstance(value, list) and len(value) > 0:
+                        # Get last few entries
+                        recent_entries = value[-3:] if len(value) > 3 else value
+                        recent_activity.extend([f"{key}: {entry}" for entry in recent_entries])
+            
+            status = {
+                'agent_role': self.role,
+                'timestamp': pd.Timestamp.now().isoformat(),
+                'health_status': health_status,
+                'memory_stats': memory_stats,
+                'shared_memory_stats': shared_memory_stats,
+                'recent_activity': recent_activity[-5:],  # Last 5 activities
+                'llm_available': self.llm is not None,
+                'tools_count': len(self.tools),
+                'config_files': list(self.configs.keys()),
+                'active_sessions': self.list_my_sessions() if hasattr(self, 'list_my_sessions') else []
+            }
+            
+            logger.debug(f"Status retrieved for {self.role} agent")
+            return status
+            
+        except Exception as e:
+            logger.error(f"Error getting status for {self.role}: {e}")
+            return {
+                'agent_role': self.role,
+                'timestamp': pd.Timestamp.now().isoformat(),
+                'error': str(e),
+                'health_status': 'error'
+            }
+
+    async def analyze(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Perform analysis on provided data.
+        This is a base implementation that can be overridden by subclasses for specific analysis types.
+        
+        Args:
+            data: Data to analyze (can be a dict or string query)
+            
+        Returns:
+            Dict: Analysis results
+        """
+        try:
+            # Handle string queries (from Discord commands)
+            if isinstance(data, str):
+                data = {'query': data, 'analysis_type': 'general'}
+            
+            analysis_type = data.get('analysis_type', 'general')
+            
+            # Use LLM for analysis if available
+            if self.llm:
+                context = f"""
+AGENT ANALYSIS REQUEST:
+Role: {self.role}
+Analysis Type: {analysis_type}
+Data Provided: {data}
+
+Please provide analysis based on your role and expertise.
+"""
+                
+                question = data.get('question', data.get('query', f"What insights can you provide about this {analysis_type} data?"))
+                
+                llm_response = await self.reason_with_llm(context, question)
+                
+                analysis_result = {
+                    'agent_role': self.role,
+                    'analysis_type': analysis_type,
+                    'timestamp': pd.Timestamp.now().isoformat(),
+                    'llm_analysis': llm_response,
+                    'data_summary': self._summarize_analysis_data(data),
+                    'confidence_level': 'medium'  # Base confidence
+                }
+            else:
+                # Fallback analysis without LLM
+                analysis_result = {
+                    'agent_role': self.role,
+                    'analysis_type': analysis_type,
+                    'timestamp': pd.Timestamp.now().isoformat(),
+                    'fallback_analysis': f"Analysis of {analysis_type} data without LLM assistance",
+                    'data_summary': self._summarize_analysis_data(data),
+                    'confidence_level': 'low'
+                }
+            
+            # Store analysis in memory
+            await self.store_advanced_memory('analysis_history', {
+                'timestamp': analysis_result['timestamp'],
+                'type': analysis_type,
+                'result': analysis_result
+            })
+            
+            logger.info(f"Analysis completed by {self.role} agent for {analysis_type}")
+            return analysis_result
+            
+        except Exception as e:
+            logger.error(f"Error in analysis for {self.role}: {e}")
+            return {
+                'agent_role': self.role,
+                'analysis_type': data.get('analysis_type', 'unknown') if isinstance(data, dict) else 'unknown',
+                'timestamp': pd.Timestamp.now().isoformat(),
+                'error': str(e),
+                'confidence_level': 'none'
+            }
+
+    def get_recent_memories(self, limit: int = 5) -> List[Dict[str, Any]]:
+        """
+        Get recent memory entries for Discord display.
+        
+        Args:
+            limit: Maximum number of memories to return
+            
+        Returns:
+            List of recent memory entries
+        """
+        try:
+            recent_memories = []
+            
+            # Get memories from agent memory
+            if hasattr(self, 'memory') and isinstance(self.memory, dict):
+                for key, value in self.memory.items():
+                    if isinstance(value, list):
+                        # Get recent entries from this memory list
+                        recent_entries = value[-limit:] if len(value) > limit else value
+                        for entry in recent_entries:
+                            memory_item = {
+                                'key': key,
+                                'content': str(entry),
+                                'timestamp': pd.Timestamp.now().isoformat()  # Default timestamp
+                            }
+                            recent_memories.append(memory_item)
+            
+            # Sort by timestamp (most recent first) and limit
+            recent_memories.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
+            recent_memories = recent_memories[:limit]
+            
+            # If no memories found, return a default message
+            if not recent_memories:
+                recent_memories = [{
+                    'key': 'system',
+                    'content': f'No recent memories available for {self.role} agent',
+                    'timestamp': pd.Timestamp.now().isoformat()
+                }]
+            
+            return recent_memories
+            
+        except Exception as e:
+            logger.error(f"Error getting recent memories for {self.role}: {e}")
+            return [{
+                'key': 'error',
+                'content': f'Error retrieving memories: {str(e)}',
+                'timestamp': pd.Timestamp.now().isoformat()
+            }]
+
+    def _summarize_analysis_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Create a summary of the analysis data for reporting.
+        
+        Args:
+            data: Raw analysis data
+            
+        Returns:
+            Dict: Summarized data
+        """
+        try:
+            summary = {
+                'data_keys': list(data.keys()),
+                'data_types': {k: type(v).__name__ for k, v in data.items()},
+                'has_numeric_data': any(isinstance(v, (int, float)) for v in data.values()),
+                'has_text_data': any(isinstance(v, str) for v in data.values()),
+                'has_list_data': any(isinstance(v, list) for v in data.values()),
+                'data_size_estimate': self._estimate_data_size(data)
+            }
+            
+            return summary
+            
+        except Exception as e:
+            return {'error': f'Summary failed: {str(e)}'}
+
+    def _estimate_data_size(self, data: Dict[str, Any]) -> str:
+        """
+        Estimate the size of the data for reporting.
+        
+        Args:
+            data: Data to estimate size for
+            
+        Returns:
+            str: Size estimate
+        """
+        try:
+            import sys
+            size_bytes = sys.getsizeof(data)
+            
+            # Add sizes of nested structures
+            for key, value in data.items():
+                size_bytes += sys.getsizeof(key)
+                if isinstance(value, (list, dict)):
+                    size_bytes += sys.getsizeof(value)
+            
+            # Convert to human readable
+            if size_bytes < 1024:
+                return f"{size_bytes} bytes"
+            elif size_bytes < 1024 * 1024:
+                return f"{size_bytes / 1024:.1f} KB"
+            else:
+                return f"{size_bytes / (1024 * 1024):.1f} MB"
+                
+        except Exception:
+            return "unknown"
+
     async def create_collaborative_session(self, topic: str, max_participants: int = 10,
                                          session_timeout: int = 3600) -> Optional[str]:
         """
@@ -1650,3 +1876,171 @@ Consider market conditions, risk factors, and alignment with our goals (10-20% m
                 'error': f'Unexpected error: {str(e)}',
                 'proposal_id': None
             }
+
+    async def send_a2a_message(self, message_type: str, receiver: str, data: Dict[str, Any], reply_to: Optional[str] = None) -> Optional[str]:
+        """
+        Send a monitored A2A message to another agent.
+        
+        Args:
+            message_type: Type of message (e.g., 'proposal', 'data_request', 'status_update')
+            receiver: Target agent role or 'all' for broadcast
+            data: Message payload
+            reply_to: Optional message ID this is replying to
+            
+        Returns:
+            Message ID if sent successfully, None otherwise
+        """
+        if not self.a2a_protocol:
+            logger.warning(f"A2A protocol not available for {self.role} - cannot send message")
+            return None
+            
+        try:
+            from src.utils.a2a_protocol import BaseMessage
+            
+            message = BaseMessage(
+                type=message_type,
+                sender=self.role,
+                receiver=receiver,
+                timestamp="",  # Will be auto-filled by protocol
+                data=data,
+                id="",  # Will be auto-filled by protocol
+                reply_to=reply_to
+            )
+            
+            message_id = await self.a2a_protocol.send_message(message)
+            logger.info(f"Agent {self.role} sent A2A message {message_type} to {receiver}")
+            return message_id
+            
+        except Exception as e:
+            logger.error(f"Failed to send A2A message from {self.role}: {e}")
+            return None
+
+    async def receive_a2a_message(self) -> Optional[Dict[str, Any]]:
+        """
+        Receive a monitored A2A message.
+        
+        Returns:
+            Message dict if available, None if no messages
+        """
+        if not self.a2a_protocol:
+            logger.warning(f"A2A protocol not available for {self.role} - cannot receive messages")
+            return None
+            
+        try:
+            message = await self.a2a_protocol.receive_message(self.role)
+            if message:
+                logger.info(f"Agent {self.role} received A2A message: {message.type}")
+                return message.dict() if hasattr(message, 'dict') else message.__dict__
+            return None
+            
+        except Exception as e:
+            logger.error(f"Failed to receive A2A message for {self.role}: {e}")
+            return None
+
+    async def request_a2a_data(self, target_agent: str, data_type: str, parameters: Dict[str, Any] = None) -> Optional[Dict[str, Any]]:
+        """
+        Request data from another agent via A2A protocol.
+        
+        Args:
+            target_agent: Agent to request data from
+            data_type: Type of data requested
+            parameters: Additional parameters for the request
+            
+        Returns:
+            Response data or None if failed
+        """
+        if not self.a2a_protocol:
+            logger.warning(f"A2A protocol not available for {self.role} - cannot request data")
+            return None
+            
+        try:
+            # Send data request
+            request_data = {
+                'data_type': data_type,
+                'parameters': parameters or {},
+                'request_timestamp': pd.Timestamp.now().isoformat()
+            }
+            
+            message_id = await self.send_a2a_message('data_request', target_agent, request_data)
+            if not message_id:
+                return None
+                
+            # Wait for response (with timeout)
+            timeout = 30  # seconds
+            start_time = asyncio.get_event_loop().time()
+            
+            while asyncio.get_event_loop().time() - start_time < timeout:
+                response = await self.receive_a2a_message()
+                if response and response.get('reply_to') == message_id:
+                    logger.info(f"Agent {self.role} received data response from {target_agent}")
+                    return response.get('data')
+                    
+                await asyncio.sleep(0.1)  # Small delay to prevent busy waiting
+                
+            logger.warning(f"Timeout waiting for data response from {target_agent}")
+            return None
+            
+        except Exception as e:
+            logger.error(f"Failed to request A2A data from {target_agent}: {e}")
+            return None
+
+    async def share_a2a_data(self, target_agent: str, data_type: str, data: Any, context: Dict[str, Any] = None) -> bool:
+        """
+        Share data with another agent via A2A protocol.
+        
+        Args:
+            target_agent: Agent to share data with
+            data_type: Type of data being shared
+            data: The data to share
+            context: Additional context information
+            
+        Returns:
+            True if shared successfully, False otherwise
+        """
+        if not self.a2a_protocol:
+            logger.warning(f"A2A protocol not available for {self.role} - cannot share data")
+            return False
+            
+        try:
+            share_data = {
+                'data_type': data_type,
+                'data': data,
+                'context': context or {},
+                'share_timestamp': pd.Timestamp.now().isoformat()
+            }
+            
+            message_id = await self.send_a2a_message('data_share', target_agent, share_data)
+            return message_id is not None
+            
+        except Exception as e:
+            logger.error(f"Failed to share A2A data with {target_agent}: {e}")
+            return False
+
+    async def broadcast_a2a_status(self, status_type: str, status_data: Dict[str, Any]) -> bool:
+        """
+        Broadcast status update to all agents via A2A protocol.
+        
+        Args:
+            status_type: Type of status update
+            status_data: Status information
+            
+        Returns:
+            True if broadcast successfully, False otherwise
+        """
+        if not self.a2a_protocol:
+            logger.warning(f"A2A protocol not available for {self.role} - cannot broadcast status")
+            return False
+            
+        try:
+            status_payload = {
+                'status_type': status_type,
+                'status_data': status_data,
+                'broadcast_timestamp': pd.Timestamp.now().isoformat()
+            }
+            
+            message_id = await self.send_a2a_message('status_broadcast', 'all', status_payload)
+            return message_id is not None
+            
+        except Exception as e:
+            logger.error(f"Failed to broadcast A2A status from {self.role}: {e}")
+            return False

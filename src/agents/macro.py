@@ -135,9 +135,9 @@ class MacroAgent(BaseAgent):
     def __init__(self, a2a_protocol=None):
         config_paths = {'risk': 'config/risk-constraints.yaml', 'profit': 'config/profitability-targets.yaml'}
         prompt_paths = {'base': 'base_prompt.txt', 'role': 'docs/AGENTS/main-agents/macro-agent.md'}
-        tools = [yfinance_data_tool]
+        tools = []  # Temporarily disabled - need to convert to BaseTool objects
 
-        super().__init__(role='macro', config_paths=config_paths, prompt_paths=prompt_paths, tools=tools)
+        super().__init__(role='macro', config_paths=config_paths, prompt_paths=prompt_paths, tools=tools, a2a_protocol=a2a_protocol)
 
         # Store A2A protocol reference for agent communication
         self.a2a = a2a_protocol
@@ -1743,6 +1743,34 @@ class MacroAgent(BaseAgent):
             "system_stable": restoration_results.get("validation_performed", False),
             "data_integrity": rollback_results.get("data_preserved", False)
         }
+
+    async def analyze_economy(self) -> str:
+        """
+        Provide macroeconomic analysis for Discord integration.
+        
+        Returns:
+            str: Economic analysis summary
+        """
+        try:
+            # Get current macro analysis
+            macro_data = {'timeframes': ['1mo', '3mo']}
+            analysis_result = await self.process_input(macro_data)
+            
+            # Format for Discord
+            summary = f"**Macroeconomic Analysis**\n\n"
+            summary += f"**Selected Sectors:** {len(analysis_result.get('selected_sectors', []))}\n"
+            
+            for sector in analysis_result.get('selected_sectors', [])[:5]:  # Top 5
+                summary += f"• {sector['ticker']}: {sector['name']} (Score: {sector['score']:.3f})\n"
+            
+            summary += f"\n**Market Regime:** {analysis_result.get('market_regime', 'Unknown')}\n"
+            summary += f"**Economic Indicators:** {analysis_result.get('economic_indicators', 'Analysis in progress')}\n"
+            
+            return summary
+            
+        except Exception as e:
+            logger.error(f"Error in macroeconomic analysis: {e}")
+            return f"Error performing macroeconomic analysis: {str(e)}"
 if __name__ == "__main__":
     import asyncio
 

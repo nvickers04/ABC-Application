@@ -1,0 +1,61 @@
+{
+  "guild_id": "YOUR_GUILD_ID",
+  "agents": {
+    "macro": {
+      "name": "Macro Analyst",
+      "role": "macro",
+      "token": "YOUR_MACRO_BOT_TOKEN",
+      "color": 3447003,
+      "status_channel_id": null,
+      "command_prefix": "!m"
+    },
+    "data": {
+      "name": "Data Collector",
+      "role": "data",
+      "token": "YOUR_DATA_BOT_TOKEN",
+      "color": 3066993,
+      "status_channel_id": null,
+      "command_prefix": "!d"
+    },
+    "strategy": {
+      "name": "Strategy Advisor",
+      "role": "strategy",
+      "token": "YOUR_STRATEGY_BOT_TOKEN",
+      "color": 15105570,
+      "status_channel_id": null,
+      "command_prefix": "!s"
+    },
+    "risk": {
+      "name": "Risk Manager",
+      "role": "risk",
+      "token": "YOUR_RISK_BOT_TOKEN",
+      "color": 15158332,
+      "status_channel_id": null,
+      "command_prefix": "!r"
+    },
+    "reflection": {
+      "name": "Reflection Agent",
+      "role": "reflection",
+      "token": "YOUR_REFLECTION_BOT_TOKEN",
+      "color": 10181046,
+      "status_channel_id": null,
+      "command_prefix": "!ref"
+    },
+    "execution": {
+      "name": "Trade Executor",
+      "role": "execution",
+      "token": "YOUR_EXECUTION_BOT_TOKEN",
+      "color": 1752220,
+      "status_channel_id": null,
+      "command_prefix": "!exec"
+    },
+    "learning": {
+      "name": "Learning Agent",
+      "role": "learning",
+      "token": "YOUR_LEARNING_BOT_TOKEN",
+      "color": 15965202,
+      "status_channel_id": null,
+      "command_prefix": "!l"
+    }
+  }
+}

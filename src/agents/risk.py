@@ -19,6 +19,7 @@ import logging
 from typing import Dict, Any, List, Optional
 import asyncio
 import yaml  # For updating YAML files.
+import json  # For JSON parsing in risk assessment.
 import os  # For file operations.
 import pandas as pd  # For timestamp handling.
 from datetime import datetime, timedelta  # For timestamping
@@ -63,11 +64,16 @@ try:
 
     TFP_AVAILABLE = True
     logger.info("TensorFlow Probability available for advanced stochastic simulations")
-except ImportError as e:
+except Exception as e:
     logger.warning(f"TensorFlow Probability not available: {e}. Using numpy fallback.")
     TFP_AVAILABLE = False
     tf = None
     tfp = None
+    # Import scipy.stats for fallback if TensorFlow fails
+    try:
+        import scipy.stats
+    except ImportError:
+        scipy = None
     scipy = None
 
 class RiskAgent(BaseAgent):
@@ -75,10 +81,10 @@ class RiskAgent(BaseAgent):
     Risk Agent subclass.
     Reasoning: Vets proposals with stochastic models; auto-adjusts YAML via reflections for closed-loop evolution.
     """
-    def __init__(self):
+    def __init__(self, a2a_protocol=None):
         config_paths = {'risk': 'config/risk-constraints.yaml', 'profit': 'config/profitability-targets.yaml'}  # Relative to root.
         prompt_paths = {'base': 'base_prompt.txt', 'role': 'docs/AGENTS/main-agents/risk-agent.md'}
-        super().__init__(role='risk', config_paths=config_paths, prompt_paths=prompt_paths)
+        super().__init__(role='risk', config_paths=config_paths, prompt_paths=prompt_paths, a2a_protocol=a2a_protocol)
         
         # Ensure configs are loaded.
         if 'risk' not in self.configs or 'constraints' not in self.configs['risk']:
@@ -4413,3 +4419,42 @@ Provide actionable insights that would help improve future risk management and s
         except Exception as e:
             logger.error(f"Error getting market conditions: {e}")
             return {'volatility': 0.20, 'regime': 'neutral'}
+
+    async def assess_risk(self, portfolio_data: str) -> Dict[str, Any]:
+        """
+        Assess risk for portfolio data for Discord integration.
+        
+        Args:
+            portfolio_data: JSON string of portfolio data
+            
+        Returns:
+            Dict: Risk assessment
+        """
+        try:
+            # Parse portfolio data
+            data = json.loads(portfolio_data)
+            
+            # Simple risk assessment
+            positions = data.get('positions', [])
+            total_value = sum(pos.get('value', 0) for pos in positions)
+            
+            if total_value > 0:
+                # Calculate basic diversification
+                symbols = [pos.get('symbol', '') for pos in positions]
+                unique_symbols = len(set(symbols))
+                
+                risk_level = 'low' if unique_symbols >= 5 else 'medium' if unique_symbols >= 3 else 'high'
+                
+                return {
+                    'total_value': total_value,
+                    'num_positions': len(positions),
+                    'unique_symbols': unique_symbols,
+                    'risk_level': risk_level,
+                    'diversification_score': unique_symbols / max(len(positions), 1)
+                }
+            else:
+                return {'error': 'Invalid portfolio data'}
+                
+        except Exception as e:
+            logger.error(f"Error assessing risk: {e}")
+            return {'error': str(e)}

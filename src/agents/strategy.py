@@ -180,10 +180,10 @@ class StrategyAgent(BaseAgent):
     Strategy Agent subclass.
     Reasoning: Generates proposals with tot logic; refines via reflections for experiential alpha.
     """
-    def __init__(self):
+    def __init__(self, a2a_protocol=None):
         config_paths = {'risk': 'config/risk-constraints.yaml', 'profit': 'config/profitability-targets.yaml'}  # Relative to root.
         prompt_paths = {'base': 'base_prompt.txt', 'role': 'docs/AGENTS/main-agents/strategy-agent.md'}  # Relative to root.
-        super().__init__(role='strategy', config_paths=config_paths, prompt_paths=prompt_paths)
+        super().__init__(role='strategy', config_paths=config_paths, prompt_paths=prompt_paths, a2a_protocol=a2a_protocol)
         
         # Initialize strategy subagents with lazy loading
         self.options_sub = None
@@ -2354,3 +2354,36 @@ Format each proposal clearly with headers like "TRADE PROPOSAL 1:", "TRADE PROPO
             'parameters_reset': True,
             'validation_passed': True
         }
+
+    async def generate_strategy(self, context: str = "") -> str:
+        """
+        Generate trading strategy proposal for Discord integration.
+        
+        Args:
+            context: Optional context for strategy generation
+            
+        Returns:
+            str: Strategy proposal summary
+        """
+        try:
+            # Get market opportunities
+            opportunities = await self.analyze_market_opportunities()
+            
+            if opportunities:
+                top_opportunity = opportunities[0]  # Get top opportunity
+                summary = f"**Strategy Proposal**\n\n"
+                summary += f"**Symbol:** {top_opportunity.get('symbol', 'N/A')}\n"
+                summary += f"**Direction:** {top_opportunity.get('direction', 'N/A')}\n"
+                summary += f"**Strategy Type:** {top_opportunity.get('strategy_type', 'N/A')}\n"
+                summary += f"**Quantity:** {top_opportunity.get('quantity', 0)}\n"
+                summary += f"**Confidence:** {top_opportunity.get('confidence', 0):.1%}\n"
+                summary += f"**Expected ROI:** {top_opportunity.get('roi_estimate', 0):.1%}\n\n"
+                summary += f"**Analysis:** {top_opportunity.get('analysis', 'No analysis available')[:500]}"
+                
+                return summary
+            else:
+                return "No suitable trading strategies identified at this time."
+                
+        except Exception as e:
+            logger.error(f"Error generating strategy: {e}")
+            return f"Error generating trading strategy: {str(e)}"

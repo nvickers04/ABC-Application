@@ -29,10 +29,10 @@ class ReflectionAgent(BaseAgent):
     Reflection Agent subclass.
     Reasoning: Reviews/logs outcomes with polls; refines via reflections for experiential audits.
     """
-    def __init__(self):
+    def __init__(self, a2a_protocol=None):
         config_paths = {'risk': 'config/risk-constraints.yaml', 'profit': 'config/profitability-targets.yaml'}  # Relative to root.
         prompt_paths = {'base': 'base_prompt.txt', 'role': 'docs/AGENTS/main-agents/reflection-agent.md'}  # Relative to root.
-        super().__init__(role='reflection', config_paths=config_paths, prompt_paths=prompt_paths)
+        super().__init__(role='reflection', config_paths=config_paths, prompt_paths=prompt_paths, a2a_protocol=a2a_protocol)
 
         # Initialize tools
         self.tools = [
