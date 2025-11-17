@@ -1,4 +1,18 @@
+---
+[LABEL:DOC:architecture] [LABEL:DOC:topic:macro_micro] [LABEL:DOC:audience:architect]
+[LABEL:AUTHOR:system] [LABEL:UPDATED:2025-11-17] [LABEL:REVIEWED:pending]
+---
+
 # ABC Application System Architecture
+
+## Purpose
+Comprehensive system architecture documentation for the 22-agent collaborative AI portfolio management system, covering macro-to-micro analysis framework, agent orchestration, and technical implementation.
+
+## Related Files
+- Code: `src/main.py`, `src/utils/a2a_protocol.py`, `src/agents/*.py`
+- Config: `config/risk-constraints.yaml`, `config/profitability-targets.yaml`
+- Tests: `unit-tests/`, `integration-tests/`
+- Docs: `docs/FRAMEWORKS/a2a-protocol.md`, `docs/AGENTS/index.md`
 
 # System Architecture
 
@@ -191,6 +205,42 @@ Memory Systems (Continuous Learning)* Reflection Management: Embedded throughout
   "correlation_id": "uuid"
 }
 ```
+
+## Discord Integration
+
+### Human-Agent Interaction
+The system integrates with Discord to enable real-time human participation in agent reasoning processes:
+
+#### Discord Bot Architecture
+- **Multi-Agent Bots**: Each main agent (Macro, Data, Strategy, Reflection, Execution) runs as a separate Discord bot instance
+- **Specialized Commands**: Agent-specific commands for analysis, status checks, and collaboration
+- **Real-time Participation**: Humans can join debates, ask questions, and provide input during reasoning processes
+
+#### Available Discord Bots
+- **Macro Analyst Bot** (`!m`): Economic analysis and market regime assessment
+- **Data Collector Bot** (`!d`): Market data fetching and analysis requests
+- **Strategy Advisor Bot** (`!s`): Strategy proposal generation and optimization
+- **Reflection Agent Bot** (`!ref`): System oversight, audits, and final validation
+- **Trade Executor Bot** (`!exec`): Trade execution and order management
+
+#### Key Discord Features
+- **Agent Debates**: Multi-agent discussions with human participation
+- **Status Monitoring**: Real-time agent health and activity monitoring
+- **Collaborative Polls**: Discord-native voting for decision-making
+- **Human Input Forwarding**: Human insights shared with all agents
+- **Emergency Controls**: Administrative commands for system management
+
+#### Discord Commands Overview
+- **Universal Commands**: `!status`, `!memory`, `!analyze`, `!debate`
+- **Agent-Specific Commands**: `!economy` (Macro), `!fetch` (Data), `!propose` (Strategy), etc.
+- **Collaboration Commands**: `!join_debate`, `!broadcast`, `!create_poll`
+- **Administrative Commands**: `!system_health`, `!emergency_stop`
+
+### Integration Benefits
+- **Real-time Oversight**: Human experts can monitor and influence agent reasoning
+- **Educational Value**: Transparent decision processes for learning and validation
+- **Intervention Capability**: Ability to pause, question, or redirect agent activities
+- **Collaborative Intelligence**: Human-AI hybrid decision-making framework
 
 ## Memory Architecture
 

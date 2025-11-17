@@ -80,6 +80,7 @@ Raw Data Sources → DataAgent → Subagent Processing → Intelligence Synthesi
 - **Predictive Modeling**: Forward-looking analysis using historical patterns
 - **Risk Intelligence**: Market condition assessment and volatility forecasting
 - **Opportunity Discovery**: Identification of asymmetric opportunities and market inefficiencies
+- **Cross-Agent Analysis**: Aggregated insights from multiple data subagents for comprehensive intelligence
 
 ## LangChain Integration
 
@@ -173,12 +174,14 @@ def fundamental_data_tool(ticker: str) -> Dict:
 - **Anomaly Detection**: Statistical outlier identification and flagging
 - **Completeness Checks**: Ensure all required data fields are present
 - **Timeliness Validation**: Verify data freshness and latency requirements
+- **Optimization Proposals**: Automated generation of data quality improvement proposals
 
 ### Error Handling
 - **Graceful Degradation**: Continue operation with partial data loss
 - **Fallback Sources**: Automatic switching to backup data providers
 - **Retry Logic**: Intelligent retry mechanisms for transient failures
 - **Alert System**: Automated notifications for data quality issues
+- **Proposal Rollback**: Safe rollback mechanisms for failed optimizations
 
 ## Integration Points
 

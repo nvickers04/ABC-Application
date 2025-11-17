@@ -1,3 +1,10 @@
+# [LABEL:TEST:startup] [LABEL:TEST:integration] [LABEL:FRAMEWORK:asyncio]
+# [LABEL:AUTHOR:system] [LABEL:UPDATED:2025-11-17] [LABEL:REVIEWED:pending]
+#
+# Purpose: Integration test for ABC Application startup and basic functionality
+# Dependencies: src.main, asyncio, all core modules
+# Related: src/main.py, docs/IMPLEMENTATION/setup.md
+#
 #!/usr/bin/env python3
 """
 Quick test script for ABC Application startup

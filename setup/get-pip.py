@@ -1,3 +1,10 @@
+# [LABEL:SETUP:pip] [LABEL:SCRIPT:python] [LABEL:TOOL:installer]
+# [LABEL:AUTHOR:pypa] [LABEL:UPDATED:2025-11-17] [LABEL:REVIEWED:pending]
+#
+# Purpose: Bootstrap installer for pip package manager
+# Dependencies: Python 3.9+
+# Related: requirements.txt, setup/README.md
+#
 #!/usr/bin/env python
 #
 # Hi There!

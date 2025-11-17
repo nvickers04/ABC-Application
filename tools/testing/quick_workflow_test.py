@@ -150,7 +150,7 @@ def main():
         import subprocess
         import sys
         try:
-            result = subprocess.run([sys.executable, "iterative_reasoning_workflow.py"],
+            result = subprocess.run([sys.executable, "src/workflows/iterative_reasoning_workflow.py"],
                                   capture_output=True, text=True, cwd=os.getcwd())
             print("Workflow completed!")
             print("Output:", result.stdout)

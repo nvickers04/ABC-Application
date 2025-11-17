@@ -1,3 +1,10 @@
+# [LABEL:CONFIG:profitability] [LABEL:CONFIG:targets] [LABEL:FRAMEWORK:yaml]
+# [LABEL:AUTHOR:system] [LABEL:UPDATED:2025-11-17] [LABEL:REVIEWED:pending]
+#
+# Purpose: Profitability targets and bonus incentives configuration for agent decision-making
+# Dependencies: YAML parser, learning agent, reflection agent
+# Related: config/risk-constraints.yaml, docs/AGENTS/main-agents/learning-agent.md
+#
 # Profitability Targets Configuration
 # Purpose: Defines hard ROI goals and bonus incentives for the AI Portfolio Manager, used by all agents to align decisions with profitability (merged from profit-projections.md for sim/real examples).
 # Format: YAML for dynamic loading (via load_yaml_tool in core/utils.py).

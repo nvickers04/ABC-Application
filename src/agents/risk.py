@@ -74,7 +74,6 @@ except Exception as e:
         import scipy.stats
     except ImportError:
         scipy = None
-    scipy = None
 
 class RiskAgent(BaseAgent):
     """
@@ -563,83 +562,24 @@ Focus on immediate actions to reduce risk while maintaining alpha potential.
             dt = 1 / 365  # Daily time step.
             S0 = 100  # Initial price.
 
-            # Use TensorFlow Probability for advanced stochastic simulation
+            # Use numpy GBM simulation (primary implementation, TensorFlow as fallback)
             try:
-                # Set up GBM process with TensorFlow Probability
-                # Create normal distribution for random shocks
-                normal_dist = tfp.distributions.Normal(loc=0., scale=1.)
-
-                # Generate random shocks for all simulations at once
-                random_shocks = normal_dist.sample(sample_shape=[num_sims, holding_days])
-
-                # Convert to numpy for easier manipulation (TFP tensors work with numpy)
-                random_shocks_np = random_shocks.numpy()
-
-                # Simulate GBM paths using vectorized operations
-                paths = np.zeros((num_sims, holding_days))
-                paths[:, 0] = S0
-
-                for t in range(1, holding_days):
-                    paths[:, t] = paths[:, t-1] * np.exp((mu - 0.5 * sigma**2) * dt + sigma * np.sqrt(dt) * random_shocks_np[:, t])
-
-                # Calculate returns: (final_price - initial) / initial
-                final_prices = paths[:, -1]
-                returns = (final_prices - S0) / S0
-
-                # Calculate POP: Probability that return > 0 (profitable)
-                pop = np.mean(returns > 0)
-
-                # Calculate Value at Risk (VaR) at 95% confidence
-                var_95 = np.percentile(returns, 5)  # 5th percentile (95% confidence)
-
-                # Calculate Conditional VaR (CVaR) - expected loss given loss occurs
-                losses = returns[returns < 0]  # Only negative returns
-                cvar_95 = np.mean(losses) if len(losses) > 0 else 0
-
-                # Calculate additional risk metrics
-                max_drawdown_sim = self._calculate_max_drawdown_from_paths(paths)
-                sharpe_ratio_sim = np.mean(returns) / np.std(returns) if np.std(returns) > 0 else 0
-
-                # Log comprehensive stochastic details
-                stochastic_entry = {
-                    'proposal': proposal,
-                    'volatility_used': sigma,
-                    'simulated_returns_mean': np.mean(returns),
-                    'simulated_returns_std': np.std(returns),
-                    'simulated_returns_skew': scipy.stats.skew(returns),
-                    'simulated_returns_kurtosis': scipy.stats.kurtosis(returns),
-                    'pop': pop,
-                    'var_95': var_95,
-                    'cvar_95': cvar_95,
-                    'max_drawdown_sim': max_drawdown_sim,
-                    'sharpe_ratio_sim': sharpe_ratio_sim,
-                    'simulation_method': 'tfp_gbm_monte_carlo'
-                }
-                self.append_to_memory_list('stochastic_logs', stochastic_entry, max_items=100)
-
-                logger.info(f"Advanced TFP stochastic sim: {num_sims} paths, POP {pop:.3f}, VaR 95% {var_95:.3f}, CVaR 95% {cvar_95:.3f} with VIX vol {sigma:.3f}")
-
-                # Return enhanced risk metrics
-                return {
-                    'pop': pop,
-                    'var_95': var_95,
-                    'cvar_95': cvar_95,
-                    'max_drawdown_sim': max_drawdown_sim,
-                    'sharpe_ratio_sim': sharpe_ratio_sim
-                }
-
-            except ImportError:
-                logger.warning("TensorFlow Probability not available, falling back to numpy GBM")
-                # Fallback to original numpy implementation
+                # Try numpy first as primary implementation
                 return self._run_numpy_stochastics(proposal, volatility)
+            except Exception as e:
+                logger.warning(f"Numpy stochastic method failed, trying TensorFlow fallback: {e}")
+                if TFP_AVAILABLE and tf is not None and tfp is not None:
+                    return self._run_tensorflow_stochastics(proposal, volatility)
+                else:
+                    raise e
 
         except Exception as e:
             logger.error(f"Error in advanced stochastic simulation: {e}")
             return {'pop': 0.5, 'var_95': -0.1, 'cvar_95': -0.15, 'max_drawdown_sim': 0.1, 'sharpe_ratio_sim': 0.0}
 
-    def _run_numpy_stochastics(self, proposal: Dict[str, Any], volatility: float = 0.20) -> Dict[str, Any]:
+    def _run_tensorflow_stochastics(self, proposal: Dict[str, Any], volatility: float = 0.20) -> Dict[str, Any]:
         """
-        Fallback numpy-based GBM simulation (original implementation).
+        TensorFlow Probability-based stochastic simulation (fallback implementation).
         """
         try:
             roi_est = proposal.get('roi_estimate', 0.25)
@@ -682,6 +622,71 @@ Focus on immediate actions to reduce risk while maintaining alpha potential.
 
         except Exception as e:
             logger.error(f"Error in fallback stochastic simulation: {e}")
+            return {'pop': 0.5, 'var_95': -0.1, 'cvar_95': -0.15, 'max_drawdown_sim': 0.1, 'sharpe_ratio_sim': 0.0}
+
+    def _run_numpy_stochastics(self, proposal: Dict[str, Any], volatility: float = 0.20) -> Dict[str, Any]:
+        """
+        Primary NumPy-based stochastic simulation for GBM modeling.
+        Uses geometric Brownian motion to simulate price paths and calculate risk metrics.
+        """
+        try:
+            roi_est = proposal.get('roi_estimate', 0.25)
+            holding_days = proposal.get('holding_days', 30)
+            num_sims = 1000
+
+            # Calculate drift and diffusion parameters
+            mu = roi_est / (holding_days / 365)  # Daily drift
+            sigma = volatility  # Daily volatility
+            dt = 1 / 365  # Time step (daily)
+            S0 = 100  # Starting price
+
+            # Initialize price paths matrix
+            paths = np.zeros((num_sims, holding_days))
+            paths[:, 0] = S0
+
+            # Generate random shocks using vectorized operations
+            np.random.seed()  # Ensure different seeds for each run
+            Z = np.random.normal(0, 1, (num_sims, holding_days - 1))
+
+            # Simulate GBM paths using cumulative product for efficiency
+            for t in range(1, holding_days):
+                paths[:, t] = paths[:, t-1] * np.exp((mu - 0.5 * sigma**2) * dt + sigma * np.sqrt(dt) * Z[:, t-1])
+
+            # Calculate final prices and returns
+            final_prices = paths[:, -1]
+            returns = (final_prices - S0) / S0
+
+            # Calculate Probability of Profit (POP)
+            pop = np.mean(returns > 0)
+
+            # Calculate Value at Risk (VaR) at 95% confidence
+            var_95 = np.percentile(returns, 5)  # 5th percentile for 95% VaR
+
+            # Calculate Conditional VaR (CVaR) - Expected Shortfall
+            losses = returns[returns < var_95]
+            cvar_95 = np.mean(losses) if len(losses) > 0 else var_95
+
+            # Calculate maximum drawdown from simulated paths
+            max_drawdown_sim = self._calculate_max_drawdown_from_paths(paths)
+
+            # Calculate Sharpe ratio (assuming risk-free rate of 2% annualized)
+            risk_free_daily = 0.02 / 365
+            excess_returns = returns - risk_free_daily * holding_days
+            sharpe_ratio_sim = np.mean(excess_returns) / np.std(returns) if np.std(returns) > 0 else 0
+
+            logger.info(f"NumPy stochastic sim: POP {pop:.3f}, VaR 95% {var_95:.3f}, "
+                       f"CVaR 95% {cvar_95:.3f}, Max DD {max_drawdown_sim:.3f}")
+
+            return {
+                'pop': float(pop),
+                'var_95': float(var_95),
+                'cvar_95': float(cvar_95),
+                'max_drawdown_sim': float(max_drawdown_sim),
+                'sharpe_ratio_sim': float(sharpe_ratio_sim)
+            }
+
+        except Exception as e:
+            logger.error(f"Error in NumPy stochastic simulation: {e}")
             return {'pop': 0.5, 'var_95': -0.1, 'cvar_95': -0.15, 'max_drawdown_sim': 0.1, 'sharpe_ratio_sim': 0.0}
 
     def _calculate_max_drawdown_from_paths(self, paths: np.ndarray) -> float:

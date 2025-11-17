@@ -1,3 +1,10 @@
+# [LABEL:DOC:security] [LABEL:DOC:topic:security] [LABEL:DOC:audience:administrator]
+# [LABEL:AUTHOR:system] [LABEL:UPDATED:2025-11-17] [LABEL:REVIEWED:pending]
+#
+# Purpose: Comprehensive security hardening guide for production deployment
+# Dependencies: cryptography, python-dotenv, secure infrastructure
+# Related: docs/production_readiness_checklist.md, .env.enc, .env.key
+#
 # 🔒 Security Hardening Guide - Critical First Steps
 
 ## 🚨 **IMMEDIATE SECURITY CONCERNS**

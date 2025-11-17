@@ -14,6 +14,11 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime
 import numpy as np
 
+# Add IBKR connector import
+from integrations.ibkr_connector import get_ibkr_connector
+
+logger = logging.getLogger(__name__)
+
 logger = logging.getLogger(__name__)
 
 class ExecutionAgent(BaseAgent):
@@ -26,36 +31,123 @@ class ExecutionAgent(BaseAgent):
         super().__init__(role="execution", config_paths=config_paths, prompt_paths=prompt_paths, a2a_protocol=a2a_protocol)
         self.historical_mode = historical_mode
         
+        # Initialize IBKR connector
+        self.ibkr_connector = get_ibkr_connector()
+        
         # Initialize memory
         if not self.memory:
             self.memory = {"outcome_logs": [], "scaling_history": []}
             self.save_memory()
     
+    async def execute_trade(self, symbol: str, quantity: int, action: str = 'BUY', 
+                           order_type: str = 'MKT', price: Optional[float] = None) -> Dict[str, Any]:
+        """Execute a trade using IBKR connector"""
+        try:
+            logger.info(f"Executing {action} {quantity} {symbol} via IBKR")
+            
+            if self.historical_mode:
+                # In historical mode, just simulate the trade
+                result = {
+                    'success': True,
+                    'simulated': True,
+                    'symbol': symbol,
+                    'quantity': quantity,
+                    'action': action,
+                    'order_type': order_type,
+                    'timestamp': datetime.now().isoformat()
+                }
+                logger.info(f"Simulated trade: {result}")
+                return result
+            
+            # Connect to IBKR if not connected
+            connected = await self.ibkr_connector.connect()
+            if not connected:
+                return {'error': 'Failed to connect to IBKR', 'symbol': symbol}
+            
+            # Place the order
+            order_result = await self.ibkr_connector.place_order(
+                symbol=symbol,
+                quantity=quantity,
+                order_type=order_type,
+                action=action,
+                price=price
+            )
+            
+            if 'error' in order_result:
+                logger.error(f"IBKR order failed: {order_result['error']}")
+                return order_result
+            
+            # Log the execution
+            execution_log = {
+                'timestamp': datetime.now().isoformat(),
+                'symbol': symbol,
+                'action': action,
+                'quantity': quantity,
+                'order_type': order_type,
+                'price': price,
+                'order_result': order_result
+            }
+            self.memory['outcome_logs'].append(execution_log)
+            self.save_memory()
+            
+            logger.info(f"Trade executed successfully: {order_result}")
+            return order_result
+            
+        except Exception as e:
+            logger.error(f"Error executing trade: {e}")
+            return {'error': str(e), 'symbol': symbol, 'action': action}
+    
     async def process_input(self, proposal: Dict[str, Any]) -> Dict[str, Any]:
         """Process execution proposals."""
         try:
             logger.info(f"Processing execution proposal: {proposal}")
+            
+            # Check if this is a trade execution request
+            if 'symbol' in proposal and 'quantity' in proposal:
+                action = proposal.get('action', 'BUY')
+                order_type = proposal.get('order_type', 'MKT')
+                price = proposal.get('price', None)
+                
+                return await self.execute_trade(
+                    symbol=proposal['symbol'],
+                    quantity=proposal['quantity'],
+                    action=action,
+                    order_type=order_type,
+                    price=price
+                )
+            
             return {"executed": True, "result": "success"}
         except Exception as e:
             logger.error(f"Error processing proposal: {e}")
             return {"executed": False, "error": str(e)}
     
+    async def get_portfolio_status(self) -> Dict[str, Any]:
+        """Get current portfolio status from IBKR"""
         try:
-            logger.info("Monitoring execution performance...")
+            if self.historical_mode:
+                return {
+                    'simulated': True,
+                    'cash_balance': 100000.0,
+                    'positions': [],
+                    'total_value': 100000.0
+                }
+            
+            connected = await self.ibkr_connector.connect()
+            if not connected:
+                return {'error': 'Failed to connect to IBKR'}
+            
+            account_summary = await self.ibkr_connector.get_account_summary()
+            positions = await self.ibkr_connector.get_positions()
+            
             return {
-                "performance_metrics": {
-                    "status": "monitoring_active", 
-                    "opportunities": []
-                },
-                "status": "monitoring_active", 
-                "opportunities": []
+                'account_summary': account_summary,
+                'positions': positions,
+                'timestamp': datetime.now().isoformat()
             }
+            
         except Exception as e:
-            logger.error(f"Error monitoring performance: {e}")
-            return {
-                "performance_metrics": {"error": str(e)},
-                "error": str(e)
-            }
+            logger.error(f"Error getting portfolio status: {e}")
+            return {'error': str(e)}
     # ===== HELPER METHODS =====
 
     def _calculate_percentile_distribution(self, values: List[float]) -> Dict[str, float]:

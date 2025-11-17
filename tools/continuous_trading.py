@@ -1,3 +1,10 @@
+# [LABEL:TOOL:trading] [LABEL:TOOL:continuous] [LABEL:FRAMEWORK:asyncio]
+# [LABEL:AUTHOR:system] [LABEL:UPDATED:2025-11-17] [LABEL:REVIEWED:pending]
+#
+# Purpose: Continuous paper trading system for 24/7 market monitoring and execution
+# Dependencies: StrategyAgent, RiskAgent, ExecutionAgent, exchange calendars
+# Related: tools/start_continuous_trading.bat, docs/IMPLEMENTATION/IBKR_PAPER_TRADING_DEPLOYMENT.md
+#
 #!/usr/bin/env python3
 """
 ABC Application Continuous Paper Trading System

@@ -18,6 +18,8 @@ The StrategyAgent serves as the **strategy architect** in the collaborative reas
 - **Options Strategies**: Complex derivatives positioning with Greeks analysis
 - **Flow-Based Alpha**: Order book and dark pool opportunity identification
 - **ML-Driven Predictions**: Data-driven forecasting and pattern recognition
+- **Dynamic Pyramiding**: Intelligent position scaling with trend confirmation and profit targets
+- **Real-Time Strategy Adaptation**: Live strategy modification based on market feedback
 
 ### Collaborative Development
 - **Integrated Strategy Formation**: Strategy development begins immediately with data collection, not as a separate phase
@@ -87,6 +89,12 @@ Market Data → StrategyAgent → Subagent Analysis → Strategy Synthesis → R
 - **Statistical Arbitrage**: Mean-reversion and cointegration strategies
 - **Macro Strategies**: Economic data-driven positioning
 - **Risk Parity**: Volatility-based asset allocation
+
+### Pyramiding Strategy Framework
+- **Intelligent Position Scaling**: Dynamic position sizing based on trend confirmation and profit levels
+- **Risk-Adjusted Additions**: Smaller position additions as exposure increases
+- **Profit Protection**: Trailing stops to lock in profits on each position layer
+- **Real-Time Monitoring**: Continuous position oversight with automated adjustments
 
 ## LangChain Integration
 

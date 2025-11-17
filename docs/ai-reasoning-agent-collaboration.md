@@ -1,3 +1,10 @@
+# [LABEL:DOC:framework] [LABEL:DOC:topic:ai_reasoning] [LABEL:DOC:audience:architect]
+# [LABEL:AUTHOR:system] [LABEL:UPDATED:2025-11-17] [LABEL:REVIEWED:pending]
+#
+# Purpose: Comprehensive guide to AI reasoning through 22-agent collaborative architecture
+# Dependencies: Multi-agent system, A2A protocol, specialized agent roles
+# Related: docs/architecture.md, docs/AGENTS/index.md, src/agents/
+#
 # AI Reasoning Through Agent Collaboration: The ABC Application Breakthrough
 
 ## Overview
@@ -11,25 +18,25 @@ Traditional AI systems rely on single models for decision-making, limited by ind
 ### The 22-Agent Architecture
 Each agent represents a specialized domain of financial expertise, working in orchestrated reasoning loops:
 
-#### Data Analysis Agents (11 Subagents)
-- **Market Data Subagent**: Real-time price and volume analysis
+#### Data Analysis Agents (10 Subagents)
+- **Yfinance Subagent**: Primary market data collection via yfinance API
+- **MarketDataApp Subagent**: Premium real-time trading data from MarketDataApp
 - **Economic Data Subagent**: Macroeconomic indicators and trends
 - **Fundamental Data Subagent**: Company financials and valuation metrics
-- **Technical Data Subagent**: Chart patterns and technical indicators
 - **Sentiment Subagent**: News and social media sentiment analysis
 - **Institutional Data Subagent**: 13F filings and institutional holdings
 - **Options Data Subagent**: Options chain analysis and Greeks
-- **Flow Data Subagent**: Order flow and dark pool analysis
 - **News Data Subagent**: Real-time news impact assessment
 - **Kalshi Data Subagent**: Prediction market data integration
-- **Microstructure Data Subagent**: High-frequency trading patterns
+- **Microstructure Subagent**: High-frequency trading patterns
 
 **Reasoning Role**: Data agents collectively validate information quality, cross-reference sources, and provide comprehensive market intelligence. They debate data reliability and consensus on market signals.
 
-#### Strategy Generation Agents (3 Subagents)
+#### Strategy Generation Agents (4 Subagents)
 - **Options Strategy Subagent**: Complex options strategies and spreads
 - **Flow Strategy Subagent**: Order flow-based trading strategies
 - **ML Strategy Subagent**: Machine learning-driven quantitative strategies
+- **Multi-Instrument Strategy Subagent**: Complex multi-asset and cross-market strategies
 
 **Reasoning Role**: Strategy agents independently generate proposals, then debate approaches, challenge assumptions, and refine strategies through collaborative reasoning.
 

@@ -1,4 +1,18 @@
+---
+[LABEL:DOC:agent_guide] [LABEL:DOC:topic:agent_overview] [LABEL:DOC:audience:architect]
+[LABEL:AUTHOR:system] [LABEL:UPDATED:2025-11-17] [LABEL:REVIEWED:pending]
+---
+
 # Agent Inventory and Overview
+
+## Purpose
+Comprehensive index and overview of all 22 specialized AI agents in the ABC Application system, including their roles, responsibilities, and collaboration patterns.
+
+## Related Files
+- Code: `src/agents/*.py`, `src/agents/base.py`
+- Config: `config/` (agent-specific configurations)
+- Tests: `unit-tests/test_agents.py`
+- Docs: `docs/architecture.md`, `docs/FRAMEWORKS/a2a-protocol.md`
 
 ## ABC Application Agent Framework
 

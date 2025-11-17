@@ -49,6 +49,7 @@ alpha-vantage>=1.0.0,<2.0  # For Alpha Vantage financial data API
 newsapi-python>=0.2.7,<1.0  # For NewsAPI news and sentiment data
 fredapi>=0.5.2,<1.0  # For Federal Reserve Economic Data (FRED) API
 kalshi-python>=1.0.0,<2.0  # For Kalshi prediction market data
+discord.py>=2.6.0,<3.0  # For Discord bot integration and real-time collaboration; latest stable is 2.6.x
 fastapi>=0.115.0,<1.0  # For REST API endpoints and configuration management
 uvicorn>=0.32.0,<1.0  # ASGI server for FastAPI
 gunicorn>=23.0.0,<24.0  # WSGI server for production deployment

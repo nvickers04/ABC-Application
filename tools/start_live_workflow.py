@@ -1,3 +1,10 @@
+# [LABEL:TOOL:workflow] [LABEL:TOOL:launcher] [LABEL:FRAMEWORK:discord]
+# [LABEL:AUTHOR:system] [LABEL:UPDATED:2025-11-17] [LABEL:REVIEWED:pending]
+#
+# Purpose: Interactive workflow orchestrator launcher for Discord-based live execution
+# Dependencies: Discord integration, workflow orchestrator
+# Related: tools/discord/, docs/IMPLEMENTATION/DISCORD_SETUP_INSTRUCTIONS.md
+#
 #!/usr/bin/env python3
 """
 Quick launcher for the Live Workflow Orchestrator
@@ -25,7 +32,16 @@ def main():
     print("  💬 Ask questions anytime during execution!")
     print("")
 
-    confirm = input("Start Live Workflow Orchestrator? (y/N): ").strip().lower()
+    # Auto-start without confirmation for automated environments
+    import sys
+    if '--auto' in sys.argv or len(sys.argv) > 1:
+        confirm = 'y'
+    else:
+        try:
+            confirm = input("Start Live Workflow Orchestrator? (y/N): ").strip().lower()
+        except KeyboardInterrupt:
+            print("\n🛑 Cancelled by user")
+            return
 
     if confirm == 'y':
         print("\n🚀 Starting Live Workflow Orchestrator...")
@@ -35,7 +51,7 @@ def main():
 
         try:
             # Run the orchestrator
-            result = subprocess.run([sys.executable, "live_workflow_orchestrator.py"],
+            result = subprocess.run([sys.executable, "src/agents/live_workflow_orchestrator.py"],
                                   cwd=os.getcwd())
 
             if result.returncode == 0:

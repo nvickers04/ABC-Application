@@ -1,3 +1,10 @@
+# [LABEL:DOC:framework] [LABEL:DOC:topic:macro_micro] [LABEL:DOC:audience:developer]
+# [LABEL:AUTHOR:system] [LABEL:UPDATED:2025-11-17] [LABEL:REVIEWED:pending]
+#
+# Purpose: Comprehensive guide to macro-micro analysis framework for portfolio management
+# Dependencies: 22-agent system, sector analysis, A2A protocol
+# Related: docs/architecture.md, docs/ai-reasoning-agent-collaboration.md, src/agents/macro.py
+#
 # Macro-Micro Analysis Framework for ABC Application
 
 ## Overview
@@ -8,7 +15,7 @@ The ABC Application system's fundamental breakthrough is its **22-agent collabor
 
 **Why 22 Agents for Enhanced Reasoning?** The macro-micro framework leverages the full power of collaborative AI reasoning:
 - **Macro Analysis**: Agents collectively evaluate 39+ sectors through structured debate and cross-validation
-- **Opportunity Selection**: Multi-agent consensus on top-performing sectors using weighted scoring algorithms  
+- **Opportunity Selection**: Multi-agent consensus on top-performing sectors using weighted scoring algorithms
 - **Micro Integration**: Deep analysis pipeline enhanced by collective agent deliberation
 - **Risk Management**: Collaborative risk assessment across macro and micro dimensions
 

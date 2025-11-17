@@ -1242,13 +1242,23 @@ Consider market conditions, risk factors, and alignment with our goals (10-20% m
             Dict: Shared memory statistics
         """
         try:
-            coordinator_stats = self.shared_memory_coordinator.get_coordinator_stats()
-            return {
-                "agent_role": self.role,
-                "coordinator_stats": coordinator_stats,
-                "shared_namespaces": list(coordinator_stats.get("namespaces", {}).keys()),
-                "registered_agents": coordinator_stats.get("registered_agents", [])
-            }
+            # Try to get coordinator stats if method exists
+            if hasattr(self.shared_memory_coordinator, 'get_coordinator_stats'):
+                coordinator_stats = self.shared_memory_coordinator.get_coordinator_stats()
+                return {
+                    "agent_role": self.role,
+                    "coordinator_stats": coordinator_stats,
+                    "shared_namespaces": list(coordinator_stats.get("namespaces", {}).keys()),
+                    "registered_agents": coordinator_stats.get("registered_agents", [])
+                }
+            else:
+                # Fallback: provide basic stats without coordinator details
+                return {
+                    "agent_role": self.role,
+                    "coordinator_available": self.shared_memory_coordinator is not None,
+                    "shared_namespaces": "unknown",
+                    "registered_agents": "unknown"
+                }
         except Exception as e:
             logger.error(f"Failed to get shared memory stats for {self.role}: {e}")
             return {"error": str(e)}
@@ -1328,7 +1338,7 @@ Consider market conditions, risk factors, and alignment with our goals (10-20% m
                 'health_status': 'error'
             }
 
-    async def analyze(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    async def analyze(self, data: Any) -> Dict[str, Any]:
         """
         Perform analysis on provided data.
         This is a base implementation that can be overridden by subclasses for specific analysis types.

@@ -1,3 +1,10 @@
+# [LABEL:TEST:discord_integration] [LABEL:TEST:integration] [LABEL:FRAMEWORK:discord]
+# [LABEL:AUTHOR:system] [LABEL:UPDATED:2025-11-17] [LABEL:REVIEWED:pending]
+#
+# Purpose: Integration test for Discord server access and bot connectivity
+# Dependencies: discord.py, environment variables, Discord API
+# Related: docs/IMPLEMENTATION/DISCORD_SETUP_INSTRUCTIONS.md, tools/discord/
+#
 import discord
 import asyncio
 import os

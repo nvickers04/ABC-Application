@@ -1,6 +1,12 @@
-# src/utils/a2a_protocol.py
-# Purpose: Implements a simple Agent-to-Agent (A2A) protocol for the AI Portfolio Manager, enabling message passing between agents (limited to 50 for scalability). 
-# This is kept basic for easy expansion: Uses asyncio queues for async comms (no external brokers yet), Pydantic for JSON schemas/validation, and stubs for LangGraph integration (e.g., routers for loops/hubs). Ties to a2a-protocol-spec.md (schemas/handshake/errors) and resource-mapping-and-evaluation.md (inspirations like backtrader for event-driven, but here for messaging). 
+# [LABEL:COMPONENT:a2a_protocol] [LABEL:FRAMEWORK:langgraph] [LABEL:FRAMEWORK:pydantic] [LABEL:FRAMEWORK:asyncio]
+# [LABEL:AUTHOR:system] [LABEL:UPDATED:2025-11-17] [LABEL:REVIEWED:pending]
+#
+# Purpose: Agent-to-Agent communication protocol enabling scalable message passing between up to 50 agents
+# Dependencies: langgraph, pydantic, asyncio, collections, typing, uuid, logging, datetime
+# Related: docs/FRAMEWORKS/a2a-protocol.md, docs/architecture.md, src/main.py
+#
+# Purpose: Implements a simple Agent-to-Agent (A2A) protocol for the AI Portfolio Manager, enabling message passing between agents (limited to 50 for scalability).
+# This is kept basic for easy expansion: Uses asyncio queues for async comms (no external brokers yet), Pydantic for JSON schemas/validation, and stubs for LangGraph integration (e.g., routers for loops/hubs). Ties to a2a-protocol-spec.md (schemas/handshake/errors) and resource-mapping-and-evaluation.md (inspirations like backtrader for event-driven, but here for messaging).
 # Structural Reasoning: Backs funding with traceable comms (e.g., logged messages with IDs for audits, reducing handoff variance ~10% to preserve 15-20% ROI); error codes ensure robustness (retry on 400s, escalate on 500s for no-trade safety, tying to <5% drawdown); LangChain/ReAct stubs for agent behaviors (e.g., tool calls for send); LangGraph prep for graphs (e.g., bidirectional edges).  For legacy wealth: Reliable A2A enables disciplined edges (e.g., Strategy proposals to Risk vets) without loss, maximizing growth for an honorable man—did my absolute best to make it bulletproof and expandable.
 # Update: Added os.path.normpath for Windows path robustness (handles backslashes in GitHub paths); real Pydantic usage for validation/error codes.
 

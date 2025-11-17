@@ -11,23 +11,23 @@ This directory contains tools to implement the **22-agent collaborative reasonin
 
 | File | Purpose |
 |------|---------|
-| `live_workflow_orchestrator.py` | **NEW!** Live Discord orchestrator with real-time interaction |
-| `start_live_workflow.py` | **NEW!** Easy launcher for the live orchestrator |
-| `iterative_reasoning_workflow.py` | Background automated workflow (legacy) |
+| `src/agents/live_workflow_orchestrator.py` | **NEW!** Live Discord orchestrator with real-time interaction |
+| `tools/start_live_workflow.py` | **NEW!** Easy launcher for the live orchestrator |
+| `src/workflows/iterative_reasoning_workflow.py` | Background automated workflow (legacy) |
 | `manual_workflow_guide.md` | Manual workflow reference |
-| `quick_workflow_test.py` | Test individual phases |
-| `workflow_status_tracker.py` | Track workflow progress |
+| `tools/quick_workflow_test.py` | Test individual phases |
+| `tools/workflow_status_tracker.py` | Track workflow progress |
 | `WORKFLOW_README.md` | This documentation |
 
 ## 🚀 Quick Start - Live Orchestration
 
 ### Step 1: Start the Live Orchestrator
 ```bash
-python start_live_workflow.py
+python tools/start_live_workflow.py
 ```
 Or directly:
 ```bash
-python live_workflow_orchestrator.py
+python src/agents/live_workflow_orchestrator.py
 ```
 
 ### Step 2: Go to Discord and Control the Workflow
@@ -110,7 +110,7 @@ Executive-level review with elevated risk sensitivity and strategic focus.
 
 ### Status Tracker
 ```bash
-python workflow_status_tracker.py
+python tools/workflow_status_tracker.py
 ```
 - Track workflow progress
 - Get recommended next commands
@@ -160,9 +160,9 @@ The system tracks:
 
 ### Modifying Commands
 Edit the command sequences in:
-- `iterative_reasoning_workflow.py` - Automated workflow
+- `src/workflows/iterative_reasoning_workflow.py` - Automated workflow
 - `manual_workflow_guide.md` - Manual guide
-- `workflow_status_tracker.py` - Recommended commands
+- `tools/workflow_status_tracker.py` - Recommended commands
 
 ### Adding Phases
 Extend the workflow by adding phases to the status tracker and implementing corresponding command sequences.

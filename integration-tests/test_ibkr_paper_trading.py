@@ -1,3 +1,10 @@
+# [LABEL:TEST:ibkr_integration] [LABEL:TEST:integration] [LABEL:FRAMEWORK:asyncio]
+# [LABEL:AUTHOR:system] [LABEL:UPDATED:2025-11-17] [LABEL:REVIEWED:pending]
+#
+# Purpose: Integration test for IBKR paper trading connection and functionality
+# Dependencies: IBKR connector, paper trading account, asyncio
+# Related: config/ibkr_config.ini, integrations/ibkr_connector.py, docs/IMPLEMENTATION/IBKR_PAPER_TRADING_DEPLOYMENT.md
+#
 #!/usr/bin/env python3
 """
 IBKR Paper Trading Connection Test

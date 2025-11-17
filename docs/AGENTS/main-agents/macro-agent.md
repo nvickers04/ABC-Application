@@ -15,8 +15,9 @@ The MacroAgent serves as the **foundational cornerstone** of the collaborative r
 ### Asset Universe Analysis
 - **Comprehensive Coverage**: Monitor 39+ sectors/assets across equities, bonds, commodities, currencies, crypto
 - **Performance Ranking**: Rank assets based on relative strength, momentum, and risk-adjusted returns
-- **Top Asset Selection**: Identify highest-performing assets for micro-level analysis
+- **Top Asset Selection**: Identify highest-performing assets for micro analysis
 - **Allocation Weighting**: Calculate optimal allocation weights for selected assets
+- **IBKR Compatibility**: Automatic filtering for Interactive Brokers trading platform compatibility
 
 ### Framework Integration
 - **Iteration 1 Foundation**: Provides the prioritized opportunity set for comprehensive multi-agent deliberation
@@ -41,6 +42,7 @@ The MacroAgent serves as the **foundational cornerstone** of the collaborative r
 - **Predictive Insights**: Forward-looking sector predictions and rotation strategies
 - **Collaborative Intelligence**: Debate sector selections with Strategy and Data agents
 - **Pattern Recognition**: Identify complex macroeconomic relationships
+- **FinanceDatabase Integration**: Automated symbol selection based on criteria filtering
 
 ## Architecture
 

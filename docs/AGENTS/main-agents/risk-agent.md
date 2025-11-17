@@ -61,6 +61,7 @@ Market Data → Risk Assessment → Position Sizing → Compliance Check → Exe
 - **Factor Risk Models**: Multi-factor risk decomposition and attribution
 - **Liquidity-Adjusted VaR**: Risk measures accounting for trading costs
 - **Tail Risk Analysis**: Extreme event probability and impact assessment
+- **NumPy-Based Stochastic Simulations**: High-performance GBM modeling for risk assessment
 
 ### Dynamic Position Sizing
 - **Kelly Criterion**: Optimal position sizing based on win probability and odds

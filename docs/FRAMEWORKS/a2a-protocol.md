@@ -1,4 +1,18 @@
+---
+[LABEL:DOC:framework] [LABEL:DOC:topic:a2a_protocol] [LABEL:DOC:audience:developer]
+[LABEL:AUTHOR:system] [LABEL:UPDATED:2025-11-17] [LABEL:REVIEWED:pending]
+---
+
 # Agent-to-Agent (A2A) Communication Protocol
+
+## Purpose
+Comprehensive documentation of the A2A communication protocol enabling structured collaboration between the 22 specialized agents in the ABC Application system.
+
+## Related Files
+- Code: `src/utils/a2a_protocol.py`, `src/agents/base.py`
+- Tests: `unit-tests/test_a2a_protocol.py`
+- Config: `config/` (protocol configuration)
+- Docs: `docs/architecture.md`, `docs/AGENTS/index.md`
 
 ## Overview
 

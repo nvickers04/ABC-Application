@@ -1,3 +1,10 @@
+# [LABEL:CONFIG:prompt] [LABEL:TEMPLATE:agent] [LABEL:DOC:guidance]
+# [LABEL:AUTHOR:system] [LABEL:UPDATED:2025-11-17] [LABEL:REVIEWED:pending]
+#
+# Purpose: Base prompt template for all AI agents in the trading system
+# Dependencies: Agent role variables (${agent_role}, ${goal_weights}, etc.)
+# Related: src/agents/base.py, docs/AGENTS/agent-framework.md
+#
 You are a sophisticated ${agent_role} Agent in an advanced AI trading system. Your primary directive is to maximize portfolio performance while maintaining strict risk controls.
 
 CORE OBJECTIVES:

@@ -1,3 +1,10 @@
+# [LABEL:DEPLOY:vultr] [LABEL:SCRIPT:powershell] [LABEL:INFRA:vps]
+# [LABEL:AUTHOR:system] [LABEL:UPDATED:2025-11-17] [LABEL:REVIEWED:pending]
+#
+# Purpose: Automated deployment script for ABC Application to Vultr VPS
+# Dependencies: SSH, SCP, PowerShell 5.1+
+# Related: setup/deploy-vultr.sh, docs/IMPLEMENTATION/deployment.md
+#
 # ABC Application Deployment to Vultr VPS
 # Run this script from your local machine to deploy to Vultr
 

@@ -48,17 +48,17 @@
 
 ## 2. Create Bot Applications
 
-For each agent, create a separate Discord bot application:
+For each main agent, create a separate Discord bot application. The system currently supports 5 core agents with Discord integration:
 
 1. **Go to:** https://discord.com/developers/applications
 2. **Click "New Application"** for each agent:
-   - Macro Agent
-   - Data Agent  
-   - Strategy Agent
-   - Risk Agent
-   - Reflection Agent
-   - Execution Agent
-   - Learning Agent
+   - **Macro Agent** (Required)
+   - **Data Agent** (Required)  
+   - **Strategy Agent** (Required)
+   - **Reflection Agent** (Required)
+   - **Execution Agent** (Required)
+   - **Risk Agent** (Optional - currently disabled due to TensorFlow dependencies)
+   - **Learning Agent** (Optional - currently disabled due to TensorFlow dependencies)
 
 3. **For each application:**
    - Go to the **"Bot"** section
@@ -83,7 +83,7 @@ In the Discord developer portal for each bot:
 
 ### Step-by-Step Bot Invitation:
 
-**For each of your 7 agents (Macro, Data, Strategy, Risk, Reflection, Execution, Learning):**
+**For each of your 5 core agents (Macro, Data, Strategy, Reflection, Execution):**
 
 1. **Go back to Discord Developer Portal:**
    - Visit: https://discord.com/developers/applications
@@ -113,12 +113,16 @@ In the Discord developer portal for each bot:
    - **Select your server** from the dropdown (should show your "ABC Trading Agents" server)
    - **Click "Authorize"**
    - **Complete the CAPTCHA** if prompted
-   - **Repeat for each of the 7 bots**
+   - **Repeat for each of the 5 core bots**
+
+### Optional Agents:
+- **Risk Agent** and **Learning Agent** bots can be added later when TensorFlow dependencies are resolved
+- These agents will integrate seamlessly once their Discord tokens are configured
 
 ### Verification Steps:
 
 After inviting all bots:
-1. **Check your Discord server** - you should see 7 new bot users online
+1. **Check your Discord server** - you should see 5 new bot users online (Macro, Data, Strategy, Reflection, Execution)
 2. **Each bot should have a name** like "Macro Agent#1234"
 3. **Bots should appear in the member list** on the right sidebar
 
@@ -136,7 +140,7 @@ After inviting all bots:
 
 **Bot shows as offline?**
 - This is normal - bots only show as online when your Python script is running
-- The script will bring them online when you run `python discord_agents.py`
+- The script will bring them online when you run `python src/agents/discord_agents.py`
 
 **Can't find the bot in Developer Portal?**
 - Make sure you're logged into the correct Discord account
@@ -155,10 +159,10 @@ After inviting all bots:
 - `#macro-agent` - Macro economic analysis and market context
 - `#data-agent` - Real-time data collection and market intelligence  
 - `#strategy-agent` - Trading strategies and signal generation
-- `#risk-agent` - Risk assessment and position limits
 - `#reflection-agent` - System oversight and decision validation
 - `#execution-agent` - Trade execution and position management
-- `#learning-agent` - System learning and performance optimization
+- `#risk-agent` - Risk assessment and position limits (optional)
+- `#learning-agent` - System learning and performance optimization (optional)
 
 **Collaboration Channels:**
 - `#debates` - Agent debates and human-agent discussions
@@ -202,10 +206,10 @@ To enable status updates in specific channels:
 
 1. **Check bots are in your server:**
    - Look at the member list (right sidebar)
-   - You should see 7 bot users online
+   - You should see 5 bot users online (Macro, Data, Strategy, Reflection, Execution)
 
 2. **Test basic connectivity:**
-   - Run: `python discord_agents.py`
+   - Run: `python src/agents/discord_agents.py`
    - Bots should show as "online" in Discord
    - Check terminal for connection messages
 
@@ -228,7 +232,7 @@ To enable status updates in specific channels:
 
 ---
 
-**Ready to launch?** Once all bots are invited and channels created, run `python discord_agents.py` to start your AI trading agents!
+**Ready to launch?** Once all bots are invited and channels created, run `python src/agents/discord_agents.py` to start your AI trading agents!
 
 ## Troubleshooting
 

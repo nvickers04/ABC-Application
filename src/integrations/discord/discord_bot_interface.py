@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Discord Agent Integration
-Multi-agent Discord bot system where each agent has its own Discord account/bot.
-Agents communicate via Discord channels and respond to commands.
+Discord Bot Interface for Agent Communication
+Provides Discord-based communication interfaces for AI agents.
+Each bot interface wraps an agent and exposes its functionality through Discord commands.
 """
 
 import os
@@ -30,24 +30,25 @@ from src.utils.a2a_protocol import A2AProtocol
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-class DiscordAgentBot(commands.Bot):
+class DiscordBotInterface(commands.Bot):
     """
-    Discord bot for a specific agent.
-    Each agent gets its own bot instance with unique personality and commands.
+    Discord bot interface for a specific agent.
+    Provides a chat-based interface to access agent functionality.
+    Each interface wraps an agent instance and exposes its methods via Discord commands.
     """
 
-    # Class variable to track active bots for collaboration
-    _active_bots: List['DiscordAgentBot'] = []
+    # Class variable to track active bot interfaces for collaboration
+    _active_interfaces: List['DiscordBotInterface'] = []
     _debate_channels: Dict[str, discord.TextChannel] = {}
     _human_participants: Dict[str, List[int]] = {}  # channel_id -> list of human user IDs
 
-    def __init__(self, agent: BaseAgent, token: str, agent_config: Dict[str, Any]):
+    def __init__(self, agent: BaseAgent, token: str, interface_config: Dict[str, Any]):
         self.agent = agent
-        self.agent_config = agent_config
-        self.agent_name = agent_config['name']
-        self.agent_role = agent_config['role']
-        self.status_channel_id = agent_config.get('status_channel_id')
-        self.command_prefix = agent_config.get('command_prefix', '!')
+        self.interface_config = interface_config
+        self.agent_name = interface_config['name']
+        self.agent_role = interface_config['role']
+        self.status_channel_id = interface_config.get('status_channel_id')
+        self.command_prefix = interface_config.get('command_prefix', '!')
 
         # Set up intents
         intents = discord.Intents.default()
@@ -63,8 +64,8 @@ class DiscordAgentBot(commands.Bot):
             )
         )
 
-        # Add this bot to the active bots list
-        DiscordAgentBot._active_bots.append(self)
+        # Add this interface to the active interfaces list
+        DiscordBotInterface._active_interfaces.append(self)
 
         self.setup_commands()
 
@@ -78,7 +79,7 @@ class DiscordAgentBot(commands.Bot):
                 status_info = await self.agent.get_status()
                 embed = discord.Embed(
                     title=f"{self.agent_name} Status",
-                    color=self.agent_config['color'],
+                    color=self.interface_config['color'],
                     timestamp=datetime.now()
                 )
 
@@ -93,19 +94,62 @@ class DiscordAgentBot(commands.Bot):
         async def memory(ctx, limit: int = 5):
             """Get recent memory entries"""
             try:
-                memories = self.agent.get_recent_memories(limit)
-                embed = discord.Embed(
-                    title=f"{self.agent_name} Recent Memories",
-                    color=self.agent_config['color'],
-                    timestamp=datetime.now()
-                )
-
-                for i, memory in enumerate(memories, 1):
-                    embed.add_field(
-                        name=f"Memory {i}",
-                        value=memory.get('content', 'N/A')[:200] + "...",
-                        inline=False
+                # Try to get memories from advanced memory system first
+                if hasattr(self.agent, 'advanced_memory') and self.agent.advanced_memory:
+                    # Search for recent memories for this agent
+                    agent_scope = f"agent_{self.agent_role}"
+                    search_results = await self.agent.advanced_memory.search_memories(
+                        query=f"agent:{self.agent_role}",  # Search for this agent's memories
+                        memory_type=None,
+                        limit=limit
                     )
+                    
+                    if search_results:
+                        embed = discord.Embed(
+                            title=f"{self.agent_name} Recent Memories (Advanced)",
+                            color=self.interface_config['color'],
+                            timestamp=datetime.now()
+                        )
+
+                        for i, memory in enumerate(search_results[:limit], 1):
+                            content = memory.get('data', memory.get('content', 'N/A'))
+                            if isinstance(content, dict):
+                                content = str(content)
+                            embed.add_field(
+                                name=f"Memory {i}",
+                                value=content[:200] + "..." if len(str(content)) > 200 else str(content),
+                                inline=False
+                            )
+                    else:
+                        # Fallback to basic agent memory
+                        memories = self.agent.get_recent_memories(limit)
+                        embed = discord.Embed(
+                            title=f"{self.agent_name} Recent Memories",
+                            color=self.interface_config['color'],
+                            timestamp=datetime.now()
+                        )
+
+                        for i, memory in enumerate(memories, 1):
+                            embed.add_field(
+                                name=f"Memory {i}",
+                                value=memory.get('content', 'N/A')[:200] + "...",
+                                inline=False
+                            )
+                else:
+                    # Use basic agent memory
+                    memories = self.agent.get_recent_memories(limit)
+                    embed = discord.Embed(
+                        title=f"{self.agent_name} Recent Memories",
+                        color=self.interface_config['color'],
+                        timestamp=datetime.now()
+                    )
+
+                    for i, memory in enumerate(memories, 1):
+                        embed.add_field(
+                            name=f"Memory {i}",
+                            value=memory.get('content', 'N/A')[:200] + "...",
+                            inline=False
+                        )
 
                 await ctx.send(embed=embed)
             except Exception as e:
@@ -117,12 +161,20 @@ class DiscordAgentBot(commands.Bot):
             try:
                 # Send typing indicator
                 async with ctx.typing():
-                    analysis = await self.agent.analyze(query)
+                    analysis_result = await self.agent.analyze(query)
+
+                # Extract the analysis text from the result dictionary
+                if isinstance(analysis_result, dict):
+                    analysis_text = analysis_result.get('llm_analysis', 
+                                                      analysis_result.get('fallback_analysis', 
+                                                                        str(analysis_result)))
+                else:
+                    analysis_text = str(analysis_result)
 
                 embed = discord.Embed(
                     title=f"{self.agent_name} Analysis",
-                    description=analysis[:2000],  # Discord embed limit
-                    color=self.agent_config['color'],
+                    description=analysis_text[:2000],  # Discord embed limit
+                    color=self.interface_config['color'],
                     timestamp=datetime.now()
                 )
                 embed.set_footer(text=f"Requested by {ctx.author.display_name}")
@@ -136,7 +188,7 @@ class DiscordAgentBot(commands.Bot):
             """Start a debate on a topic with specified agents"""
             try:
                 # Get available agents
-                available_agents = [bot.agent_name.lower() for bot in self.__class__._active_bots]
+                available_agents = [bot.agent_name.lower() for bot in self.__class__._active_interfaces]
                 
                 # Convert tuple to list for easier manipulation
                 agents_list = list(agents) if agents else []
@@ -175,13 +227,13 @@ class DiscordAgentBot(commands.Bot):
                 self.__class__._debate_channels[debate_id] = ctx.channel
                 
                 # Notify participating agents
-                for bot in self.__class__._active_bots:
+                for bot in self.__class__._active_interfaces:
                     if bot.agent_name.lower() in valid_agents:
                         try:
                             agent_embed = discord.Embed(
                                 title=f"🎯 Debate Invitation: {topic}",
                                 description=f"You've been invited to debate by {ctx.author.mention}",
-                                color=bot.agent_config['color'],
+                                color=bot.interface_config['color'],
                                 timestamp=datetime.now()
                             )
                             agent_embed.add_field(name="Topic", value=topic, inline=False)
@@ -256,7 +308,7 @@ class DiscordAgentBot(commands.Bot):
                 
                 for agent_name in agents:
                     target_bot = None
-                    for bot in self.__class__._active_bots:
+                    for bot in self.__class__._active_interfaces:
                         if bot.agent_name.lower() == agent_name.lower():
                             target_bot = bot
                             break
@@ -273,7 +325,7 @@ class DiscordAgentBot(commands.Bot):
                             
                             if target_bot.status_channel_id:
                                 channel = target_bot.get_channel(target_bot.status_channel_id)
-                                if channel:
+                                if channel and isinstance(channel, discord.TextChannel):
                                     await channel.send(embed=embed)
                                     sent_count += 1
                         except Exception as e:
@@ -307,19 +359,19 @@ class DiscordAgentBot(commands.Bot):
                 await ctx.send(embed=embed)
                 
                 # Notify all agents
-                for bot in self.__class__._active_bots:
+                for bot in self.__class__._active_interfaces:
                     try:
                         agent_embed = discord.Embed(
                             title=f"💬 Discussion Invitation: {topic}",
                             description=f"Discussion started by {ctx.author.mention} in {ctx.channel.mention}",
-                            color=bot.agent_config['color'],
+                            color=bot.interface_config['color'],
                             timestamp=datetime.now()
                         )
                         agent_embed.add_field(name="Topic", value=topic, inline=False)
                         
                         if bot.status_channel_id:
                             channel = bot.get_channel(bot.status_channel_id)
-                            if channel:
+                            if channel and isinstance(channel, discord.TextChannel):
                                 await channel.send(embed=agent_embed)
                     except Exception as e:
                         logger.error(f"Failed to notify {bot.agent_name}: {e}")
@@ -345,11 +397,11 @@ class DiscordAgentBot(commands.Bot):
                 await ctx.send(embed=embed)
                 
                 # Forward to all agent channels
-                for bot in self.__class__._active_bots:
+                for bot in self.__class__._active_interfaces:
                     try:
                         if bot.status_channel_id and bot != self:  # Don't send to self
                             channel = bot.get_channel(bot.status_channel_id)
-                            if channel:
+                            if channel and isinstance(channel, discord.TextChannel):
                                 forward_embed = embed.copy()
                                 forward_embed.title = f"🧠 Human Input from {ctx.author.display_name}"
                                 forward_embed.set_footer(text=f"Shared via {ctx.channel.mention}")
@@ -368,7 +420,7 @@ class DiscordAgentBot(commands.Bot):
             try:
                 # Find target agent
                 target_bot = None
-                for bot in self.__class__._active_bots:
+                for bot in self.__class__._active_interfaces:
                     if bot.agent_name.lower() == agent_name.lower():
                         target_bot = bot
                         break
@@ -388,7 +440,7 @@ class DiscordAgentBot(commands.Bot):
                 
                 if target_bot.status_channel_id:
                     channel = target_bot.get_channel(target_bot.status_channel_id)
-                    if channel:
+                    if channel and isinstance(channel, discord.TextChannel):
                         await channel.send(embed=embed)
                         await ctx.send(f"✅ Question sent to {agent_name}!")
                         
@@ -396,7 +448,7 @@ class DiscordAgentBot(commands.Bot):
                         response_embed = discord.Embed(
                             title=f"Question Sent to {target_bot.agent_name}",
                             description=f"**Question:** {question}",
-                            color=target_bot.agent_config['color'],
+                            color=target_bot.interface_config['color'],
                             timestamp=datetime.now()
                         )
                         await ctx.send(embed=response_embed)
@@ -437,11 +489,11 @@ class DiscordAgentBot(commands.Bot):
                     await ctx.send(embed=embed)
                     
                     # Notify agents that debate ended
-                    for bot in self.__class__._active_bots:
+                    for bot in self.__class__._active_interfaces:
                         try:
                             if bot.status_channel_id:
                                 channel = bot.get_channel(bot.status_channel_id)
-                                if channel:
+                                if channel and isinstance(channel, discord.TextChannel):
                                     await channel.send(embed=embed)
                         except Exception as e:
                             logger.error(f"Failed to notify {bot.agent_name} of debate end: {e}")
@@ -488,7 +540,7 @@ class DiscordAgentBot(commands.Bot):
                 
                 embed.add_field(
                     name="Agent Participants",
-                    value=str(len(self.__class__._active_bots)),
+                    value=str(len(self.__class__._active_interfaces)),
                     inline=True
                 )
                 
@@ -508,7 +560,7 @@ class DiscordAgentBot(commands.Bot):
                     embed = discord.Embed(
                         title="Macroeconomic Analysis",
                         description=analysis[:2000],
-                        color=self.agent_config['color'],
+                        color=self.interface_config['color'],
                         timestamp=datetime.now()
                     )
                     await ctx.send(embed=embed)
@@ -523,7 +575,7 @@ class DiscordAgentBot(commands.Bot):
                     data = await self.agent.fetch_market_data(symbol, data_type)
                     embed = discord.Embed(
                         title=f"Market Data: {symbol.upper()}",
-                        color=self.agent_config['color'],
+                        color=self.interface_config['color'],
                         timestamp=datetime.now()
                     )
 
@@ -546,7 +598,7 @@ class DiscordAgentBot(commands.Bot):
                     embed = discord.Embed(
                         title="Strategy Proposal",
                         description=proposal[:2000],
-                        color=self.agent_config['color'],
+                        color=self.interface_config['color'],
                         timestamp=datetime.now()
                     )
                     await ctx.send(embed=embed)
@@ -562,7 +614,7 @@ class DiscordAgentBot(commands.Bot):
                     risk_assessment = await self.agent.assess_risk(json.loads(portfolio_data))
                     embed = discord.Embed(
                         title="Risk Assessment",
-                        color=self.agent_config['color'],
+                        color=self.interface_config['color'],
                         timestamp=datetime.now()
                     )
 
@@ -598,7 +650,7 @@ class DiscordAgentBot(commands.Bot):
                     embed = discord.Embed(
                         title=f"{period.title()} Audit Results",
                         description=str(audit_result)[:2000],
-                        color=self.agent_config['color'],
+                        color=self.interface_config['color'],
                         timestamp=datetime.now()
                     )
                     await ctx.send(embed=embed)
@@ -614,7 +666,7 @@ class DiscordAgentBot(commands.Bot):
                     embed = discord.Embed(
                         title="Learning Update",
                         description=learning_result[:2000],
-                        color=self.agent_config['color'],
+                        color=self.interface_config['color'],
                         timestamp=datetime.now()
                     )
                     await ctx.send(embed=embed)
@@ -643,11 +695,11 @@ class DiscordAgentBot(commands.Bot):
         try:
             if self.status_channel_id:
                 channel = self.get_channel(self.status_channel_id)
-                if channel:
+                if channel and isinstance(channel, discord.TextChannel):
                     status_info = await self.agent.get_status()
                     embed = discord.Embed(
                         title=f"{self.agent_name} Status Update",
-                        color=self.agent_config['color'],
+                        color=self.interface_config['color'],
                         timestamp=datetime.now()
                     )
 
@@ -693,7 +745,7 @@ class DiscordAgentBot(commands.Bot):
                     embed = discord.Embed(
                         title=f"{self.agent_name} Response",
                         description=str(response)[:2000],
-                        color=self.agent_config['color'],
+                        color=self.interface_config['color'],
                         timestamp=datetime.now()
                     )
                     await message.reply(embed=embed)
@@ -721,11 +773,11 @@ class DiscordAgentBot(commands.Bot):
 
             # Forward to all participating agents
             forwarded_count = 0
-            for bot in self.__class__._active_bots:
+            for bot in self.__class__._active_interfaces:
                 try:
                     if bot.status_channel_id:
                         channel = bot.get_channel(bot.status_channel_id)
-                        if channel:
+                        if channel and isinstance(channel, discord.TextChannel):
                             # Create agent-specific version
                             agent_embed = embed.copy()
                             agent_embed.title = f"💭 Human Debate Input - {message.author.display_name}"
@@ -779,15 +831,15 @@ class DiscordAgentBot(commands.Bot):
                     await poll_msg.add_reaction(option_emojis[i])
                 
                 # Notify agents of the poll
-                for bot in self.__class__._active_bots:
+                for bot in self.__class__._active_interfaces:
                     try:
                         if bot.status_channel_id:
                             channel = bot.get_channel(bot.status_channel_id)
-                            if channel:
+                            if channel and isinstance(channel, discord.TextChannel):
                                 agent_embed = discord.Embed(
                                     title="🗳️ Voting Poll Available",
                                     description=f"A voting poll has been created by {ctx.author.mention}",
-                                    color=bot.agent_config['color'],
+                                    color=bot.interface_config['color'],
                                     timestamp=datetime.now()
                                 )
                                 agent_embed.add_field(name="Proposal", value=proposal, inline=False)
@@ -836,16 +888,16 @@ class DiscordAgentBot(commands.Bot):
                 
                 # Notify relevant agents
                 notified_count = 0
-                for bot in self.__class__._active_bots:
+                for bot in self.__class__._active_interfaces:
                     if bot.agent_role in target_roles:
                         try:
                             if bot.status_channel_id:
                                 channel = bot.get_channel(bot.status_channel_id)
-                                if channel:
+                                if channel and isinstance(channel, discord.TextChannel):
                                     agent_embed = discord.Embed(
                                         title=f"🔍 {analysis_type.title()} Analysis Requested",
                                         description=f"Analysis request from {ctx.author.mention} in {ctx.channel.mention}",
-                                        color=bot.agent_config['color'],
+                                        color=bot.interface_config['color'],
                                         timestamp=datetime.now()
                                     )
                                     if details:
@@ -884,7 +936,7 @@ class DiscordAgentBot(commands.Bot):
                 embed = discord.Embed(
                     title="📊 Poll Created",
                     description=f"**Question:** {question}",
-                    color=self.agent_config['color'],
+                    color=self.interface_config['color'],
                     timestamp=datetime.now()
                 )
                 embed.set_author(name=ctx.author.display_name, icon_url=ctx.author.avatar.url if ctx.author.avatar else None)
@@ -899,7 +951,7 @@ class DiscordAgentBot(commands.Bot):
                 await ctx.send(embed=embed)
                 
                 # Notify all agents about the poll
-                for bot in self.__class__._active_bots:
+                for bot in self.__class__._active_interfaces:
                     try:
                         if bot.status_channel_id and bot != self:  # Don't notify ourselves
                             channel = bot.get_channel(bot.status_channel_id)
@@ -907,7 +959,7 @@ class DiscordAgentBot(commands.Bot):
                                 agent_embed = discord.Embed(
                                     title="📊 New Poll Available",
                                     description=f"A poll has been created by {ctx.author.mention} in {ctx.channel.mention}",
-                                    color=bot.agent_config['color'],
+                                    color=bot.interface_config['color'],
                                     timestamp=datetime.now()
                                 )
                                 agent_embed.add_field(name="Question", value=question, inline=False)
@@ -973,10 +1025,10 @@ class DiscordAgentBot(commands.Bot):
                 
                 # Agent status
                 healthy_agents = 0
-                total_agents = len(self.__class__._active_bots)
+                total_agents = len(self.__class__._active_interfaces)
                 
                 agent_statuses = []
-                for bot in self.__class__._active_bots:
+                for bot in self.__class__._active_interfaces:
                     try:
                         # Try to get agent status
                         status = await bot.agent.get_status()
@@ -1049,7 +1101,7 @@ class DiscordAgentBot(commands.Bot):
                 await ctx.send(embed=embed)
                 
                 # Notify all agents of emergency stop
-                for bot in self.__class__._active_bots:
+                for bot in self.__class__._active_interfaces:
                     try:
                         if bot.status_channel_id:
                             channel = bot.get_channel(bot.status_channel_id)
@@ -1074,15 +1126,15 @@ class DiscordAgentBot(commands.Bot):
                 await ctx.send(f"❌ Error executing emergency stop: {str(e)}")
 
 
-class DiscordAgentSystem:
+class DiscordInterfaceSystem:
     """
-    Manages multiple Discord agent bots.
-    Each agent runs as a separate bot instance.
+    System for managing multiple Discord bot interfaces.
+    Coordinates multiple agent interfaces and provides system-level commands.
     """
 
     def __init__(self):
         self.agents_config = self.load_config()
-        self.bots: List[DiscordAgentBot] = []
+        self.interfaces: List[DiscordBotInterface] = []
         self.agent_instances: Dict[str, BaseAgent] = {}
         
         # Initialize A2A protocol with Discord monitoring
@@ -1093,66 +1145,74 @@ class DiscordAgentSystem:
         """Load Discord agent configuration from environment variables"""
         try:
             # Load configuration from environment variables
+            agents_config = {
+                "macro": {
+                    "name": "Macro Analyst",
+                    "role": "macro",
+                    "token": os.getenv('DISCORD_MACRO_AGENT_TOKEN', 'YOUR_MACRO_BOT_TOKEN'),
+                    "color": 0x3498db,
+                    "status_channel_id": None,
+                    "command_prefix": "!m"
+                },
+                "data": {
+                    "name": "Data Collector",
+                    "role": "data",
+                    "token": os.getenv('DISCORD_DATA_AGENT_TOKEN', 'YOUR_DATA_BOT_TOKEN'),
+                    "color": 0x2ecc71,
+                    "status_channel_id": None,
+                    "command_prefix": "!d"
+                },
+                "strategy": {
+                    "name": "Strategy Advisor",
+                    "role": "strategy",
+                    "token": os.getenv('DISCORD_STRATEGY_AGENT_TOKEN', 'YOUR_STRATEGY_BOT_TOKEN'),
+                    "color": 0xe67e22,
+                    "status_channel_id": None,
+                    "command_prefix": "!s"
+                },
+                "reflection": {
+                    "name": "Reflection Agent",
+                    "role": "reflection",
+                    "token": os.getenv('DISCORD_REFLECTION_AGENT_TOKEN', 'YOUR_REFLECTION_BOT_TOKEN'),
+                    "color": 0x9b59b6,
+                    "status_channel_id": None,
+                    "command_prefix": "!ref"
+                },
+                "execution": {
+                    "name": "Trade Executor",
+                    "role": "execution",
+                    "token": os.getenv('DISCORD_EXECUTION_AGENT_TOKEN', 'YOUR_EXECUTION_BOT_TOKEN'),
+                    "color": 0x1abc9c,
+                    "status_channel_id": None,
+                    "command_prefix": "!exec"
+                }
+            }
+
+            # Conditionally add risk agent if token is available
+            if os.getenv('DISCORD_RISK_AGENT_TOKEN'):
+                agents_config["risk"] = {
+                    "name": "Risk Manager",
+                    "role": "risk",
+                    "token": os.getenv('DISCORD_RISK_AGENT_TOKEN'),
+                    "color": 0xe74c3c,
+                    "status_channel_id": None,
+                    "command_prefix": "!r"
+                }
+
+            # Conditionally add learning agent if token is available
+            if os.getenv('DISCORD_LEARNING_AGENT_TOKEN'):
+                agents_config["learning"] = {
+                    "name": "Learning Agent",
+                    "role": "learning",
+                    "token": os.getenv('DISCORD_LEARNING_AGENT_TOKEN'),
+                    "color": 0xf39c12,
+                    "status_channel_id": None,
+                    "command_prefix": "!l"
+                }
+
             config = {
                 "guild_id": os.getenv('DISCORD_GUILD_ID', 'YOUR_GUILD_ID'),
-                "agents": {
-                    "macro": {
-                        "name": "Macro Analyst",
-                        "role": "macro",
-                        "token": os.getenv('DISCORD_MACRO_AGENT_TOKEN', 'YOUR_MACRO_BOT_TOKEN'),
-                        "color": 0x3498db,
-                        "status_channel_id": None,
-                        "command_prefix": "!m"
-                    },
-                    "data": {
-                        "name": "Data Collector",
-                        "role": "data",
-                        "token": os.getenv('DISCORD_DATA_AGENT_TOKEN', 'YOUR_DATA_BOT_TOKEN'),
-                        "color": 0x2ecc71,
-                        "status_channel_id": None,
-                        "command_prefix": "!d"
-                    },
-                    "strategy": {
-                        "name": "Strategy Advisor",
-                        "role": "strategy",
-                        "token": os.getenv('DISCORD_STRATEGY_AGENT_TOKEN', 'YOUR_STRATEGY_BOT_TOKEN'),
-                        "color": 0xe67e22,
-                        "status_channel_id": None,
-                        "command_prefix": "!s"
-                    },
-                    "risk": {
-                        "name": "Risk Manager",
-                        "role": "risk",
-                        "token": os.getenv('DISCORD_RISK_AGENT_TOKEN', 'YOUR_RISK_BOT_TOKEN'),
-                        "color": 0xe74c3c,
-                        "status_channel_id": None,
-                        "command_prefix": "!r"
-                    },
-                    "reflection": {
-                        "name": "Reflection Agent",
-                        "role": "reflection",
-                        "token": os.getenv('DISCORD_REFLECTION_AGENT_TOKEN', 'YOUR_REFLECTION_BOT_TOKEN'),
-                        "color": 0x9b59b6,
-                        "status_channel_id": None,
-                        "command_prefix": "!ref"
-                    },
-                    "execution": {
-                        "name": "Trade Executor",
-                        "role": "execution",
-                        "token": os.getenv('DISCORD_EXECUTION_AGENT_TOKEN', 'YOUR_EXECUTION_BOT_TOKEN'),
-                        "color": 0x1abc9c,
-                        "status_channel_id": None,
-                        "command_prefix": "!exec"
-                    },
-                    "learning": {
-                        "name": "Learning Agent",
-                        "role": "learning",
-                        "token": os.getenv('DISCORD_LEARNING_AGENT_TOKEN', 'YOUR_LEARNING_BOT_TOKEN'),
-                        "color": 0xf39c12,
-                        "status_channel_id": None,
-                        "command_prefix": "!l"
-                    }
-                }
+                "agents": agents_config
             }
 
             logger.info("Loaded Discord configuration from environment variables")
@@ -1242,7 +1302,7 @@ class DiscordAgentSystem:
             'learning': LearningAgent
         }
 
-        for agent_key, agent_config in self.agents_config['agents'].items():
+        for agent_key, interface_config in self.agents_config['agents'].items():
             try:
                 agent_class = agent_classes.get(agent_key)
                 if agent_class:
@@ -1259,44 +1319,44 @@ class DiscordAgentSystem:
             except Exception as e:
                 logger.error(f"Failed to initialize {agent_key} agent: {str(e)}")
 
-    def create_bots(self):
-        """Create Discord bot instances for each agent"""
-        logger.info("Creating Discord bots...")
+    def create_interfaces(self):
+        """Create Discord bot interfaces for each agent"""
+        logger.info("Creating Discord bot interfaces...")
 
-        for agent_key, agent_config in self.agents_config['agents'].items():
+        for agent_key, interface_config in self.agents_config['agents'].items():
             try:
                 agent_instance = self.agent_instances.get(agent_key)
                 if agent_instance:
-                    bot = DiscordAgentBot(agent_instance, agent_config['token'], agent_config)
-                    self.bots.append(bot)
-                    logger.info(f"Created bot for {agent_key} agent")
+                    interface = DiscordBotInterface(agent_instance, interface_config['token'], interface_config)
+                    self.interfaces.append(interface)
+                    logger.info(f"Created interface for {agent_key} agent")
                 else:
                     logger.warning(f"No agent instance found for {agent_key}")
             except Exception as e:
-                logger.error(f"Failed to create bot for {agent_key}: {str(e)}")
+                logger.error(f"Failed to create interface for {agent_key}: {str(e)}")
 
-    async def start_bots(self):
-        """Start all Discord bots"""
-        logger.info("Starting Discord bots...")
+    async def start_interfaces(self):
+        """Start all Discord bot interfaces"""
+        logger.info("Starting Discord bot interfaces...")
 
         tasks = []
-        for bot in self.bots:
-            task = asyncio.create_task(bot.start(bot.agent_config['token']))
+        for interface in self.interfaces:
+            task = asyncio.create_task(interface.start(interface.interface_config['token']))
             tasks.append(task)
 
-        # Wait for all bots to start
+        # Wait for all interfaces to start
         await asyncio.gather(*tasks, return_exceptions=True)
-        logger.info("All Discord bots started")
+        logger.info("All Discord bot interfaces started")
 
     async def run(self):
-        """Run the Discord agent system"""
+        """Run the Discord interface system"""
         await self.initialize_agents()
-        self.create_bots()
+        self.create_interfaces()
         
         # Configure A2A protocol with Discord monitoring
-        if self.monitoring_channel_id and self.bots:
-            # Use the first bot for monitoring (they all have access to the same channels)
-            self.a2a_protocol.set_discord_monitoring(self.bots[0], self.monitoring_channel_id)
+        if self.monitoring_channel_id and self.interfaces:
+            # Use the first interface for monitoring (they all have access to the same channels)
+            self.a2a_protocol.set_discord_monitoring(self.interfaces[0], self.monitoring_channel_id)
             logger.info(f"A2A protocol configured with Discord monitoring on channel {self.monitoring_channel_id}")
         
         # Register agents with A2A protocol
@@ -1304,34 +1364,34 @@ class DiscordAgentSystem:
             self.a2a_protocol.register_agent(agent_key, agent_instance)
             logger.info(f"Registered {agent_key} agent with A2A protocol")
 
-        # Start all bots concurrently and let them run indefinitely
-        logger.info("Starting Discord bots concurrently...")
+        # Start all interfaces concurrently and let them run indefinitely
+        logger.info("Starting Discord bot interfaces concurrently...")
         
-        # Create tasks for all bots to start
+        # Create tasks for all interfaces to start
         tasks = []
-        for bot in self.bots:
-            task = asyncio.create_task(bot.start(bot.agent_config['token']))
+        for interface in self.interfaces:
+            task = asyncio.create_task(interface.start(interface.interface_config['token']))
             tasks.append(task)
-            logger.info(f"Created startup task for {bot.agent_config['name']}")
+            logger.info(f"Created startup task for {interface.interface_config['name']}")
 
-        # Let all bots run indefinitely - don't wait for completion
-        logger.info("All Discord bots are now running. Press Ctrl+C to stop.")
+        # Let all interfaces run indefinitely - don't wait for completion
+        logger.info("All Discord bot interfaces are now running. Press Ctrl+C to stop.")
         
         # Keep the event loop running forever
         try:
             while True:
                 await asyncio.sleep(1)  # Check every second for any issues
         except KeyboardInterrupt:
-            logger.info("Received shutdown signal, stopping bots...")
-            # Gracefully stop all bots
-            for bot in self.bots:
+            logger.info("Received shutdown signal, stopping interfaces...")
+            # Gracefully stop all interfaces
+            for interface in self.interfaces:
                 try:
-                    await bot.close()
-                    logger.info(f"Stopped {bot.agent_config['name']}")
+                    await interface.close()
+                    logger.info(f"Stopped {interface.interface_config['name']}")
                 except Exception as e:
-                    logger.error(f"Error stopping {bot.agent_config['name']}: {e}")
-            logger.info("All Discord bots have stopped")
+                    logger.error(f"Error stopping {interface.interface_config['name']}: {e}")
+            logger.info("All Discord bot interfaces have stopped")
 
 if __name__ == "__main__":
-    system = DiscordAgentSystem()
+    system = DiscordInterfaceSystem()
     asyncio.run(system.run())

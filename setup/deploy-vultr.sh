@@ -1,3 +1,10 @@
+# [LABEL:DEPLOY:vultr] [LABEL:SCRIPT:bash] [LABEL:INFRA:vps]
+# [LABEL:AUTHOR:system] [LABEL:UPDATED:2025-11-17] [LABEL:REVIEWED:pending]
+#
+# Purpose: Server-side deployment script for ABC Application on Vultr VPS
+# Dependencies: Ubuntu 22.04+, systemd, python3.11, redis
+# Related: setup/deploy-to-vultr.ps1, docs/IMPLEMENTATION/deployment.md
+#
 #!/bin/bash
 # ABC Application Deployment Script for Vultr VPS
 # This script sets up the ABC Application on a fresh Ubuntu VPS

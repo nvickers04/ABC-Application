@@ -1,3 +1,10 @@
+# [LABEL:TEST:config] [LABEL:FRAMEWORK:pytest] [LABEL:FRAMEWORK:pytest_asyncio]
+# [LABEL:AUTHOR:system] [LABEL:UPDATED:2025-11-17] [LABEL:REVIEWED:pending]
+#
+# Purpose: Pytest configuration and fixtures for unit test suite
+# Dependencies: pytest, pytest-asyncio
+# Related: unit-tests/*.py, pytest.ini
+#
 import pytest
 import asyncio
 import sys

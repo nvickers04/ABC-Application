@@ -1,3 +1,10 @@
+# [LABEL:TEST:reflection_agent] [LABEL:TEST:unit] [LABEL:FRAMEWORK:python]
+# [LABEL:AUTHOR:system] [LABEL:UPDATED:2025-11-17] [LABEL:REVIEWED:pending]
+#
+# Purpose: Unit tests for reflection agent tools and functionality
+# Dependencies: ReflectionAgent, src.agents.reflection
+# Related: src/agents/reflection.py, docs/AGENTS/main-agents/reflection-agent.md
+#
 #!/usr/bin/env python3
 """
 Test script for reflection agent tools

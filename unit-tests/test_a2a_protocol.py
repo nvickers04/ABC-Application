@@ -1,3 +1,10 @@
+# [LABEL:TEST:a2a_protocol] [LABEL:TEST:unit] [LABEL:FRAMEWORK:pytest] [LABEL:FRAMEWORK:asyncio]
+# [LABEL:AUTHOR:system] [LABEL:UPDATED:2025-11-17] [LABEL:REVIEWED:pending]
+#
+# Purpose: Comprehensive unit tests for A2A protocol message passing and orchestration
+# Dependencies: pytest, asyncio, unittest.mock, src.utils.a2a_protocol
+# Related: src/utils/a2a_protocol.py, docs/FRAMEWORKS/a2a-protocol.md
+#
 #!/usr/bin/env python3
 """
 Unit tests for A2A (Agent-to-Agent) protocol functionality.

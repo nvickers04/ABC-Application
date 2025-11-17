@@ -1,3 +1,10 @@
+# [LABEL:DOC:framework] [LABEL:DOC:topic:langchain] [LABEL:DOC:audience:developer]
+# [LABEL:AUTHOR:system] [LABEL:UPDATED:2025-11-17] [LABEL:REVIEWED:pending]
+#
+# Purpose: Comprehensive guide to Langchain integration across the AI portfolio management system
+# Dependencies: Langchain, LangGraph, Grok API, memory systems
+# Related: docs/FRAMEWORKS/, src/agents/base.py, base_prompt.txt
+#
 # Langchain Integration
 # Centralized document for all Langchain-related details, consolidated from repeated mentions across project files (e.g., agents, architecture, resources). This avoids bloat and ensures modularity for code gen. Focus: Agents as ReAct/custom with prompts "telling" behaviors (well-informed via tools/memory queries, self-improving via batch reflections/adjustments, decisive with ROI heuristics/escalations/overrides); LangGraph for flows/loops/hubs; memory for persistence/changelogs/batches.
 # Reasoning: Enhances agent autonomy, making them adaptive decision-makers; backs funding with traceable chains (e.g., "ReAct step referenced tool for +10% edge"); reduces variances ~15% via experiential reflections. Criticizing bulletproof: Clear, self-contained—legacy readability for audits; could add diagram stubs for VS Code previews.

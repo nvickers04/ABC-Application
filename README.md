@@ -77,6 +77,27 @@ For comprehensive documentation of the ABC-Application system, see the [`docs/`]
 - `examples/`: Simulation and demo scripts.
 - `data/`: Data files, logs, cache, and models.
 
+## Development Resources
+
+### 📋 **Development Guidelines**
+- **[AI Development Instructions](./AI_DEVELOPMENT_INSTRUCTIONS.md)**: Comprehensive guide for getting better output from Grok Code Fast 1
+- **[File Organization Guide](./FILE_ORGANIZATION_GUIDE.md)**: Standards for file placement and project structure
+- **[Documentation Coherence Guide](./DOCUMENTATION_COHERENCE_GUIDE.md)**: Maintaining alignment between .md files and code
+
+### 🗂️ **Project Organization**
+- **Source Code**: `src/` directory (agents, utils, workflows)
+- **Documentation**: `docs/` directory (architecture, agents, frameworks, implementation)
+- **Configuration**: `config/` directory (YAML configs, environment settings)
+- **Tests**: `unit-tests/` and `integration-tests/` directories
+- **Tools**: `tools/` directory (utilities, monitoring, deployment scripts)
+- **Simulations**: `simulations/` directory (backtesting and analysis scripts)
+
+### 📚 **Key Documentation Files**
+- **[System Architecture](./docs/architecture.md)**: Complete system design and data flows
+- **[Agent Framework](./docs/ai-reasoning-agent-collaboration.md)**: Multi-agent reasoning architecture
+- **[Macro-Micro Framework](./docs/macro-micro-analysis-framework.md)**: Analysis methodology
+- **[Production Checklist](./docs/production_readiness_checklist.md)**: Deployment and security requirements
+
 ## Current Status
 - **Implemented**: Full agent framework with LLM integration, collaborative memory systems, and enhanced strategy subagents. IBKR integration with LangChain tools for unified trading interface. IBKR historical data provider for professional-grade backtesting. API health monitoring system with automated checks, circuit breaker integration, and real-time dashboard. Modular tools architecture with specialized modules for better code organization and maintainability. Comprehensive error handling with input validation, circuit breakers, and graceful degradation.
 - **Testing**: Comprehensive test suite for subagents, memory systems, bridge integration, API health monitoring, and historical data providers. System robustness validated through comprehensive audit and fixes.
