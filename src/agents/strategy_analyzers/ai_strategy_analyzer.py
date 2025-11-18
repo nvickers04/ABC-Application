@@ -1,6 +1,6 @@
-# src/agents/strategy_subs/ml_strategy_sub.py
-# Comprehensive ML Strategy Subagent implementing full specification
-# Advanced machine learning models, feature engineering, model training, and signal generation
+# src/agents/strategy_analyzers/ai_strategy_analyzer.py
+# Comprehensive AI Strategy Analyzer implementing full specification
+# Advanced AI models, feature engineering, model training, and signal generation
 
 import sys
 from pathlib import Path
@@ -25,8 +25,8 @@ from src.utils.redis_cache import get_redis_cache_manager, cache_get, cache_set,
 logger = logging.getLogger(__name__)
 
 @dataclass
-class MLMemory:
-    """Collaborative memory for ML models and insights."""
+class AIMemory:
+    """Collaborative memory for AI models and insights."""
     model_performance: Dict[str, Any] = field(default_factory=dict)
     feature_importance: Dict[str, Any] = field(default_factory=dict)
     prediction_history: List[Dict[str, Any]] = field(default_factory=list)
@@ -36,36 +36,36 @@ class MLMemory:
     session_insights: List[Dict[str, Any]] = field(default_factory=list)
 
     def add_session_insight(self, insight: Dict[str, Any]):
-        """Add ML insight to session memory."""
+        """Add AI insight to session memory."""
         self.session_insights.append({
             **insight,
             'timestamp': datetime.now().isoformat()
         })
 
     def get_recent_insights(self, limit: int = 10) -> List[Dict[str, Any]]:
-        """Get recent ML insights."""
+        """Get recent AI insights."""
         return self.session_insights[-limit:]
 
-class MLStrategyAnalyzer(BaseAgent):
+class AIStrategyAnalyzer(BaseAgent):
     """
-    Comprehensive ML Strategy Analyzer implementing full specification.
-    Advanced machine learning models, feature engineering, model training, and signal generation.
+    Comprehensive AI Strategy Analyzer implementing full specification.
+    Advanced AI models, feature engineering, model training, and signal generation.
     """
 
     def __init__(self):
         config_paths = {'risk': 'config/risk-constraints.yaml'}  # Relative to root.
         prompt_paths = {'base': 'base_prompt.txt', 'role': 'agents/strategy-agent-prompt.md'}  # Relative to root.
-        tools = []  # MLStrategyAnalyzer uses internal methods instead of tools
-        super().__init__(role='ml_strategy', config_paths=config_paths, prompt_paths=prompt_paths, tools=tools)
+        tools = []  # AIStrategyAnalyzer uses internal methods instead of tools
+        super().__init__(role='ai_strategy', config_paths=config_paths, prompt_paths=prompt_paths, tools=tools)
 
         # Initialize Redis cache manager
         self.redis_cache = get_redis_cache_manager()
-        self.cache_ttl = 1800  # 30 minutes TTL for ML data
+        self.cache_ttl = 1800  # 30 minutes TTL for AI data
 
         # Initialize collaborative memory
-        self.memory = MLMemory()
+        self.memory = AIMemory()
 
-        # ML model configurations
+        # AI model configurations
         self.model_configs = {
             'trend_model': {
                 'type': 'classification',
@@ -111,7 +111,7 @@ class MLStrategyAnalyzer(BaseAgent):
         """
         Reflect on batch adjustments for self-improvement.
         """
-        logger.info(f"ML Reflecting on adjustments: {adjustments}")
+        logger.info(f"AI Reflecting on adjustments: {adjustments}")
         return {}
 
     async def process_input(self, input_data: Dict[str, Any] = None) -> Dict[str, Any]:

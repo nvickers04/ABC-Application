@@ -42,6 +42,10 @@ Python 3.11+
 pip 23.0+
 virtualenv 20.0+
 
+# Security and Secrets Management
+hvac>=2.0.0,<3.0.0        # HashiCorp Vault client
+cryptography>=46.0.0,<47.0 # Encryption support
+
 # System Tools
 Redis 7.0+
 PostgreSQL 15+
@@ -101,14 +105,65 @@ sudo -u postgres psql -c "CREATE USER grok_user WITH PASSWORD 'secure_password';
 sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE grok_ibkr TO grok_user;"
 ```
 
-#### 4. IBKR Integration Setup
+#### 4. HashiCorp Vault Setup (Security Critical)
 ```bash
-# Install IBKR TWS or Gateway
-# Download from: https://www.ibkr.com/support/doc-viewer?docid=4625
+# Download Vault for Windows
+# From: https://developer.hashicorp.com/vault/downloads
+# Extract to C:\vault\
 
-# Configure API connections
-cp config/ibkr_config.ini.example config/ibkr_config.ini
-# Edit ibkr_config.ini with your credentials and settings
+# Create Vault configuration
+New-Item -ItemType Directory -Path vault-data -Force
+@"
+storage "file" {
+  path = "./vault-data"
+}
+
+listener "tcp" {
+  address = "127.0.0.1:8200"
+  tls_disable = "true"  # Enable TLS in production
+}
+
+api_addr = "http://127.0.0.1:8200"
+cluster_addr = "https://127.0.0.1:8201"
+"@ | Out-File -FilePath vault-config.hcl -Encoding UTF8
+
+# Start Vault in development mode
+C:\vault\vault.exe server -dev -config=vault-config.hcl
+
+# In another terminal, set environment and initialize
+$env:VAULT_ADDR = "http://127.0.0.1:8200"
+$env:VAULT_TOKEN = "dev-token-from-startup-output"
+
+# Enable KV v2 secrets engine
+vault secrets enable -path=secret kv-v2
+
+# Import existing secrets (run the import script)
+python tools/import_env_to_vault.py
+```
+
+#### 5. Redis Security Configuration
+```bash
+# Install Redis for Windows
+# Download from: https://redis.io/download
+# Or use chocolatey: choco install redis-64
+
+# Configure Redis security
+# Edit redis.windows.conf
+@"
+bind 127.0.0.1
+port 6379
+requirepass SecureRedisPass2025!
+maxmemory 256mb
+maxmemory-policy allkeys-lru
+
+# Disable dangerous commands
+rename-command FLUSHDB ""
+rename-command FLUSHALL ""
+rename-command SHUTDOWN SHUTDOWN_REDIS
+"@ | Out-File -FilePath redis\redis.windows.conf -Encoding UTF8
+
+# Start Redis with config
+redis-server.exe redis\redis.windows.conf
 ```
 
 ### Production Environment
@@ -274,20 +329,35 @@ compliance:
 
 ### Environment Variables
 ```bash
-# .env file
+# .env file (to be imported to Vault)
 # Database
 DATABASE_URL=postgresql://grok_user:secure_password@localhost/grok_ibkr
 REDIS_URL=redis://localhost:6379
+REDIS_PASSWORD=SecureRedisPass2025!
+
+# HashiCorp Vault
+VAULT_ADDR=http://127.0.0.1:8200
+VAULT_TOKEN=your_vault_token_here
 
 # IBKR API
 IBKR_HOST=127.0.0.1
 IBKR_PORT=7497
 IBKR_CLIENT_ID=1
 
-# API Keys (use secret management in production)
+# API Keys (will be migrated to Vault)
 ALPHA_VANTAGE_API_KEY=your_alpha_vantage_key
 NEWSAPI_KEY=your_newsapi_key
 TWITTER_BEARER_TOKEN=your_twitter_token
+
+# Discord Bot Tokens (will be migrated to Vault)
+DISCORD_ORCHESTRATOR_TOKEN=your_orchestrator_token
+DISCORD_DATA_AGENT_TOKEN=your_data_agent_token
+DISCORD_STRATEGY_AGENT_TOKEN=your_strategy_agent_token
+DISCORD_RISK_AGENT_TOKEN=your_risk_agent_token
+DISCORD_EXECUTION_AGENT_TOKEN=your_execution_agent_token
+DISCORD_REFLECTION_AGENT_TOKEN=your_reflection_agent_token
+DISCORD_MACRO_AGENT_TOKEN=your_macro_agent_token
+GUILD_ID=your_discord_guild_id
 
 # System
 LOG_LEVEL=INFO
@@ -857,8 +927,51 @@ make verify-deployment
 make cleanup-old-version
 ```
 
-This implementation guide provides the foundation for deploying and maintaining the ABC Application system. Regular updates and monitoring are essential for optimal performance and reliability.
+## Security Validation and Testing
 
----
+### Post-Setup Security Checks
+```bash
+# 1. Verify Vault connectivity
+python -c "
+from src.utils.vault_client import get_vault_secret
+try:
+    token = get_vault_secret('DISCORD_ORCHESTRATOR_TOKEN')
+    print('✓ Vault connection successful')
+except Exception as e:
+    print(f'✗ Vault connection failed: {e}')
+"
 
-*For specific agent implementation details, see the AGENTS/ documentation. For API reference, see REFERENCE/api-reference.md.*
+# 2. Test Redis authentication
+python -c "
+import redis
+r = redis.Redis(host='127.0.0.1', port=6379, password='SecureRedisPass2025!')
+try:
+    r.ping()
+    print('✓ Redis authentication successful')
+except Exception as e:
+    print(f'✗ Redis authentication failed: {e}')
+"
+
+# 3. Run security-focused unit tests
+python -m pytest unit-tests/ -k "vault or redis or security" -v
+```
+
+### Security Migration Verification
+After completing the security hardening:
+
+1. **Confirm no hardcoded secrets** in source code
+2. **Verify Vault stores all sensitive credentials**
+3. **Test Redis requires authentication**
+4. **Run integration tests** with secure configurations
+5. **Validate error handling** for connection failures
+
+### Production Security Checklist
+- [ ] Vault running with proper TLS configuration
+- [ ] Redis bound to localhost with authentication
+- [ ] All API keys migrated to Vault
+- [ ] Environment variables encrypted or removed
+- [ ] Firewall configured to restrict access
+- [ ] SSH hardened (key-based auth only)
+- [ ] Regular security updates scheduled
+- [ ] Audit logging enabled
+- [ ] Backup encryption configured

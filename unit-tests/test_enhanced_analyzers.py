@@ -25,8 +25,8 @@ async def test_basic_functionality():
         from src.agents.strategy_analyzers.flow_strategy_analyzer import FlowStrategyAnalyzer
         print("✅ FlowStrategyAnalyzer imported successfully")
 
-        from src.agents.strategy_analyzers.ml_strategy_analyzer import MLStrategyAnalyzer
-        print("✅ MLStrategyAnalyzer imported successfully")
+        from src.agents.strategy_analyzers.ai_strategy_analyzer import AIStrategyAnalyzer
+        print("✅ AIStrategyAnalyzer imported successfully")
 
         # Test basic instantiation (without LLM calls)
         print("\nTesting basic instantiation...")
@@ -38,18 +38,18 @@ async def test_basic_functionality():
         flow_agent = FlowStrategyAnalyzer()
         print("✅ FlowStrategyAnalyzer instantiated")
 
-        ml_agent = MLStrategyAnalyzer()
-        print("✅ MLStrategyAnalyzer instantiated")
+        ai_agent = AIStrategyAnalyzer()
+        print("✅ AIStrategyAnalyzer instantiated")
 
         # Test basic attributes
         print(f"\nOptions agent role: {options_agent.role}")
         print(f"Flow agent role: {flow_agent.role}")
-        print(f"ML agent role: {ml_agent.role}")
+        print(f"AI agent role: {ai_agent.role}")
 
         # Test collaborative memory initialization
         print(f"\nOptions analyzer memory initialized: {hasattr(options_agent, 'analyzer_memory')}")
         print(f"Flow analyzer memory initialized: {hasattr(flow_agent, 'analyzer_memory')}")
-        print(f"ML analyzer memory initialized: {hasattr(ml_agent, 'analyzer_memory')}")
+        print(f"AI analyzer memory initialized: {hasattr(ai_agent, 'analyzer_memory')}")
 
         print("\n" + "=" * 60)
         print("✅ Basic functionality test passed!")

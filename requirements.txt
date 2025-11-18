@@ -64,3 +64,6 @@ langchain-google-genai>=1.0.0,<4.0  # For Google Gemini integration with LangCha
 mem0ai>=0.1.0,<1.0  # For Mem0 AI memory system; latest stable
 newsdataapi>=0.1.0,<1.0  # For NewsData.io API news backup
 financialmodelingprep>=0.0.1,<1.0  # For Financial Modeling Prep API backup
+
+# Security and Vault Integration
+hvac>=2.0.0,<3.0  # For HashiCorp Vault client integration; latest stable is 2.x

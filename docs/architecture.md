@@ -288,9 +288,33 @@ The system integrates with Discord to enable real-time human participation in ag
 ## Security and Compliance
 
 ### Data Security
-- **API Key Management**: Secure credential storage and rotation
+- **API Key Management**: Secure credential storage and rotation via HashiCorp Vault
 - **Data Encryption**: Encrypted communication channels
 - **Access Controls**: Role-based permissions for system components
+
+### Secret Management with HashiCorp Vault
+The system integrates HashiCorp Vault for secure secrets management:
+
+#### Vault Architecture
+- **KV v2 Engine**: Stores API keys, tokens, and sensitive configuration
+- **Token Authentication**: Application authenticates with Vault using tokens
+- **Path-based Secrets**: Organized secrets by component (Discord, IBKR, APIs)
+- **Automatic Rotation**: Secrets can be rotated without code changes
+
+#### Vault Integration Points
+```python
+# Example: Secure secret retrieval
+from src.utils.vault_client import get_vault_secret
+
+# Retrieve Discord bot token securely
+token = get_vault_secret('DISCORD_ORCHESTRATOR_TOKEN')
+```
+
+#### Redis Security
+- **Authentication**: Requirepass enabled for Redis connections
+- **Local Binding**: Redis bound to 127.0.0.1 to prevent external access
+- **Connection Pooling**: Managed connections with authentication
+- **Data Encryption**: Sensitive cached data encrypted at rest
 
 ### Regulatory Compliance
 - **Audit Logging**: Complete transaction and decision trails

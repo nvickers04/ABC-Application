@@ -19,10 +19,10 @@ import numpy as np  # For fallback calculations.
 import pandas as pd  # For DataFrame input from Data Agent (A2A handoff).
 
 # Lazy imports for heavy dependencies to avoid startup failures
-_options_sub = None
-_flow_sub = None
-_ml_sub = None
-_multi_instrument_sub = None
+_options_analyzer = None
+_flow_analyzer = None
+_ai_analyzer = None
+_multi_instrument_analyzer = None
 _pyramiding_engine = None
 _realtime_monitor = None
 _backtrader_engine = None
@@ -32,49 +32,49 @@ _options_greeks_calc_tool = None
 _flow_alpha_calc_tool = None
 _qlib_ml_refine_tool = None
 
-def _get_options_strategy_sub():
-    global _options_sub
-    if _options_sub is None:
+def _get_options_analyzer():
+    global _options_analyzer
+    if _options_analyzer is None:
         try:
             from src.agents.strategy_analyzers.options_strategy_analyzer import OptionsStrategyAnalyzer
-            _options_sub = OptionsStrategyAnalyzer()
+            _options_analyzer = OptionsStrategyAnalyzer()
         except ImportError as e:
             logger.warning(f"Failed to import OptionsStrategyAnalyzer: {e}")
-            _options_sub = None
-    return _options_sub
+            _options_analyzer = None
+    return _options_analyzer
 
-def _get_flow_strategy_sub():
-    global _flow_sub
-    if _flow_sub is None:
+def _get_flow_analyzer():
+    global _flow_analyzer
+    if _flow_analyzer is None:
         try:
             from src.agents.strategy_analyzers.flow_strategy_analyzer import FlowStrategyAnalyzer
-            _flow_sub = FlowStrategyAnalyzer()
+            _flow_analyzer = FlowStrategyAnalyzer()
         except ImportError as e:
             logger.warning(f"Failed to import FlowStrategyAnalyzer: {e}")
-            _flow_sub = None
-    return _flow_sub
+            _flow_analyzer = None
+    return _flow_analyzer
 
-def _get_ml_strategy_sub():
-    global _ml_sub
-    if _ml_sub is None:
+def _get_ai_analyzer():
+    global _ai_analyzer
+    if _ai_analyzer is None:
         try:
-            from src.agents.strategy_analyzers.ml_strategy_analyzer import MLStrategyAnalyzer
-            _ml_sub = MLStrategyAnalyzer()
+            from src.agents.strategy_analyzers.ai_strategy_analyzer import AIStrategyAnalyzer
+            _ai_analyzer = AIStrategyAnalyzer()
         except ImportError as e:
-            logger.warning(f"Failed to import MLStrategyAnalyzer: {e}")
-            _ml_sub = None
-    return _ml_sub
+            logger.warning(f"Failed to import AIStrategyAnalyzer: {e}")
+            _ai_analyzer = None
+    return _ai_analyzer
 
-def _get_multi_instrument_strategy_sub():
-    global _multi_instrument_sub
-    if _multi_instrument_sub is None:
+def _get_multi_instrument_analyzer():
+    global _multi_instrument_analyzer
+    if _multi_instrument_analyzer is None:
         try:
             from src.agents.strategy_analyzers.multi_instrument_strategy_analyzer import MultiInstrumentStrategyAnalyzer
-            _multi_instrument_sub = MultiInstrumentStrategyAnalyzer()
+            _multi_instrument_analyzer = MultiInstrumentStrategyAnalyzer()
         except ImportError as e:
             logger.warning(f"Failed to import MultiInstrumentStrategyAnalyzer: {e}")
-            _multi_instrument_sub = None
-    return _multi_instrument_sub
+            _multi_instrument_analyzer = None
+    return _multi_instrument_analyzer
 
 def _get_pyramiding_engine():
     global _pyramiding_engine
@@ -185,39 +185,39 @@ class StrategyAgent(BaseAgent):
         prompt_paths = {'base': 'base_prompt.txt', 'role': 'docs/AGENTS/main-agents/strategy-agent.md'}  # Relative to root.
         super().__init__(role='strategy', config_paths=config_paths, prompt_paths=prompt_paths, a2a_protocol=a2a_protocol)
         
-        # Initialize strategy subagents with lazy loading
-        self.options_sub = None
-        self.flow_sub = None
-        self.ml_sub = None
-        self.multi_instrument_sub = None
+        # Initialize strategy analyzers with lazy loading
+        self.options_analyzer = None
+        self.flow_analyzer = None
+        self.ai_analyzer = None
+        self.multi_instrument_analyzer = None
         
         try:
-            self.options_sub = _get_options_strategy_sub()
-            if self.options_sub:
+            self.options_analyzer = _get_options_analyzer()
+            if self.options_analyzer:
                 logger.info("OptionsStrategyAnalyzer initialized")
         except Exception as e:
             logger.error(f"Failed to initialize OptionsStrategyAnalyzer: {e}")
             raise
         
         try:
-            self.flow_sub = _get_flow_strategy_sub()
-            if self.flow_sub:
+            self.flow_analyzer = _get_flow_analyzer()
+            if self.flow_analyzer:
                 logger.info("FlowStrategyAnalyzer initialized")
         except Exception as e:
             logger.error(f"Failed to initialize FlowStrategyAnalyzer: {e}")
             raise
             
         try:
-            self.ml_sub = _get_ml_strategy_sub()
-            if self.ml_sub:
-                logger.info("MLStrategyAnalyzer initialized")
+            self.ai_analyzer = _get_ai_analyzer()
+            if self.ai_analyzer:
+                logger.info("AIStrategyAnalyzer initialized")
         except Exception as e:
-            logger.error(f"Failed to initialize MLStrategyAnalyzer: {e}")
+            logger.error(f"Failed to initialize AIStrategyAnalyzer: {e}")
             raise
         
         try:
-            self.multi_instrument_sub = _get_multi_instrument_strategy_sub()
-            if self.multi_instrument_sub:
+            self.multi_instrument_analyzer = _get_multi_instrument_analyzer()
+            if self.multi_instrument_analyzer:
                 logger.info("MultiInstrumentStrategyAnalyzer initialized")
         except Exception as e:
             logger.error(f"Failed to initialize MultiInstrumentStrategyAnalyzer: {e}")
@@ -317,15 +317,15 @@ class StrategyAgent(BaseAgent):
         processed_input['institutional'] = institutional
         processed_input['symbols'] = symbols
         
-        # Call subagents asynchronously
-        options_task = self.options_sub.process_input(processed_input)
-        flow_task = self.flow_sub.process_input(processed_input)
-        ml_task = self.ml_sub.process_input(processed_input)
-        multi_instrument_task = self.multi_instrument_sub.process_input(processed_input)
+        # Call analyzers asynchronously
+        options_task = self.options_analyzer.process_input(processed_input)
+        flow_task = self.flow_analyzer.process_input(processed_input)
+        ai_task = self.ai_analyzer.process_input(processed_input)
+        multi_instrument_task = self.multi_instrument_analyzer.process_input(processed_input)
         
         # Gather results
-        options_result, flow_result, ml_result, multi_instrument_result = await asyncio.gather(
-            options_task, flow_task, ml_task, multi_instrument_task
+        options_result, flow_result, ai_result, multi_instrument_result = await asyncio.gather(
+            options_task, flow_task, ai_task, multi_instrument_task
         )
         
         # Combine proposals
@@ -334,8 +334,8 @@ class StrategyAgent(BaseAgent):
             proposals['options'] = options_result['options']
         if flow_result.get('flow'):
             proposals['flow'] = flow_result['flow']
-        if ml_result.get('ml'):
-            proposals['ml'] = ml_result['ml']
+        if ai_result.get('ai'):
+            proposals['ai'] = ai_result['ai']
         if multi_instrument_result.get('multi_instrument'):
             proposals['multi_instrument'] = multi_instrument_result['multi_instrument']
         
@@ -1130,7 +1130,7 @@ Provide a clear recommendation with the selected strategy type and detailed rati
                 # Strategy agents (3)
                 "options_strategy": "Options strategy generation",
                 "flow_strategy": "Flow-based strategy generation",
-                "ml_strategy": "Machine learning strategy generation",
+                "ai_strategy": "AI strategy generation",
 
                 # Core agents (4)
                 "risk": "Risk assessment and management",
@@ -1369,7 +1369,7 @@ Format each proposal clearly with headers like "TRADE PROPOSAL 1:", "TRADE PROPO
         """Extract strategy recommendations from agent contributions."""
         recommendations = []
 
-        strategy_agents = ['options_strategy', 'flow_strategy', 'ml_strategy']
+        strategy_agents = ['options_strategy', 'flow_strategy', 'ai_strategy']
         for agent in strategy_agents:
             if agent in coordination_results:
                 analysis = coordination_results[agent].get('analysis', '')
@@ -1385,16 +1385,16 @@ Format each proposal clearly with headers like "TRADE PROPOSAL 1:", "TRADE PROPO
     async def _fallback_market_analysis(self, market_data: Dict[str, Any]) -> Dict[str, Any]:
         """Fallback market analysis when coordination fails."""
         try:
-            # Use individual subagents for analysis
-            options_result = await self.options_sub.process_input(market_data)
-            flow_result = await self.flow_sub.process_input(market_data)
-            ml_result = await self.ml_sub.process_input(market_data)
+            # Use individual analyzers for analysis
+            options_result = await self.options_analyzer.process_input(market_data)
+            flow_result = await self.flow_analyzer.process_input(market_data)
+            ai_result = await self.ai_analyzer.process_input(market_data)
 
             return {
                 "market_analysis": "Fallback analysis using individual subagents",
                 "options_analysis": options_result.get('options', {}),
                 "flow_analysis": flow_result.get('flow', {}),
-                "ml_analysis": ml_result.get('ml', {}),
+                "ai_analysis": ai_result.get('ai', {}),
                 "analysis_method": "fallback_individual_subagents",
                 "timestamp": datetime.datetime.now().isoformat()
             }
@@ -1455,7 +1455,7 @@ Format each proposal clearly with headers like "TRADE PROPOSAL 1:", "TRADE PROPO
             signals.extend(collaborative_signals)
 
             # Also process individual strategy agent recommendations as backup
-            strategy_agents = ['options_strategy', 'flow_strategy', 'ml_strategy']
+            strategy_agents = ['options_strategy', 'flow_strategy', 'ai_strategy']
             for agent_key in strategy_agents:
                 if agent_key in coordination_results:
                     agent_result = coordination_results[agent_key]

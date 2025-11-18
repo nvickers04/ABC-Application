@@ -152,17 +152,17 @@ class TestStrategyAgent:
         assert strategy_agent.role == "strategy"
         assert hasattr(strategy_agent, 'tools')
 
-    @patch('src.agents.strategy._get_options_strategy_sub')
-    @patch('src.agents.strategy._get_flow_strategy_sub')
-    @patch('src.agents.strategy._get_ml_strategy_sub')
-    def test_subagent_access(self, mock_ml, mock_flow, mock_options, strategy_agent):
+    @patch('src.agents.strategy._get_options_analyzer')
+    @patch('src.agents.strategy._get_flow_analyzer')
+    @patch('src.agents.strategy._get_ai_analyzer')
+    def test_subagent_access(self, mock_ai, mock_flow, mock_options, strategy_agent):
         """Test strategy subagent access."""
         mock_options.return_value = Mock()
         mock_flow.return_value = Mock()
-        mock_ml.return_value = Mock()
+        mock_ai.return_value = Mock()
 
         # Test lazy loading of subagents
-        options_sub = strategy_agent._get_options_strategy_sub()
+        options_sub = strategy_agent._get_options_analyzer()
         assert options_sub is not None
 
     @pytest.mark.asyncio

@@ -44,9 +44,119 @@ print('Environment encrypted. Delete .env and store .env.key securely!')
 - Hardware Security Module (HSM)
 - AWS Secrets Manager
 - Azure Key Vault
-- HashiCorp Vault
+- **HashiCorp Vault** (Recommended for this system)
 
-### **2. Database Security**
+### **2. HashiCorp Vault Setup for Secrets Management**
+**New Security Layer**: Implemented Vault integration for all sensitive credentials
+
+**Vault Setup Steps:**
+```bash
+# 1. Download and install Vault
+# Windows: Download from https://developer.hashicorp.com/vault/downloads
+# Extract to C:\vault\
+
+# 2. Create Vault configuration
+cat > vault-config.hcl << EOF
+storage "file" {
+  path = "./vault-data"
+}
+
+listener "tcp" {
+  address = "127.0.0.1:8200"
+  tls_disable = "true"  # Use proper TLS in production
+}
+
+api_addr = "http://127.0.0.1:8200"
+cluster_addr = "https://127.0.0.1:8201"
+EOF
+
+# 3. Start Vault in development mode (for testing)
+vault server -dev -config=vault-config.hcl
+
+# 4. Set environment variable
+$env:VAULT_ADDR = "http://127.0.0.1:8200"
+$env:VAULT_TOKEN = "dev-token"  # From Vault startup output
+
+# 5. Enable KV v2 secrets engine
+vault secrets enable -path=secret kv-v2
+
+# 6. Store secrets
+vault kv put secret/discord DISCORD_ORCHESTRATOR_TOKEN="your_token_here"
+vault kv put secret/ibkr IBKR_API_KEY="your_key_here"
+```
+
+**Code Integration:**
+```python
+# src/utils/vault_client.py - New secure client
+import hvac
+import os
+import time
+
+class VaultClient:
+    def __init__(self):
+        self.client = hvac.Client(
+            url=os.getenv('VAULT_ADDR', 'http://127.0.0.1:8200'),
+            token=os.getenv('VAULT_TOKEN')
+        )
+        self._authenticate()
+
+    def _authenticate(self):
+        if not self.client.is_authenticated():
+            raise Exception("Vault authentication failed")
+
+    def get_secret(self, path: str) -> str:
+        try:
+            response = self.client.secrets.kv.v2.read_secret_version(path=path)
+            return response['data']['data']
+        except Exception as e:
+            logger.error(f"Failed to retrieve secret {path}: {e}")
+            raise
+
+vault_client = VaultClient()
+
+def get_vault_secret(key: str) -> str:
+    """Secure secret retrieval function"""
+    return vault_client.get_secret(f"secret/{key}")
+```
+
+### **3. Redis Security Hardening**
+**New Security**: Redis now requires authentication and is bound locally
+
+**Redis Security Configuration:**
+```ini
+# redis.windows.conf - Updated security settings
+bind 127.0.0.1
+port 6379
+requirepass SecureRedisPass2025!
+maxmemory 256mb
+maxmemory-policy allkeys-lru
+
+# Disable dangerous commands
+rename-command FLUSHDB ""
+rename-command FLUSHALL ""
+rename-command SHUTDOWN SHUTDOWN_REDIS
+```
+
+**Redis Client Configuration:**
+```python
+# src/utils/redis_cache.py - Secure Redis client
+import redis
+import os
+
+def get_redis_client():
+    return redis.Redis(
+        host='127.0.0.1',
+        port=6379,
+        password=os.getenv('REDIS_PASSWORD', 'SecureRedisPass2025!'),
+        decode_responses=True,
+        socket_connect_timeout=5,
+        socket_timeout=5,
+        retry_on_timeout=True,
+        max_connections=20
+    )
+```
+
+### **4. Database Security**
 **Current Issue**: Plain text passwords in scripts
 
 **Immediate Fix:**

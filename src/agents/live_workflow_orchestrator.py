@@ -41,6 +41,7 @@ except ImportError as e:
     ExecutionAgent = None
     LearningAgent = None
 from src.utils.a2a_protocol import A2AProtocol
+from src.utils.vault_client import get_vault_secret
 
 load_dotenv()
 
@@ -608,7 +609,7 @@ class LiveWorkflowOrchestrator:
             elif self.workflow_active and not message.author.bot:
                 await self.handle_human_intervention(message)
 
-        token = os.getenv('DISCORD_ORCHESTRATOR_TOKEN')
+        token = get_vault_secret('DISCORD_ORCHESTRATOR_TOKEN')
         if not token:
             raise ValueError("❌ DISCORD_ORCHESTRATOR_TOKEN not found. Please create a separate Discord bot for the orchestrator.")
 
@@ -902,7 +903,7 @@ class LiveWorkflowOrchestrator:
                 await self.initialize_agents_async()
                 print(f"✅ Agent initialization complete: {len(self.agent_instances)} agents ready")
                 
-                token = os.getenv('DISCORD_ORCHESTRATOR_TOKEN')
+                token = get_vault_secret('DISCORD_ORCHESTRATOR_TOKEN')
                 if not token:
                     raise ValueError("❌ DISCORD_ORCHESTRATOR_TOKEN not found")
                 if not self.client:

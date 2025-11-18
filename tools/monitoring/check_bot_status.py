@@ -2,10 +2,11 @@ import discord
 import asyncio
 import os
 from dotenv import load_dotenv
+from src.utils.vault_client import get_vault_secret
 
 load_dotenv()
 
-GUILD_ID = int(os.getenv('DISCORD_GUILD_ID', '0'))
+GUILD_ID = int(get_vault_secret('DISCORD_GUILD_ID') or '0')
 
 async def check_bot_status(token, name):
     try:
@@ -47,13 +48,13 @@ async def check_bot_status(token, name):
 
 async def main():
     tokens = {
-        'Macro': os.getenv('DISCORD_MACRO_AGENT_TOKEN'),
-        'Data': os.getenv('DISCORD_DATA_AGENT_TOKEN'),
-        'Strategy': os.getenv('DISCORD_STRATEGY_AGENT_TOKEN'),
-        'Risk': os.getenv('DISCORD_RISK_AGENT_TOKEN'),
-        'Reflection': os.getenv('DISCORD_REFLECTION_AGENT_TOKEN'),
-        'Execution': os.getenv('DISCORD_EXECUTION_AGENT_TOKEN'),
-        'Learning': os.getenv('DISCORD_LEARNING_AGENT_TOKEN')
+        'Macro': get_vault_secret('DISCORD_MACRO_AGENT_TOKEN'),
+        'Data': get_vault_secret('DISCORD_DATA_AGENT_TOKEN'),
+        'Strategy': get_vault_secret('DISCORD_STRATEGY_AGENT_TOKEN'),
+        'Risk': get_vault_secret('DISCORD_RISK_AGENT_TOKEN'),
+        'Reflection': get_vault_secret('DISCORD_REFLECTION_AGENT_TOKEN'),
+        'Execution': get_vault_secret('DISCORD_EXECUTION_AGENT_TOKEN'),
+        'Learning': get_vault_secret('DISCORD_LEARNING_AGENT_TOKEN')
     }
 
     for name, token in tokens.items():
