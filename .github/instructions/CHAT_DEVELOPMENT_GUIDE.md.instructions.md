@@ -450,5 +450,8 @@ Labels work with all search tools:
 
 This labeling system transforms messy code into a searchable, maintainable codebase.
 
-This guide ensures our chat-based development maintains file coherence, prevents conflicts, and aligns with all existing instruction files while maintaining code quality and proper organization.</content>
-<parameter name="filePath">c:\Users\nvick\ABC-Application\.github\instructions\CHAT_DEVELOPMENT_GUIDE.md.instructions.md
+This guide ensures our chat-based development maintains file coherence, prevents conflicts, and aligns with all existing instruction files while maintaining code quality and proper organization.
+
+## Windows-Specific Setup
+- For Redis: Download from official repo, run `redis-server.exe --service-install` then start the service via Services app.
+- Ensure PowerShell 5.1+ for scripts.

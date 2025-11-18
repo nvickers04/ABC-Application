@@ -36,10 +36,10 @@ def _get_options_strategy_sub():
     global _options_sub
     if _options_sub is None:
         try:
-            from src.agents.strategy_subs.options_strategy_sub import OptionsStrategySub
-            _options_sub = OptionsStrategySub()
+            from src.agents.strategy_analyzers.options_strategy_analyzer import OptionsStrategyAnalyzer
+            _options_sub = OptionsStrategyAnalyzer()
         except ImportError as e:
-            logger.warning(f"Failed to import OptionsStrategySub: {e}")
+            logger.warning(f"Failed to import OptionsStrategyAnalyzer: {e}")
             _options_sub = None
     return _options_sub
 
@@ -47,10 +47,10 @@ def _get_flow_strategy_sub():
     global _flow_sub
     if _flow_sub is None:
         try:
-            from src.agents.strategy_subs.flow_strategy_sub import FlowStrategySub
-            _flow_sub = FlowStrategySub()
+            from src.agents.strategy_analyzers.flow_strategy_analyzer import FlowStrategyAnalyzer
+            _flow_sub = FlowStrategyAnalyzer()
         except ImportError as e:
-            logger.warning(f"Failed to import FlowStrategySub: {e}")
+            logger.warning(f"Failed to import FlowStrategyAnalyzer: {e}")
             _flow_sub = None
     return _flow_sub
 
@@ -58,10 +58,10 @@ def _get_ml_strategy_sub():
     global _ml_sub
     if _ml_sub is None:
         try:
-            from src.agents.strategy_subs.ml_strategy_sub import MLStrategySub
-            _ml_sub = MLStrategySub()
+            from src.agents.strategy_analyzers.ml_strategy_analyzer import MLStrategyAnalyzer
+            _ml_sub = MLStrategyAnalyzer()
         except ImportError as e:
-            logger.warning(f"Failed to import MLStrategySub: {e}")
+            logger.warning(f"Failed to import MLStrategyAnalyzer: {e}")
             _ml_sub = None
     return _ml_sub
 
@@ -69,10 +69,10 @@ def _get_multi_instrument_strategy_sub():
     global _multi_instrument_sub
     if _multi_instrument_sub is None:
         try:
-            from src.agents.strategy_subs.multi_instrument_strategy_sub import MultiInstrumentStrategySub
-            _multi_instrument_sub = MultiInstrumentStrategySub()
+            from src.agents.strategy_analyzers.multi_instrument_strategy_analyzer import MultiInstrumentStrategyAnalyzer
+            _multi_instrument_sub = MultiInstrumentStrategyAnalyzer()
         except ImportError as e:
-            logger.warning(f"Failed to import MultiInstrumentStrategySub: {e}")
+            logger.warning(f"Failed to import MultiInstrumentStrategyAnalyzer: {e}")
             _multi_instrument_sub = None
     return _multi_instrument_sub
 
@@ -194,33 +194,33 @@ class StrategyAgent(BaseAgent):
         try:
             self.options_sub = _get_options_strategy_sub()
             if self.options_sub:
-                logger.info("OptionsStrategySub initialized")
+                logger.info("OptionsStrategyAnalyzer initialized")
         except Exception as e:
-            logger.error(f"Failed to initialize OptionsStrategySub: {e}")
+            logger.error(f"Failed to initialize OptionsStrategyAnalyzer: {e}")
             raise
         
         try:
             self.flow_sub = _get_flow_strategy_sub()
             if self.flow_sub:
-                logger.info("FlowStrategySub initialized")
+                logger.info("FlowStrategyAnalyzer initialized")
         except Exception as e:
-            logger.error(f"Failed to initialize FlowStrategySub: {e}")
+            logger.error(f"Failed to initialize FlowStrategyAnalyzer: {e}")
             raise
             
         try:
             self.ml_sub = _get_ml_strategy_sub()
             if self.ml_sub:
-                logger.info("MLStrategySub initialized")
+                logger.info("MLStrategyAnalyzer initialized")
         except Exception as e:
-            logger.error(f"Failed to initialize MLStrategySub: {e}")
+            logger.error(f"Failed to initialize MLStrategyAnalyzer: {e}")
             raise
         
         try:
             self.multi_instrument_sub = _get_multi_instrument_strategy_sub()
             if self.multi_instrument_sub:
-                logger.info("MultiInstrumentStrategySub initialized")
+                logger.info("MultiInstrumentStrategyAnalyzer initialized")
         except Exception as e:
-            logger.error(f"Failed to initialize MultiInstrumentStrategySub: {e}")
+            logger.error(f"Failed to initialize MultiInstrumentStrategyAnalyzer: {e}")
             raise
         
         # Initialize pyramiding engine with lazy loading
@@ -942,7 +942,8 @@ Provide a clear recommendation with the selected strategy type and detailed rati
         """
         Refines proposal via memory batches (e.g., diversify on SD >1.0).
         """
-        if 'sd >1.0' in self.memory['batch_directives']:
+        batch_directives = self.memory.get('batch_directives', {})
+        if 'sd >1.0' in batch_directives:
             if 'diversification' not in proposal:
                 proposal['diversification'] = []
             proposal['diversification'].append('additional_instruments')

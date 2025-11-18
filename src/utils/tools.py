@@ -30,7 +30,7 @@ from .news_tools import (
     news_data_tool, economic_data_tool, currents_news_tool
 )
 from .market_data_tools import (
-    marketdataapp_api_tool, marketdataapp_websocket_tool, alpha_vantage_tool, financial_modeling_prep_tool
+    marketdataapp_api_tool, marketdataapp_websocket_tool, marketdataapp_data_tool, alpha_vantage_tool, financial_modeling_prep_tool
 )
 from .backtesting_tools import (
     pyfolio_metrics_tool, zipline_backtest_tool, backtrader_strategy_tool, risk_analytics_tool
@@ -67,19 +67,20 @@ def fred_data_tool(series_id: str, start_date: str, end_date: str) -> Dict[str, 
         return {"error": str(e)}
 
 @tool
-def institutional_holdings_analysis_tool(ticker: str) -> Dict[str, Any]:
+def institutional_holdings_analysis_tool(symbol: str, min_shares: int = 100000) -> Dict[str, Any]:
     """
     Analyze institutional holdings.
     
     Args:
-        ticker: Stock ticker
+        symbol: Stock symbol
+        min_shares: Minimum shares threshold for analysis
         
     Returns:
         Dict with analysis
     """
     try:
         # Placeholder
-        return {"holdings": "Sample data"}
+        return {"error": "API Error: institutional holdings analysis tool not yet implemented"}
     except Exception as e:
         return {"error": str(e)}
 
@@ -96,7 +97,7 @@ def thirteen_f_filings_tool(cik: str) -> Dict[str, Any]:
     """
     try:
         # Placeholder
-        return {"filings": "Sample"}
+        return {"error": "API Error: 13F filings tool not yet implemented"}
     except Exception as e:
         return {"error": str(e)}
 
@@ -494,13 +495,9 @@ def qlib_ml_refine_tool(data: Dict[str, Any]) -> Dict[str, Any]:
         Dict containing refined ML results
     '''
     try:
-        # Mock implementation for testing
-        return {
-            'refined_model': 'qlib_enhanced',
-            'accuracy': 0.85,
-            'features_used': list(data.keys()) if isinstance(data, dict) else ['mock_data'],
-            'source': 'qlib_ml_refine'
-        }
+        # TODO: Implement actual Qlib ML refinement
+        # This would integrate with Qlib for model refinement
+        return {"error": "Qlib ML refinement not yet implemented"}
     except Exception as e:
         return {'error': f'Qlib ML refinement failed: {str(e)}'}
 

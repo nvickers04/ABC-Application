@@ -186,7 +186,8 @@ class LiveWorkflowOrchestrator:
             try:
                 # Use BaseAgent get_status method
                 status = await agent.get_status()
-                if status.get('health', 'unknown') in ['healthy', 'good', 'online']:
+                health_status_val = status.get('health_status', {}).get('overall_health', 'unknown')
+                if health_status_val in ['healthy', 'good', 'online']:
                     health_status['healthy_agents'].append(agent_name)
                 else:
                     health_status['unhealthy_agents'].append(agent_name)

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Unit tests for data subagents.
-Tests all 10 data subagents: economic, fundamental, institutional, kalshi, marketdataapp,
+Unit tests for data analyzers.
+Tests all 10 data analyzers: economic, fundamental, institutional, kalshi, marketdataapp,
 microstructure, news, options, sentiment, yfinance.
 """
 
@@ -20,32 +20,35 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 # Import data subagents
-from src.agents.data_subs.yfinance_datasub import YfinanceDatasub
-from src.agents.data_subs.sentiment_datasub import SentimentDatasub
-from src.agents.data_subs.news_datasub import NewsDatasub
-from src.agents.data_subs.economic_datasub import EconomicDatasub
-from src.agents.data_subs.fundamental_datasub import FundamentalDatasub
-from src.agents.data_subs.institutional_datasub import InstitutionalDatasub
-from src.agents.data_subs.microstructure_datasub import MicrostructureDatasub
-from src.agents.data_subs.kalshi_datasub import KalshiDatasub
-from src.agents.data_subs.options_datasub import OptionsDatasub
-from src.agents.data_subs.marketdataapp_datasub import MarketDataAppDatasub
+from src.agents.data_analyzers.yfinance_data_analyzer import YfinanceDataAnalyzer
+from src.agents.data_analyzers.sentiment_data_analyzer import SentimentDataAnalyzer
+from src.agents.data_analyzers.news_data_analyzer import NewsDataAnalyzer
+from src.agents.data_analyzers.economic_data_analyzer import EconomicDataAnalyzer
+from src.agents.data_analyzers.fundamental_data_analyzer import FundamentalDataAnalyzer
+from src.agents.data_analyzers.institutional_data_analyzer import InstitutionalDataAnalyzer
+from src.agents.data_analyzers.microstructure_data_analyzer import MicrostructureDataAnalyzer
+from src.agents.data_analyzers.kalshi_data_analyzer import KalshiDataAnalyzer
+from src.agents.data_analyzers.options_data_analyzer import OptionsDataAnalyzer
+from src.agents.data_analyzers.marketdataapp_data_analyzer import MarketDataAppDataAnalyzer
 
 
-class TestYfinanceDatasub:
-    """Test cases for YfinanceDatasub functionality."""
+class TestYfinanceDataAnalyzer:
+    """Test cases for YfinanceDataAnalyzer functionality."""
 
     @pytest.fixture
     def yfinance_sub(self):
-        """Create a YfinanceDatasub instance for testing."""
+        """Create a YfinanceDataAnalyzer instance for testing."""
         with patch('src.agents.base.BaseAgent.__init__', return_value=None):
-            sub = YfinanceDatasub()
+            sub = YfinanceDataAnalyzer()
             sub.role = "yfinance_data"
             sub.memory_manager = Mock()
+            # Mock the LLM for testing
+            sub.llm = AsyncMock()
+            sub.llm.ainvoke = AsyncMock(return_value=Mock(content='{"endpoints": ["quotes"], "priorities": {"quotes": 9}, "reasoning": "Test", "expected_insights": ["price data"]}'))
             return sub
 
     def test_initialization(self, yfinance_sub):
-        """Test YfinanceDatasub initialization."""
+        """Test YfinanceDataAnalyzer initialization."""
         assert yfinance_sub.role == "yfinance_data"
         assert hasattr(yfinance_sub, 'memory_manager')
 
@@ -67,8 +70,9 @@ class TestYfinanceDatasub:
             result = await yfinance_sub.process_input(test_input)
 
             assert isinstance(result, dict)
-            assert "price_data" in result
-            assert "market_data" in result
+            assert "consolidated_data" in result
+            assert "enhanced" in result
+            assert result["enhanced"] is True
 
     def test_data_validation(self, yfinance_sub):
         """Test data validation functionality."""
@@ -94,20 +98,23 @@ class TestYfinanceDatasub:
         # This would be tested in actual process_input calls
 
 
-class TestNewsDatasub:
-    """Test cases for NewsDatasub functionality."""
+class TestNewsDataAnalyzer:
+    """Test cases for NewsDataAnalyzer functionality."""
 
     @pytest.fixture
     def news_sub(self):
-        """Create a NewsDatasub instance for testing."""
+        """Create a NewsDataAnalyzer instance for testing."""
         with patch('src.agents.base.BaseAgent.__init__', return_value=None):
-            sub = NewsDatasub()
+            sub = NewsDataAnalyzer()
             sub.role = "news_data"
             sub.memory_manager = Mock()
+            # Mock the LLM for testing
+            sub.llm = AsyncMock()
+            sub.llm.ainvoke = AsyncMock(return_value=Mock(content='{"sources": ["newsapi"], "priorities": {"newsapi": 9}, "reasoning": "Test", "focus_areas": ["earnings"]}'))
             return sub
 
     def test_initialization(self, news_sub):
-        """Test NewsDatasub initialization."""
+        """Test NewsDataAnalyzer initialization."""
         assert news_sub.role == "news_data"
 
     @patch('src.utils.tools.news_data_tool')
@@ -127,8 +134,8 @@ class TestNewsDatasub:
         result = await news_sub.process_input(test_input)
 
         assert isinstance(result, dict)
-        assert "articles" in result
-        assert "overall_sentiment" in result
+        assert "articles_df" in result
+        assert "enhanced" in result
 
     def test_cross_validation(self, news_sub):
         """Test news cross-validation functionality."""
@@ -142,20 +149,20 @@ class TestNewsDatasub:
             pass
 
 
-class TestSentimentDatasub:
-    """Test cases for SentimentDatasub functionality."""
+class TestSentimentDataAnalyzer:
+    """Test cases for SentimentDataAnalyzer functionality."""
 
     @pytest.fixture
     def sentiment_sub(self):
-        """Create a SentimentDatasub instance for testing."""
+        """Create a SentimentDataAnalyzer instance for testing."""
         with patch('src.agents.base.BaseAgent.__init__', return_value=None):
-            sub = SentimentDatasub()
+            sub = SentimentDataAnalyzer()
             sub.role = "sentiment_data"
             sub.memory_manager = Mock()
             return sub
 
     def test_initialization(self, sentiment_sub):
-        """Test SentimentDatasub initialization."""
+        """Test SentimentDataAnalyzer initialization."""
         assert sentiment_sub.role == "sentiment_data"
 
     @pytest.mark.asyncio
@@ -180,20 +187,20 @@ class TestSentimentDatasub:
             assert isinstance(analysis, dict)
 
 
-class TestEconomicDatasub:
-    """Test cases for EconomicDatasub functionality."""
+class TestEconomicDataAnalyzer:
+    """Test cases for EconomicDataAnalyzer functionality."""
 
     @pytest.fixture
     def economic_sub(self):
-        """Create an EconomicDatasub instance for testing."""
+        """Create an EconomicDataAnalyzer instance for testing."""
         with patch('src.agents.base.BaseAgent.__init__', return_value=None):
-            sub = EconomicDatasub()
+            sub = EconomicDataAnalyzer()
             sub.role = "economic_data"
             sub.memory_manager = Mock()
             return sub
 
     def test_initialization(self, economic_sub):
-        """Test EconomicDatasub initialization."""
+        """Test EconomicDataAnalyzer initialization."""
         assert economic_sub.role == "economic_data"
 
     @patch('src.utils.tools.fred_data_tool')
@@ -222,26 +229,29 @@ class TestEconomicDatasub:
             assert isinstance(indicators, dict)
 
 
-class TestFundamentalDatasub:
-    """Test cases for FundamentalDatasub functionality."""
+class TestFundamentalDataAnalyzer:
+    """Test cases for FundamentalDataAnalyzer functionality."""
 
     @pytest.fixture
     def fundamental_sub(self):
-        """Create a FundamentalDatasub instance for testing."""
+        """Create a FundamentalDataAnalyzer instance for testing."""
         with patch('src.agents.base.BaseAgent.__init__', return_value=None):
-            sub = FundamentalDatasub()
+            sub = FundamentalDataAnalyzer()
             sub.role = "fundamental_data"
             sub.memory_manager = Mock()
+            # Mock the LLM for testing
+            sub.llm = AsyncMock()
+            sub.llm.ainvoke = AsyncMock(return_value=Mock(content='{"prioritized_sources": ["company_overview"], "analysis_focus": ["valuation_metrics"], "concurrent_groups": [["company_overview"]], "data_freshness_requirements": {"company_overview": 30}, "exploration_strategy": "Test"}'))
             return sub
 
     def test_initialization(self, fundamental_sub):
-        """Test FundamentalDatasub initialization."""
+        """Test FundamentalDataAnalyzer initialization."""
         assert fundamental_sub.role == "fundamental_data"
 
     @pytest.mark.asyncio
     async def test_process_input_basic(self, fundamental_sub):
         """Test basic process_input functionality."""
-        test_input = {"symbol": "AAPL"}
+        test_input = {"symbols": ["AAPL"]}
 
         with patch.object(fundamental_sub, 'fetch_fundamentals', return_value={
             "pe_ratio": 25.5,
@@ -251,35 +261,35 @@ class TestFundamentalDatasub:
             result = await fundamental_sub.process_input(test_input)
 
             assert isinstance(result, dict)
-            assert "pe_ratio" in result
+            assert "consolidated_data" in result
 
     def test_fundamental_analysis(self, fundamental_sub):
         """Test fundamental analysis functionality."""
-        with patch.object(fundamental_sub, 'analyze_fundamentals') as mock_analyze:
+        with patch.object(fundamental_sub, '_analyze_fundamentals') as mock_analyze:
             mock_analyze.return_value = {
                 "valuation": "fair",
                 "growth_rate": 0.15,
                 "health_score": 8.5
             }
 
-            analysis = fundamental_sub.analyze_fundamentals("AAPL")
+            analysis = fundamental_sub._analyze_fundamentals("AAPL")
             assert isinstance(analysis, dict)
 
 
-class TestInstitutionalDatasub:
-    """Test cases for InstitutionalDatasub functionality."""
+class TestInstitutionalDataAnalyzer:
+    """Test cases for InstitutionalDataAnalyzer functionality."""
 
     @pytest.fixture
     def institutional_sub(self):
-        """Create an InstitutionalDatasub instance for testing."""
+        """Create an InstitutionalDataAnalyzer instance for testing."""
         with patch('src.agents.base.BaseAgent.__init__', return_value=None):
-            sub = InstitutionalDatasub()
+            sub = InstitutionalDataAnalyzer()
             sub.role = "institutional_data"
             sub.memory_manager = Mock()
             return sub
 
     def test_initialization(self, institutional_sub):
-        """Test InstitutionalDatasub initialization."""
+        """Test InstitutionalDataAnalyzer initialization."""
         assert institutional_sub.role == "institutional_data"
 
     @pytest.mark.asyncio
@@ -309,20 +319,20 @@ class TestInstitutionalDatasub:
             assert isinstance(holdings, dict)
 
 
-class TestMicrostructureDatasub:
-    """Test cases for MicrostructureDatasub functionality."""
+class TestMicrostructureDataAnalyzer:
+    """Test cases for MicrostructureDataAnalyzer functionality."""
 
     @pytest.fixture
     def microstructure_sub(self):
-        """Create a MicrostructureDatasub instance for testing."""
+        """Create a MicrostructureDataAnalyzer instance for testing."""
         with patch('src.agents.base.BaseAgent.__init__', return_value=None):
-            sub = MicrostructureDatasub()
+            sub = MicrostructureDataAnalyzer()
             sub.role = "microstructure_data"
             sub.memory_manager = Mock()
             return sub
 
     def test_initialization(self, microstructure_sub):
-        """Test MicrostructureDatasub initialization."""
+        """Test MicrostructureDataAnalyzer initialization."""
         assert microstructure_sub.role == "microstructure_data"
 
     @pytest.mark.asyncio
@@ -356,20 +366,20 @@ class TestMicrostructureDatasub:
             assert isinstance(analysis, dict)
 
 
-class TestKalshiDatasub:
-    """Test cases for KalshiDatasub functionality."""
+class TestKalshiDataAnalyzer:
+    """Test cases for KalshiDataAnalyzer functionality."""
 
     @pytest.fixture
     def kalshi_sub(self):
-        """Create a KalshiDatasub instance for testing."""
+        """Create a KalshiDataAnalyzer instance for testing."""
         with patch('src.agents.base.BaseAgent.__init__', return_value=None):
-            sub = KalshiDatasub()
+            sub = KalshiDataAnalyzer()
             sub.role = "kalshi_data"
             sub.memory_manager = Mock()
             return sub
 
     def test_initialization(self, kalshi_sub):
-        """Test KalshiDatasub initialization."""
+        """Test KalshiDataAnalyzer initialization."""
         assert kalshi_sub.role == "kalshi_data"
 
     @patch('src.utils.tools.kalshi_data_tool')
@@ -401,20 +411,20 @@ class TestKalshiDatasub:
             assert isinstance(markets, dict)
 
 
-class TestOptionsDatasub:
-    """Test cases for OptionsDatasub functionality."""
+class TestOptionsDataAnalyzer:
+    """Test cases for OptionsDataAnalyzer functionality."""
 
     @pytest.fixture
     def options_sub(self):
-        """Create an OptionsDatasub instance for testing."""
+        """Create an OptionsDataAnalyzer instance for testing."""
         with patch('src.agents.base.BaseAgent.__init__', return_value=None):
-            sub = OptionsDatasub()
+            sub = OptionsDataAnalyzer()
             sub.role = "options_data"
             sub.memory_manager = Mock()
             return sub
 
     def test_initialization(self, options_sub):
-        """Test OptionsDatasub initialization."""
+        """Test OptionsDataAnalyzer initialization."""
         assert options_sub.role == "options_data"
 
     @pytest.mark.asyncio
@@ -446,20 +456,23 @@ class TestOptionsDatasub:
             assert isinstance(options, dict)
 
 
-class TestMarketdataappDatasub:
-    """Test cases for MarketdataappDatasub functionality."""
+class TestMarketDataAppDataAnalyzer:
+    """Test cases for MarketDataAppDataAnalyzer functionality."""
 
     @pytest.fixture
     def marketdataapp_sub(self):
-        """Create a MarketDataAppDatasub instance for testing."""
+        """Create a MarketDataAppDataAnalyzer instance for testing."""
         with patch('src.agents.base.BaseAgent.__init__', return_value=None):
-            sub = MarketDataAppDatasub()
+            sub = MarketDataAppDataAnalyzer()
             sub.role = "marketdataapp_data"
             sub.memory_manager = Mock()
+            # Mock the LLM for testing
+            sub.llm = AsyncMock()
+            sub.llm.ainvoke = AsyncMock(return_value=Mock(content='{"endpoints": ["quotes"], "priorities": {"quotes": 9}, "reasoning": "Test", "expected_insights": ["price data"]}'))
             return sub
 
     def test_initialization(self, marketdataapp_sub):
-        """Test MarketdataappDatasub initialization."""
+        """Test MarketDataAppDataAnalyzer initialization."""
         assert marketdataapp_sub.role == "marketdataapp_data"
 
     @patch('src.utils.tools.marketdataapp_data_tool')
@@ -478,8 +491,8 @@ class TestMarketdataappDatasub:
         result = await marketdataapp_sub.process_input(test_input)
 
         assert isinstance(result, dict)
-        assert "price" in result
-        assert "volume" in result
+        assert "quotes_df" in result
+        assert "data_quality_score" in result
 
     def test_market_data_fetching(self, marketdataapp_sub):
         """Test market data fetching functionality."""
@@ -495,7 +508,7 @@ class TestMarketdataappDatasub:
             assert isinstance(data, dict)
 
 
-class TestDataSubagentsIntegration:
+class TestDataAnalyzersIntegration:
     """Integration tests for data subagents working together."""
 
     def test_subagent_coordination(self):

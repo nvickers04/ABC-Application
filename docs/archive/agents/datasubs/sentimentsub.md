@@ -1,4 +1,4 @@
-# Sentiment Subagent
+# SentimentDataAnalyzer
 
 ## Overview
 The Sentiment Subagent specializes in comprehensive sentiment analysis across news, social media, and market data sources. It processes qualitative information to quantify market sentiment, identify behavioral patterns, and generate sentiment-driven trading signals.

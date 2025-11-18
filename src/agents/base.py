@@ -741,18 +741,23 @@ class BaseAgent(abc.ABC):
                 raise Exception(f"LLM required for {self.role} agent reasoning - no foundation-only fallback allowed")
 
         try:
+            # Sanitize inputs to prevent prompt injection
+            sanitized_context = self._sanitize_llm_input(context)
+            sanitized_question = self._sanitize_llm_input(question)
+            sanitized_options = self._sanitize_llm_options(options) if options else None
+
             # Build comprehensive prompt with foundation context
             full_prompt = f"""
 {self.prompt}
 
 FOUNDATION ANALYSIS CONTEXT:
-{context}
+{sanitized_context}
 
 DECISION REQUIRED:
-{question}
+{sanitized_question}
 
 ADDITIONAL CONTEXT:
-{options or 'No additional context provided'}
+{sanitized_options or 'No additional context provided'}
 
 Please provide your reasoning and recommendation based on the foundation analysis above.
 Consider market conditions, risk factors, and alignment with our goals (10-20% monthly ROI, <5% drawdown).
@@ -767,6 +772,83 @@ Consider market conditions, risk factors, and alignment with our goals (10-20% m
         except Exception as e:
             logger.error(f"LLM reasoning failed for {self.role}: {e}")
             return f"LLM_ERROR: {str(e)}"
+
+    def _sanitize_llm_input(self, input_text: str) -> str:
+        """
+        Sanitize input text for LLM prompts to prevent injection attacks.
+        Removes or escapes potentially harmful content.
+        """
+        if not isinstance(input_text, str):
+            return str(input_text)
+
+        # Remove or escape common injection patterns
+        sanitized = input_text
+
+        # Remove system prompt override attempts
+        sanitized = sanitized.replace("SYSTEM:", "").replace("system:", "")
+        sanitized = sanitized.replace("ASSISTANT:", "").replace("assistant:", "")
+        sanitized = sanitized.replace("USER:", "").replace("user:", "")
+
+        # Remove prompt injection markers
+        injection_markers = [
+            "###", "---", "```", "IGNORE PREVIOUS",
+            "FORGET INSTRUCTIONS", "NEW INSTRUCTIONS",
+            "SYSTEM PROMPT", "You are now", "FROM NOW ON",
+            "HENCEFORTH", "STARTING NOW", "BEGINNING NOW"
+        ]
+
+        for marker in injection_markers:
+            sanitized = sanitized.replace(marker, "[FILTERED]")
+
+        # Remove attempts to override model behavior
+        behavior_overrides = [
+            "ignore all previous", "disregard above", "forget everything",
+            "new persona", "act as if", "pretend to be", "role-play as"
+        ]
+
+        for override in behavior_overrides:
+            sanitized = sanitized.replace(override, "[FILTERED]")
+
+        # Limit input length to prevent excessive token usage and abuse
+        max_length = 8000  # Reasonable limit for context
+        if len(sanitized) > max_length:
+            sanitized = sanitized[:max_length] + "...[TRUNCATED FOR SECURITY]"
+
+        # Remove excessive whitespace and control characters
+        import re
+        sanitized = re.sub(r'\n\s*\n\s*\n+', '\n\n', sanitized)  # Multiple newlines to double
+        sanitized = re.sub(r'\s+', ' ', sanitized.strip())  # Multiple spaces to single
+        sanitized = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', sanitized)  # Remove control characters
+
+        return sanitized
+
+    def _sanitize_llm_options(self, options: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Sanitize options dictionary for LLM prompts.
+        """
+        if not isinstance(options, dict):
+            return {}
+
+        sanitized_options = {}
+        for key, value in options.items():
+            if isinstance(key, str):
+                sanitized_key = self._sanitize_llm_input(key)
+            else:
+                sanitized_key = str(key)
+
+            if isinstance(value, str):
+                sanitized_value = self._sanitize_llm_input(value)
+            elif isinstance(value, (int, float, bool)):
+                sanitized_value = value
+            elif isinstance(value, (list, dict)):
+                # Convert complex types to string and sanitize
+                sanitized_value = self._sanitize_llm_input(str(value))
+            else:
+                sanitized_value = str(value)
+
+            sanitized_options[sanitized_key] = sanitized_value
+
+        return sanitized_options
 
     def _should_use_tool(self, tool: BaseTool, query_lower: str) -> bool:
         """Determine if a tool should be used based on query keywords."""

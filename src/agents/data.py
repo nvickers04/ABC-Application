@@ -76,75 +76,75 @@ class DataAgent(BaseAgent):
         
         # Initialize data subagents
         try:
-            from src.agents.data_subs.yfinance_datasub import YfinanceDatasub
-            self.yfinance_sub = YfinanceDatasub()
-            logger.info("YfinanceDatasub initialized")
+            from src.agents.data_analyzers.yfinance_data_analyzer import YfinanceDataAnalyzer
+            self.yfinance_sub = YfinanceDataAnalyzer()
+            logger.info("YfinanceDataAnalyzer initialized")
         except Exception as e:
-            logger.error(f"Failed to initialize YfinanceDatasub: {e}")
+            logger.error(f"Failed to initialize YfinanceDataAnalyzer: {e}")
             raise
         
         try:
-            from src.agents.data_subs.sentiment_datasub import SentimentDatasub
-            self.sentiment_sub = SentimentDatasub()
-            logger.info("SentimentDatasub initialized")
+            from src.agents.data_analyzers.sentiment_data_analyzer import SentimentDataAnalyzer
+            self.sentiment_sub = SentimentDataAnalyzer()
+            logger.info("SentimentDataAnalyzer initialized")
         except Exception as e:
-            logger.error(f"Failed to initialize SentimentDatasub: {e}")
+            logger.error(f"Failed to initialize SentimentDataAnalyzer: {e}")
             raise
             
         try:
-            from src.agents.data_subs.news_datasub import NewsDatasub
-            self.news_sub = NewsDatasub()
-            logger.info("NewsDatasub initialized")
+            from src.agents.data_analyzers.news_data_analyzer import NewsDataAnalyzer
+            self.news_sub = NewsDataAnalyzer()
+            logger.info("NewsDataAnalyzer initialized")
         except Exception as e:
-            logger.error(f"Failed to initialize NewsDatasub: {e}")
+            logger.error(f"Failed to initialize NewsDataAnalyzer: {e}")
             raise
             
         try:
-            from src.agents.data_subs.economic_datasub import EconomicDatasub
-            self.economic_sub = EconomicDatasub()
-            logger.info("EconomicDatasub initialized")
+            from src.agents.data_analyzers.economic_data_analyzer import EconomicDataAnalyzer
+            self.economic_sub = EconomicDataAnalyzer()
+            logger.info("EconomicDataAnalyzer initialized")
         except Exception as e:
-            logger.error(f"Failed to initialize EconomicDatasub: {e}")
+            logger.error(f"Failed to initialize EconomicDataAnalyzer: {e}")
             raise
             
         try:
-            from src.agents.data_subs.institutional_datasub import InstitutionalDatasub
-            self.institutional_sub = InstitutionalDatasub()
-            logger.info("InstitutionalDatasub initialized")
+            from src.agents.data_analyzers.institutional_data_analyzer import InstitutionalDataAnalyzer
+            self.institutional_sub = InstitutionalDataAnalyzer()
+            logger.info("InstitutionalDataAnalyzer initialized")
         except Exception as e:
-            logger.error(f"Failed to initialize InstitutionalDatasub: {e}")
+            logger.error(f"Failed to initialize InstitutionalDataAnalyzer: {e}")
             raise
             
         try:
-            from src.agents.data_subs.fundamental_datasub import FundamentalDatasub
-            self.fundamental_sub = FundamentalDatasub()
-            logger.info("FundamentalDatasub initialized")
+            from src.agents.data_analyzers.fundamental_data_analyzer import FundamentalDataAnalyzer
+            self.fundamental_sub = FundamentalDataAnalyzer()
+            logger.info("FundamentalDataAnalyzer initialized")
         except Exception as e:
-            logger.error(f"Failed to initialize FundamentalDatasub: {e}")
+            logger.error(f"Failed to initialize FundamentalDataAnalyzer: {e}")
             raise
             
         try:
-            from src.agents.data_subs.microstructure_datasub import MicrostructureDatasub
-            self.microstructure_sub = MicrostructureDatasub()
-            logger.info("MicrostructureDatasub initialized")
+            from src.agents.data_analyzers.microstructure_data_analyzer import MicrostructureDataAnalyzer
+            self.microstructure_sub = MicrostructureDataAnalyzer()
+            logger.info("MicrostructureDataAnalyzer initialized")
         except Exception as e:
-            logger.error(f"Failed to initialize MicrostructureDatasub: {e}")
+            logger.error(f"Failed to initialize MicrostructureDataAnalyzer: {e}")
             raise
             
         try:
-            from src.agents.data_subs.kalshi_datasub import KalshiDatasub
-            self.kalshi_sub = KalshiDatasub()
-            logger.info("KalshiDatasub initialized")
+            from src.agents.data_analyzers.kalshi_data_analyzer import KalshiDataAnalyzer
+            self.kalshi_sub = KalshiDataAnalyzer()
+            logger.info("KalshiDataAnalyzer initialized")
         except Exception as e:
-            logger.error(f"Failed to initialize KalshiDatasub: {e}")
+            logger.error(f"Failed to initialize KalshiDataAnalyzer: {e}")
             raise
             
         try:
-            from src.agents.data_subs.options_datasub import OptionsDatasub
-            self.options_sub = OptionsDatasub()
-            logger.info("OptionsDatasub initialized")
+            from src.agents.data_analyzers.options_data_analyzer import OptionsDataAnalyzer
+            self.options_sub = OptionsDataAnalyzer()
+            logger.info("OptionsDataAnalyzer initialized")
         except Exception as e:
-            logger.error(f"Failed to initialize OptionsDatasub: {e}")
+            logger.error(f"Failed to initialize OptionsDataAnalyzer: {e}")
             raise
             
         # try:
@@ -1453,8 +1453,8 @@ class DataAgent(BaseAgent):
             }
 
     def _parse_sentiment_result(self, result: str) -> Dict[str, Any]:
-        """DEPRECATED: Parsing now handled by SentimentDatasub."""
-        logger.warning("_parse_sentiment_result is deprecated - use SentimentDatasub instead")
+        """DEPRECATED: Parsing now handled by SentimentDataAnalyzer."""
+        logger.warning("_parse_sentiment_result is deprecated - use SentimentDataAnalyzer instead")
         return {'score': 0.5, 'source': 'deprecated', 'impact': 'neutral'}
 
     def _parse_news_result(self, result: str) -> Dict[str, Any]:

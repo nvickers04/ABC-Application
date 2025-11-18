@@ -27,6 +27,18 @@ ABC-Application/
 └── pytest.ini                  # Testing configuration
 ```
 
+## Performance and Privacy Considerations
+
+### Performance Files
+- **Profiling Results**: Store in `data/` or `logs/` directories
+- **Cache Files**: Use `data/cache/` for Redis dumps or local caches
+- **Optimization Scripts**: Place in `tools/` for profiling utilities
+
+### Privacy Files
+- **Audit Logs**: Store in `logs/` with encryption
+- **Consent Records**: Use `data/consent/` for user agreements
+- **Anonymized Data**: Store processed data in `data/anonymized/`
+
 ## File Placement Rules
 
 ### 🚫 **DO NOT PLACE** source code in root directory

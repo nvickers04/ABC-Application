@@ -50,7 +50,87 @@ python examples/memory_query.py
 - Memory search functionality
 - System collaboration visualization
 
-## Running Examples
+## Trading and Simulation Examples
+
+### `trading_simulator.py`
+Demonstrates trading strategy simulation using historical market data.
+
+**Usage:**
+```bash
+python examples/trading_simulator.py
+```
+
+**Features:**
+- Historical data simulation
+- Strategy backtesting
+- Portfolio management
+- Performance analytics
+
+### `system_health_check.py`
+Comprehensive system health check and dependency validation.
+
+**Usage:**
+```bash
+python examples/system_health_check.py
+```
+
+**Features:**
+- Dependency checking
+- Import validation
+- System health metrics
+- Configuration verification
+
+### `realtime_pyramiding_demo.py`
+Demonstrates realtime pyramiding trading strategies.
+
+**Usage:**
+```bash
+python examples/realtime_pyramiding_demo.py
+```
+
+**Features:**
+- Realtime strategy execution
+- Pyramiding logic demonstration
+- Risk management integration
+
+### `realtime_pyramiding_integration_demo.py`
+Integration demo showing pyramiding with full system components.
+
+**Usage:**
+```bash
+python examples/realtime_pyramiding_integration_demo.py
+```
+
+**Features:**
+- Full system integration
+- Agent orchestration
+- Realtime data processing
+
+### `grok_simulator.py`
+Enhanced trading strategy simulator using GROK agents.
+
+**Usage:**
+```bash
+python examples/grok_simulator.py
+```
+
+**Features:**
+- Multi-agent GROK system simulation
+- Strategy generation and testing
+- Risk management integration
+
+### `historical_simulation_demo.py`
+Demonstration of historical portfolio simulation capabilities.
+
+**Usage:**
+```bash
+python examples/historical_simulation_demo.py
+```
+
+**Features:**
+- Historical data simulation
+- Portfolio backtesting
+- Risk analytics demonstration
 
 All examples require the ABC Application source code to be available. Make sure to run from the project root:
 

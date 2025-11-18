@@ -1,0 +1,33 @@
+{
+  "namespace": "shared:fundamental_data:AAPL",
+  "safe_namespace": "shared_fundamental_data_AAPL",
+  "timestamp": "2025-11-18T10:10:14.431960",
+  "version": "1.0",
+  "data": {
+    "data": {
+      "fundamental_data": {
+        "metadata": "{'consolidation_timestamp': '2025-11-18T10:10:06.013469', 'sources_used': \"['financial_statements', 'company_overview', 'analyst_estimates', 'earnings_history', 'sec_edgar_filings', 'institutional_ownership', 'dividend_history', 'insider_transactions']\", 'analysis_focus': \"['valuation_metrics', 'growth_metrics', 'profitability_metrics', 'financial_health', 'cash_flow_quality', 'competitive_position', 'risk_assessment']\"}",
+        "valuation_df": "{'type': 'DataFrame', 'columns': ['pe_ratio', 'pb_ratio', 'ps_ratio', 'ev_ebitda', 'peg_ratio', 'forward_pe', 'beta'], 'shape': (1, 7), 'data': [{'pe_ratio': None, 'pb_ratio': None, 'ps_ratio': None, 'ev_ebitda': None, 'peg_ratio': None, 'forward_pe': None, 'beta': None}], 'summary': '       pe_ratio pb_ratio ps_ratio ev_ebitda peg_ratio forward_pe beta\\ncount         0        0        0         0         0          0    0\\nunique        0        0        0         0         0          0    0\\ntop         NaN      NaN      NaN       NaN       NaN        NaN  NaN\\nfreq        NaN      NaN      NaN       NaN       NaN        NaN  NaN'}",
+        "financial_health_df": "{'type': 'DataFrame', 'columns': ['total_assets', 'total_liabilities', 'total_equity', 'current_assets', 'current_liabilities', 'debt_to_equity', 'current_ratio', 'quick_ratio'], 'shape': (1, 8), 'data': [{'total_assets': None, 'total_liabilities': None, 'total_equity': None, 'current_assets': None, 'current_liabilities': None, 'debt_to_equity': None, 'current_ratio': None, 'quick_ratio': None}], 'summary': '       total_assets total_liabilities  ... current_ratio quick_ratio\\ncount             0                 0  ...             0           0\\nunique            0                 0  ...             0           0\\ntop             NaN               NaN  ...           NaN         NaN\\nfreq            NaN               NaN  ...           NaN         NaN\\n\\n[4 rows x 8 columns]'}"
+      },
+      "llm_analysis": {
+        "overall_assessment": "In a volatile market environment with rising interest rates and geopolitical tensions, fundamental analysis reveals selective opportunities in tech and consumer sectors where strong balance sheets and growth prospects outweigh macroeconomic headwinds. Valuations remain stretched in high-growth areas but attractive in undervalued cyclicals.",
+        "company_analysis": "{'AAPL': \"{'fundamental_score': 85, 'valuation_assessment': 'fairly valued', 'key_strengths': ['Dominant market position in consumer electronics with high brand loyalty', 'Robust cash reserves exceeding $200B supporting innovation and buybacks', 'Consistent revenue growth from services segment at 15%+ YoY'], 'key_weaknesses': ['Heavy reliance on iPhone sales (over 50% of revenue)', 'Supply chain vulnerabilities exposed by global disruptions', 'Margin pressures from rising component costs'], 'recommendation': 'buy', 'price_target': 220.0, 'key_risks': ['Intensifying competition from Android ecosystem', 'Regulatory scrutiny on app store practices', 'Economic slowdown impacting consumer spending'], 'catalysts': ['Launch of new AI-integrated products in 2024', 'Potential expansion into emerging markets like India', 'Shareholder returns via dividends and repurchases']}\", 'TSLA': \"{'fundamental_score': 72, 'valuation_assessment': 'overvalued', 'key_strengths': ['Leadership in EV market with scalable production', 'Strong growth in energy storage and autonomy software', 'Innovative R&D pipeline including Cybertruck and Robotaxi'], 'key_weaknesses': ['High debt levels and negative free cash flow in recent quarters', 'Volatile earnings due to production ramps and price cuts', 'Dependence on subsidies and regulatory credits'], 'recommendation': 'hold', 'price_target': 250.0, 'key_risks': ['Intensified EV competition from legacy automakers', 'Delays in full self-driving technology', 'Supply chain issues with battery materials'], 'catalysts': ['Q4 2023 delivery numbers exceeding expectations', 'Advancements in autonomous driving regulations', 'Partnerships for energy grid integration']}\"}",
+        "sector_insights": "Technology sector shows resilient growth with improving profitability, but consumer discretionary faces headwinds from inflation; healthcare remains defensive with stable margins.",
+        "market_context": "Current high-interest-rate environment favors companies with low leverage and high cash flows, making fundamentally strong firms like those in tech resilient amid broader market corrections."
+      },
+      "timestamp": "2025-11-18T10:10:14.401937"
+    },
+    "timestamp": "2025-11-18T10:10:14.430958",
+    "memory_type": "shared",
+    "metadata": {
+      "shared_by": "fundamental_data",
+      "namespace": "fundamental_data",
+      "shared_at": "2025-11-18T10:10:14.430958",
+      "access_level": "shared",
+      "original_data_type": "dict"
+    },
+    "user": null,
+    "size": 4498
+  }
+}

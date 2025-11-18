@@ -14,6 +14,7 @@ import requests
 
 from langchain.tools import tool
 from .validation import circuit_breaker, DataValidator
+from .vault_client import get_vault_secret
 
 logger = logging.getLogger(__name__)
 
@@ -28,9 +29,9 @@ def marketdataapp_api_tool(symbol: str, data_type: str = "quotes") -> Dict[str, 
     Returns:
         dict: Market data
     """
-    api_key = os.getenv('MARKETDATAAPP_API_KEY')
+    api_key = get_vault_secret('MARKETDATAAPP_API_KEY')
     if not api_key:
-        return {"error": "MarketDataApp API key not found. Please set MARKETDATAAPP_API_KEY in .env file."}
+        return {"error": "MarketDataApp API key not found in Vault."}
 
     try:
         base_url = "https://api.marketdataapp.com/v1"
@@ -112,9 +113,9 @@ def marketdataapp_websocket_tool(symbol: str, data_type: str = "quotes", duratio
     Returns:
         dict: Collected real-time data
     """
-    api_key = os.getenv('MARKETDATAAPP_API_KEY')
+    api_key = get_vault_secret('MARKETDATAAPP_API_KEY')
     if not api_key:
-        return {"error": "MarketDataApp API key not found. Please set MARKETDATAAPP_API_KEY in .env file."}
+        return {"error": "MarketDataApp API key not found in Vault."}
 
     async def collect_data():
         """Async function to collect WebSocket data."""
@@ -186,9 +187,9 @@ def alpha_vantage_tool(symbol: str, function: str = "TIME_SERIES_DAILY") -> Dict
     Returns:
         dict: Stock data
     """
-    api_key = os.getenv('ALPHA_VANTAGE_API_KEY')
+    api_key = get_vault_secret('ALPHA_VANTAGE_API_KEY')
     if not api_key:
-        return {"error": "Alpha Vantage API key not found. Please set ALPHA_VANTAGE_API_KEY in .env file."}
+        return {"error": "Alpha Vantage API key not found in Vault."}
 
     try:
         url = "https://www.alphavantage.co/query"
@@ -251,9 +252,9 @@ def financial_modeling_prep_tool(symbol: str, data_type: str = "quote") -> Dict[
     Returns:
         dict: Financial data
     """
-    api_key = os.getenv('FINANCIALMODELINGPREP_API_KEY')
+    api_key = get_vault_secret('FINANCIALMODELINGPREP_API_KEY')
     if not api_key:
-        return {"error": "Financial Modeling Prep API key not found. Please set FINANCIALMODELINGPREP_API_KEY in .env file."}
+        return {"error": "Financial Modeling Prep API key not found in Vault."}
 
     try:
         base_url = "https://financialmodelingprep.com/api/v3"
@@ -292,22 +293,20 @@ def financial_modeling_prep_tool(symbol: str, data_type: str = "quote") -> Dict[
 
 
 @tool
-def institutional_holdings_analysis_tool(ticker: str) -> Dict[str, Any]:
+def institutional_holdings_analysis_tool(symbol: str, min_shares: int = 100000) -> Dict[str, Any]:
     """
     Analyze institutional holdings for a stock.
 
     Args:
-        ticker: Stock ticker
+        symbol: Stock symbol
+        min_shares: Minimum shares threshold for analysis
 
     Returns:
         Dict with holdings analysis
     """
     try:
         # Placeholder for actual API call (e.g., to FMP or SEC)
-        return {
-            "top_holders": ["Holder1", "Holder2"],
-            "total_institutional": 0.75
-        }
+        return {"error": "API Error: institutional holdings analysis tool not yet implemented"}
     except Exception as e:
         return {"error": str(e)}
 
@@ -409,7 +408,7 @@ def sec_edgar_13f_tool(cik: str, date: str = None) -> Dict[str, Any]:
     """
     try:
         # Placeholder for SEC API
-        return {"holdings": [{"cusip": "123", "value": 1000000}]}
+        return {"error": "API Error: SEC EDGAR 13F tool not yet implemented"}
     except Exception as e:
         return {"error": str(e)}
 
@@ -426,6 +425,49 @@ def circuit_breaker_status_tool() -> Dict[str, Any]:
         from .validation import get_circuit_breaker_status
         return get_circuit_breaker_status()
     except Exception as e:
+        return {"error": str(e)}
+
+
+@circuit_breaker("marketdataapp_data")
+def marketdataapp_data_tool(symbol: str) -> Dict[str, Any]:
+    """
+    Fetch basic market data from MarketDataApp.
+    Simplified tool for basic market data retrieval.
+
+    Args:
+        symbol: Stock symbol
+
+    Returns:
+        Dict with basic market data
+    """
+    api_key = get_vault_secret('MARKETDATAAPP_API_KEY')
+    if not api_key:
+        return {"error": "MarketDataApp API key not found in Vault."}
+
+    try:
+        base_url = "https://api.marketdataapp.com/v1"
+        url = f"{base_url}/stocks/quotes"
+        params = {"symbols": symbol, "apikey": api_key}
+
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+
+        data = response.json()
+        if symbol in data:
+            quote = data[symbol]
+            return {
+                "price": quote.get("last", 0),
+                "volume": quote.get("volume", 0),
+                "market_cap": quote.get("marketcap", 0),
+                "pe_ratio": quote.get("pe", 0),
+                "symbol": symbol,
+                "source": "marketdataapp_api"
+            }
+        else:
+            return {"error": f"No data found for symbol {symbol}"}
+
+    except Exception as e:
+        logger.error(f"Error fetching MarketDataApp data for {symbol}: {e}")
         return {"error": str(e)}
 
 # end of file

@@ -49,6 +49,18 @@ applyTo: '*ABC-Application*'
 - [ ] **Migration guides** provided if needed
 
 ### When Adding New Features:
+- [ ] **Performance Impact**: Document any performance changes or optimizations
+- [ ] **Privacy Considerations**: Include GDPR compliance notes for data handling
+
+### Performance Documentation
+- Update `docs/architecture.md` with performance benchmarks
+- Document async patterns and caching strategies
+- Include profiling results in implementation docs
+
+### Privacy Documentation
+- Add data flow diagrams showing personal data handling
+- Document consent mechanisms and retention policies
+- Include breach response procedures in security guides
 - [ ] **Feature overview** added to relevant docs
 - [ ] **Usage examples** provided
 - [ ] **Configuration options** documented

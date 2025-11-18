@@ -18,7 +18,7 @@ from src.utils.tools import fundamental_data_tool, fundamental_analysis_tool
 
 logger = logging.getLogger(__name__)
 
-class FundamentalDatasub(BaseAgent):
+class FundamentalDataAnalyzer(BaseAgent):
     """
     Fundamental Data Subagent.
     Reasoning: Fetches comprehensive fundamental data for financial analysis and valuation.
@@ -132,6 +132,10 @@ class FundamentalDatasub(BaseAgent):
             Dict containing fundamental data and analysis
         """
         try:
+            # Initialize LLM if not already done
+            if not self.llm:
+                await self.async_initialize_llm()
+
             symbols = input_data.get('symbols', [])
             if not symbols:
                 return {"error": "No symbols provided for fundamental analysis"}

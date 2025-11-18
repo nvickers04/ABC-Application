@@ -35,7 +35,7 @@ class EconomicMemory:
         """Get recent economic insights."""
         return self.session_insights[-limit:]
 
-class EconomicDatasub(BaseAgent):
+class EconomicDataAnalyzer(BaseAgent):
     """
     Comprehensive Economic Data Subagent implementing full specification.
     Aggregates macroeconomic data from multiple sources with LLM-driven analysis.

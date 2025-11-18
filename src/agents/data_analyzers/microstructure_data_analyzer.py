@@ -18,7 +18,7 @@ from src.utils.tools import microstructure_analysis_tool
 
 logger = logging.getLogger(__name__)
 
-class MicrostructureDatasub(BaseAgent):
+class MicrostructureDataAnalyzer(BaseAgent):
     """
     Microstructure Data Subagent.
     Reasoning: Fetches and analyzes real-time market microstructure for optimal execution.

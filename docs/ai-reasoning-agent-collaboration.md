@@ -1,14 +1,14 @@
 # [LABEL:DOC:framework] [LABEL:DOC:topic:ai_reasoning] [LABEL:DOC:audience:architect]
 # [LABEL:AUTHOR:system] [LABEL:UPDATED:2025-11-17] [LABEL:REVIEWED:pending]
 #
-# Purpose: Comprehensive guide to AI reasoning through 22-agent collaborative architecture
+# Purpose: Comprehensive guide to AI reasoning through 18-agent collaborative architecture (with 4 in development)
 # Dependencies: Multi-agent system, A2A protocol, specialized agent roles
 # Related: docs/architecture.md, docs/AGENTS/index.md, src/agents/
 #
 # AI Reasoning Through Agent Collaboration: The ABC Application Breakthrough
 
 ## Overview
-The fundamental innovation of ABC Application is its **22-agent collaborative reasoning architecture** - a sophisticated AI system where specialized agents debate, deliberate, and reach consensus on investment decisions. This approach creates institutional-grade decision quality through collective AI intelligence, far surpassing what any single AI model could achieve.
+The fundamental innovation of ABC Application is its **18-agent collaborative reasoning architecture** (with 4 in development) - a sophisticated AI system where specialized agents debate, deliberate, and reach consensus on investment decisions. This approach creates institutional-grade decision quality through collective AI intelligence, far surpassing what any single AI model could achieve.
 
 ## The Reasoning Revolution
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Test script for enhanced strategy subagents with LLM integration and collaborative memory.
-Tests the OptionsStrategySub, FlowStrategySub, and MLStrategySub agents.
+Test script for enhanced strategy analyzers with LLM integration and collaborative memory.
+Tests the OptionsStrategyAnalyzer, FlowStrategyAnalyzer, and MLStrategyAnalyzer agents.
 """
 
 import sys
@@ -19,27 +19,27 @@ async def test_basic_functionality():
 
     try:
         # Test imports
-        from src.agents.strategy_subs.options_strategy_sub import OptionsStrategySub
-        print("✅ OptionsStrategySub imported successfully")
+        from src.agents.strategy_analyzers.options_strategy_analyzer import OptionsStrategyAnalyzer
+        print("✅ OptionsStrategyAnalyzer imported successfully")
 
-        from src.agents.strategy_subs.flow_strategy_sub import FlowStrategySub
-        print("✅ FlowStrategySub imported successfully")
+        from src.agents.strategy_analyzers.flow_strategy_analyzer import FlowStrategyAnalyzer
+        print("✅ FlowStrategyAnalyzer imported successfully")
 
-        from src.agents.strategy_subs.ml_strategy_sub import MLStrategySub
-        print("✅ MLStrategySub imported successfully")
+        from src.agents.strategy_analyzers.ml_strategy_analyzer import MLStrategyAnalyzer
+        print("✅ MLStrategyAnalyzer imported successfully")
 
         # Test basic instantiation (without LLM calls)
         print("\nTesting basic instantiation...")
 
         # Create agents (this will fail if there are import issues)
-        options_agent = OptionsStrategySub()
-        print("✅ OptionsStrategySub instantiated")
+        options_agent = OptionsStrategyAnalyzer()
+        print("✅ OptionsStrategyAnalyzer instantiated")
 
-        flow_agent = FlowStrategySub()
-        print("✅ FlowStrategySub instantiated")
+        flow_agent = FlowStrategyAnalyzer()
+        print("✅ FlowStrategyAnalyzer instantiated")
 
-        ml_agent = MLStrategySub()
-        print("✅ MLStrategySub instantiated")
+        ml_agent = MLStrategyAnalyzer()
+        print("✅ MLStrategyAnalyzer instantiated")
 
         # Test basic attributes
         print(f"\nOptions agent role: {options_agent.role}")
@@ -47,9 +47,9 @@ async def test_basic_functionality():
         print(f"ML agent role: {ml_agent.role}")
 
         # Test collaborative memory initialization
-        print(f"\nOptions subagent memory initialized: {hasattr(options_agent, 'subagent_memory')}")
-        print(f"Flow subagent memory initialized: {hasattr(flow_agent, 'subagent_memory')}")
-        print(f"ML subagent memory initialized: {hasattr(ml_agent, 'subagent_memory')}")
+        print(f"\nOptions analyzer memory initialized: {hasattr(options_agent, 'analyzer_memory')}")
+        print(f"Flow analyzer memory initialized: {hasattr(flow_agent, 'analyzer_memory')}")
+        print(f"ML analyzer memory initialized: {hasattr(ml_agent, 'analyzer_memory')}")
 
         print("\n" + "=" * 60)
         print("✅ Basic functionality test passed!")

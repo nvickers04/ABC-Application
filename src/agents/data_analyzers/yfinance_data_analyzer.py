@@ -11,14 +11,23 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))  # Dynamic root pat
 
 from src.agents.base import BaseAgent  # Absolute import.
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Callable, Optional
 import pandas as pd
 import numpy as np
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime
 from dataclasses import dataclass, field
-import os
-from src.utils.redis_cache import get_redis_cache_manager, cache_get, cache_set, cache_delete
+from src.utils.redis_cache import get_redis_cache_manager, cache_get, cache_set
+
+# Import performance optimizations
+try:
+    from optimizations.performance_optimizations import AsyncYFianceClient, OptimizedRedisCache, CircuitBreaker
+    OPTIMIZATIONS_AVAILABLE = True
+except ImportError:
+    OPTIMIZATIONS_AVAILABLE = False
+    AsyncYFianceClient = None
+    OptimizedRedisCache = None
+    CircuitBreaker = None
 
 logger = logging.getLogger(__name__)
 
@@ -103,7 +112,7 @@ class YfinanceDataAnalyzer(BaseAgent):
         # Market data indicators
         self.technical_indicators = self._initialize_technical_indicators()
 
-    def _initialize_technical_indicators(self) -> Dict[str, callable]:
+    def _initialize_technical_indicators(self) -> Dict[str, Callable[[pd.Series, int], Optional[pd.Series | Dict[str, pd.Series]]]]:
         """Initialize technical indicator functions."""
         return {
             'sma': self._calculate_sma,
@@ -135,18 +144,23 @@ class YfinanceDataAnalyzer(BaseAgent):
         logger.info(f"MarketData Reflecting on adjustments: {adjustments}")
         return {}
 
-    async def process_input(self, input_data: Dict[str, Any] = None) -> Dict[str, Any]:
-        """
-        Process input to fetch and analyze market data with LLM enhancement.
+    async def process_input(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Processes input for YFinance data analysis.
+        
         Args:
-            input_data: Dict with parameters (symbols for market data analysis).
+            input_data: Dictionary with symbols, data_types, etc.
+        
         Returns:
-            Dict with structured market data and LLM analysis.
+            Dictionary with market_data and llm_analysis.
         """
         logger.info(f"YfinanceDataAnalyzer processing input: {input_data}")
 
         try:
             symbols = input_data.get('symbols', ['SPY']) if input_data else ['SPY']
+
+            # Initialize LLM if not already done
+            if not self.llm:
+                await self.async_initialize_llm()
 
             # Step 1: Plan data exploration with LLM
             exploration_plan = await self._plan_data_exploration(symbols, input_data or {})
@@ -225,16 +239,7 @@ Consider:
 Return a JSON object with:
 - "sources": Array of source names to explore (from available_sources keys)
 - "data_types": Array of data types to prioritize (from available_data_types keys)
-- "priorities": Object mapping source names to priority scores (1-10, higher = more important)
-- "time_horizons": Array of time periods to fetch (e.g., ["1d", "1mo", "1y"])
-- "reasoning": Brief explanation of exploration strategy
-- "expected_insights": Array of expected market intelligence from this data
-
-Example response:
-{{
-  "sources": ["yfinance", "alpha_vantage", "marketdataapp"],
-  "data_types": ["quotes", "historical", "technical", "fundamentals"],
-  "priorities": {{"yfinance": 9, "alpha_vantage": 7, "marketdataapp": 8}},
+- "priorities": {{"yfinance": 9, "alpha_vantage": 7, "marketdataapp": 8}},
   "time_horizons": ["1d", "1mo", "3mo"],
   "reasoning": "Focus on comprehensive data for {primary_symbol} as it's a major index component requiring both technical and fundamental analysis",
   "expected_insights": ["Price momentum signals", "Volume analysis", "Valuation metrics", "Technical indicators"]
@@ -579,7 +584,7 @@ Example response:
                 else:
                     aggregated_data['symbols_data'][symbol] = result
                     # Track sources used
-                    if result.get('sources'):
+                    if isinstance(result, dict) and result.get('sources'):
                         aggregated_data['sources_used'].extend(result['sources'])
 
         # Remove duplicates from sources_used
@@ -613,7 +618,7 @@ Example response:
                     logger.warning(f"Source {source_name} failed for {symbol}: {result}")
                     continue
 
-                if result and 'data' in result:
+                if isinstance(result, dict) and result and 'data' in result:
                     # Merge data from this source
                     for data_type, data_content in result['data'].items():
                         if data_type not in symbol_data['data']:
@@ -908,12 +913,13 @@ Example response:
                 indicators['sma_50'] = self._calculate_sma(close_prices, 50).iloc[-1] if len(close_prices) >= 50 else None
 
                 # RSI
-                indicators['rsi'] = self._calculate_rsi(close_prices).iloc[-1] if len(close_prices) >= 14 else None
+                rsi_result = self._calculate_rsi(close_prices)
+                indicators['rsi'] = rsi_result.iloc[-1] if rsi_result is not None and len(close_prices) >= 14 else None
 
                 # MACD
                 macd_data = self._calculate_macd(close_prices)
                 if macd_data is not None:
-                    indicators['macd'] = macd_data.iloc[-1] if len(macd_data) > 0 else None
+                    indicators['macd'] = macd_data.iloc[-1] if isinstance(macd_data, pd.Series) and len(macd_data) > 0 else None
 
                 # Bollinger Bands
                 bb_data = self._calculate_bollinger_bands(close_prices)
@@ -944,35 +950,40 @@ Example response:
         """Calculate Exponential Moving Average."""
         return prices.ewm(span=period, adjust=False).mean()
 
-    def _calculate_rsi(self, prices: pd.Series, period: int = 14) -> pd.Series:
+    def _calculate_rsi(self, prices: pd.Series, period: int = 14) -> Optional[pd.Series]:
         """Calculate Relative Strength Index."""
-        delta = prices.diff()
+        delta = prices.diff().dropna().astype(float)  # Ensure float for comparisons
         gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
         loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
         rs = gain / loss
-        return 100 - (100 / (1 + rs))
+        rsi = 100 - (100 / (1 + rs))
 
-    def _calculate_macd(self, prices: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9) -> pd.Series:
+        return rsi if not rsi.empty else None
+
+    def _calculate_macd(self, prices: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9) -> Optional[Dict[str, pd.Series]]:
         """Calculate MACD."""
         try:
-            ema_fast = self._calculate_ema(prices, fast)
-            ema_slow = self._calculate_ema(prices, slow)
-            macd_line = ema_fast - ema_slow
-            signal_line = self._calculate_ema(macd_line, signal)
-            return macd_line - signal_line  # MACD histogram
+            ema_fast = prices.ewm(span=fast, adjust=False).mean()
+            ema_slow = prices.ewm(span=slow, adjust=False).mean()
+            macd = ema_fast - ema_slow
+            signal_line = macd.ewm(span=signal, adjust=False).mean()
+            histogram = macd - signal_line
+            macd_dict = {'macd': macd, 'signal': signal_line, 'histogram': histogram}
+
+            return macd_dict if not macd.empty else None
         except:
             return None
 
-    def _calculate_bollinger_bands(self, prices: pd.Series, period: int = 20, std_dev: int = 2) -> Dict[str, pd.Series]:
+    def _calculate_bollinger_bands(self, prices: pd.Series, period: int = 20, std_dev: int = 2) -> Optional[Dict[str, pd.Series]]:
         """Calculate Bollinger Bands."""
         try:
             sma = self._calculate_sma(prices, period)
             std = prices.rolling(window=period).std()
-            return {
-                'upper': sma + (std * std_dev),
-                'middle': sma,
-                'lower': sma - (std * std_dev)
-            }
+            upper = sma + (std * std_dev)
+            middle = sma
+            lower = sma - (std * std_dev)
+
+            return {'upper': upper, 'middle': middle, 'lower': lower} if not middle.empty else None
         except:
             return None
 
@@ -1289,13 +1300,119 @@ Example response:
         """
         Use LLM to analyze consolidated market data for trading insights and patterns.
         """
-        return {
-            "llm_analysis": "Mock LLM analysis for testing",
-            "trend_analysis": {"primary_trend": "neutral", "momentum": "moderate"},
-            "volatility_assessment": {"volatility_regime": "normal", "risk_level": "moderate"},
-            "trading_signals": ["Monitor key levels", "Watch volume patterns"],
-            "risk_metrics": {"var_estimate": 0.02, "max_drawdown": 0.05}
-        }
+        if not self.llm:
+            logger.warning("No LLM available for market data analysis - returning basic insights")
+            return {
+                "llm_analysis": "Basic analysis without LLM assistance",
+                "trend_analysis": {"primary_trend": "neutral", "momentum": "moderate"},
+                "volatility_assessment": {"volatility_regime": "normal", "risk_level": "moderate"},
+                "trading_signals": ["Monitor key levels", "Watch volume patterns"],
+                "risk_metrics": {"var_estimate": 0.02, "max_drawdown": 0.05}
+            }
+
+        try:
+            # Extract key data for analysis
+            symbols = consolidated_data.get('symbols', [])
+            master_df = consolidated_data.get('master_price_df')
+
+            if master_df is not None and not master_df.empty:
+                # Calculate basic statistics for LLM context
+                recent_prices = master_df.tail(30)  # Last 30 days
+                price_stats = {
+                    'avg_price': recent_prices['Close'].mean(),
+                    'price_volatility': recent_prices['Close'].std(),
+                    'total_volume': recent_prices['Volume'].sum(),
+                    'price_range': recent_prices['Close'].max() - recent_prices['Close'].min(),
+                    'trend_slope': self._calculate_price_trend_slope(recent_prices)
+                }
+            else:
+                price_stats = {'note': 'Limited price data available'}
+
+            # Build analysis context
+            analysis_context = f"""
+Market Data Analysis Request:
+- Symbols Analyzed: {', '.join(symbols)}
+- Data Sources: {consolidated_data.get('sources_explored', [])}
+- Analysis Period: Recent market data
+- Data Quality Score: {consolidated_data.get('data_quality_score', 'unknown')}
+
+Price Statistics:
+- Average Price: {price_stats.get('avg_price', 'N/A')}
+- Price Volatility: {price_stats.get('price_volatility', 'N/A')}
+- Total Volume: {price_stats.get('total_volume', 'N/A')}
+- Price Range: {price_stats.get('price_range', 'N/A')}
+- Trend Direction: {'upward' if isinstance(price_stats.get('trend_slope', 0), (int, float)) and price_stats.get('trend_slope', 0) > 0 else 'downward'}
+
+Market Insights:
+{self._extract_market_insights(consolidated_data.get('exploration_results', {}))}
+"""
+
+            analysis_question = """
+Based on the market data analysis above, provide insights on:
+
+1. **Trend Analysis**: What is the primary trend direction and strength?
+2. **Volatility Assessment**: What volatility regime are we in and what risk level does this imply?
+3. **Trading Signals**: What specific trading signals can be derived from this data?
+4. **Risk Metrics**: What are the key risk metrics (VaR estimate, max drawdown) for current market conditions?
+5. **Market Regime**: What market regime classification fits current conditions?
+
+Consider the data quality, source diversity, and statistical significance of the patterns observed.
+Provide specific, actionable insights that can inform trading strategy decisions.
+"""
+
+            # Use LLM directly for analysis
+            if self.llm:
+                # Build context from market data
+                context = {
+                    'context': f"Market data analysis for symbols: {list(consolidated_data.get('symbols_data', {}).keys())}\nData types: {consolidated_data.get('data_types', [])}\nQuality score: {consolidated_data.get('data_quality_score', 'N/A')}",
+                    'question': analysis_question
+                }
+                
+                # Build comprehensive prompt with foundation context
+                sanitized_context = self.sanitize_input(context.get('context', ''))
+                sanitized_question = self.sanitize_input(context.get('question', ''))
+                full_prompt = f"""
+{self.prompt}
+
+FOUNDATION ANALYSIS CONTEXT:
+{sanitized_context}
+
+DECISION REQUIRED:
+{sanitized_question}
+
+ADDITIONAL CONTEXT:
+No additional context provided
+
+Please provide your reasoning and recommendation based on the foundation analysis above.
+Consider market conditions, risk factors, and alignment with our goals (10-20% monthly ROI, <5% drawdown).
+"""
+
+                # Use LLM for reasoning
+                response = await self.llm.ainvoke(full_prompt)
+                llm_response = response.content if hasattr(response, 'content') else str(response)
+            else:
+                llm_response = "LLM not available for market data analysis"
+
+            # Parse LLM response into structured format
+            return {
+                "llm_analysis": llm_response,
+                "trend_analysis": self._extract_trend_analysis(llm_response),
+                "volatility_assessment": self._extract_volatility_assessment(llm_response),
+                "trading_signals": self._extract_trading_signals(llm_response),
+                "risk_metrics": self._extract_risk_metrics(llm_response),
+                "timestamp": datetime.now().isoformat()
+            }
+
+        except Exception as e:
+            logger.error(f"LLM market data analysis failed: {e}")
+            return {
+                "llm_analysis": f"Analysis failed: {str(e)}",
+                "trend_analysis": {"primary_trend": "unknown", "momentum": "unknown"},
+                "volatility_assessment": {"volatility_regime": "unknown", "risk_level": "unknown"},
+                "trading_signals": ["Unable to generate signals due to analysis failure"],
+                "risk_metrics": {"var_estimate": None, "max_drawdown": None},
+                "error": str(e)
+            }
 
     def _extract_trend_analysis(self, llm_response: str) -> Dict[str, Any]:
         """Extract trend analysis from LLM market data analysis."""
@@ -1313,286 +1430,47 @@ Example response:
         """Extract risk metrics from LLM market data analysis."""
         return {"var_estimate": 0.02, "max_drawdown": 0.05}
 
-# Standalone test
-if __name__ == "__main__":
-    import asyncio
-    agent = YfinanceDataAnalyzer()
-    result = asyncio.run(agent.process_input({
-        'symbols': ['AAPL'],
-        'data_types': ['quotes', 'historical'],
-        'time_horizon': '1mo',
-        'analytics': True
-    }))
-    print("Market Data Agent Test Result:")
-    print(f"Keys: {list(result.keys())}")
-    if 'market_data' in result:
-        print(f"Symbols processed: {list(result['market_data'].get('symbols_data', {}).keys())}")
-        print(f"Data types: {result['market_data'].get('data_types', [])}")
+    def _sanitize_llm_input(self, input_text: str) -> str:
+        """
+        Sanitize input text for LLM prompts to prevent injection attacks.
+        Removes or escapes potentially harmful content.
+        """
+        if not isinstance(input_text, str):
+            return str(input_text)
 
-    def _add_technical_indicators(self, df: pd.DataFrame, symbol: str) -> pd.DataFrame:
-        """Add comprehensive technical indicators to the dataframe."""
-        if df.empty:
-            return df
-            
-        try:
-            # Determine the correct column names (symbol-specific or generic)
-            close_col = f'Close_{symbol}' if f'Close_{symbol}' in df.columns else ('Close' if 'Close' in df.columns else None)
-            high_col = f'High_{symbol}' if f'High_{symbol}' in df.columns else ('High' if 'High' in df.columns else None)
-            low_col = f'Low_{symbol}' if f'Low_{symbol}' in df.columns else ('Low' if 'Low' in df.columns else None)
-            
-            if not close_col or close_col not in df.columns:
-                logger.warning(f"No close price column found for {symbol}. Available columns: {list(df.columns)}")
-                return df
-            
-            # Calculate technical indicators
-            # RSI (Relative Strength Index)
-            delta = df[close_col].diff()
-            gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-            loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-            rs = gain / loss
-            df[f'RSI_{symbol}'] = 100 - (100 / (1 + rs))
-            
-            # Simple Moving Averages
-            df[f'SMA_20_{symbol}'] = df[close_col].rolling(window=20).mean()
-            df[f'SMA_50_{symbol}'] = df[close_col].rolling(window=50).mean()
-            df[f'SMA_200_{symbol}'] = df[close_col].rolling(window=200).mean()
-            
-            # Exponential Moving Averages
-            df[f'EMA_12_{symbol}'] = df[close_col].ewm(span=12).mean()
-            df[f'EMA_26_{symbol}'] = df[close_col].ewm(span=26).mean()
-            
-            # Volatility (20-day rolling standard deviation)
-            df[f'Volatility_{symbol}'] = df[close_col].pct_change().rolling(window=20).std() * (252 ** 0.5)
-            
-            # Rate of Change (10-day)
-            df[f'ROC_10_{symbol}'] = ((df[close_col] - df[close_col].shift(10)) / df[close_col].shift(10)) * 100
-            
-            # Momentum (10-day)
-            df[f'Momentum_{symbol}'] = df[close_col] - df[close_col].shift(10)
-            
-            # MACD (Moving Average Convergence Divergence)
-            ema_12 = df[close_col].ewm(span=12).mean()
-            ema_26 = df[close_col].ewm(span=26).mean()
-            df[f'MACD_{symbol}'] = ema_12 - ema_26
-            df[f'MACD_Signal_{symbol}'] = df[f'MACD_{symbol}'].ewm(span=9).mean()
-            
-            # Bollinger Bands (if we have high/low data)
-            if high_col and low_col and high_col in df.columns and low_col in df.columns:
-                sma_20 = df[close_col].rolling(window=20).mean()
-                std_20 = df[close_col].rolling(window=20).std()
-                df[f'BB_Upper_{symbol}'] = sma_20 + (std_20 * 2)
-                df[f'BB_Lower_{symbol}'] = sma_20 - (std_20 * 2)
-            
-            # Williams %R (if we have high/low data)
-            if high_col and low_col and high_col in df.columns and low_col in df.columns:
-                highest_high = df[high_col].rolling(window=14).max()
-                lowest_low = df[low_col].rolling(window=14).min()
-                df[f'Williams_R_{symbol}'] = ((highest_high - df[close_col]) / (highest_high - lowest_low)) * -100
-            
-            # Stochastic Oscillator (if we have high/low data)
-            if high_col and low_col and high_col in df.columns and low_col in df.columns:
-                lowest_low_14 = df[low_col].rolling(window=14).min()
-                highest_high_14 = df[high_col].rolling(window=14).max()
-                df[f'Stoch_K_{symbol}'] = ((df[close_col] - lowest_low_14) / (highest_high_14 - lowest_low_14)) * 100
-                df[f'Stoch_D_{symbol}'] = df[f'Stoch_K_{symbol}'].rolling(window=3).mean()
-            
-            logger.info(f"Added {len([col for col in df.columns if symbol in col])} technical indicators for {symbol}")
-            return df
-            
-        except Exception as e:
-            logger.error(f"Failed to add technical indicators for {symbol}: {e}")
-            return df
+        # Remove or escape common injection patterns
+        sanitized = input_text
 
-    async def _cross_validate_data(self, symbol: str, period: str) -> Dict[str, Any]:
-        """
-        Cross-validate data from multiple sources for reliability.
-        Returns validation result with confidence score.
-        """
-        import numpy as np
-        
-        validation_results = []
-        sources_attempted = 0
-        
-        # Source 1: Primary yfinance data
-        try:
-            sources_attempted += 1
-            import yfinance as yf
-            df1 = yf.download(symbol, period=period, interval="1d", progress=False)
-            
-            if not df1.empty and len(df1) > 10:
-                latest_price = df1['Close'].iloc[-1]
-                data_points = len(df1)
-                validation_results.append({
-                    'source': 'yfinance_primary',
-                    'dataframe': df1,
-                    'latest_price': latest_price,
-                    'data_points': data_points,
-                    'success': True
-                })
-            else:
-                validation_results.append({
-                    'source': 'yfinance_primary',
-                    'success': False,
-                    'reason': 'Insufficient data'
-                })
-        except Exception as e:
-            validation_results.append({
-                'source': 'yfinance_primary',
-                'success': False,
-                'reason': str(e)
-            })
-        
-        # Source 2: Secondary validation via different yfinance call
-        try:
-            sources_attempted += 1
-            import yfinance as yf
-            # Try with different parameters for cross-validation
-            df2 = yf.download(symbol, period=period, interval="1d", prepost=False, progress=False)
-            
-            if not df2.empty and len(df2) > 10:
-                latest_price = df2['Close'].iloc[-1]
-                data_points = len(df2)
-                validation_results.append({
-                    'source': 'yfinance_secondary',
-                    'dataframe': df2,
-                    'latest_price': latest_price,
-                    'data_points': data_points,
-                    'success': True
-                })
-            else:
-                validation_results.append({
-                    'source': 'yfinance_secondary',
-                    'success': False,
-                    'reason': 'Insufficient data'
-                })
-        except Exception as e:
-            validation_results.append({
-                'source': 'yfinance_secondary',
-                'success': False,
-                'reason': str(e)
-            })
-        
-        # Analyze validation results
-        successful_sources = [r for r in validation_results if r.get('success', False)]
-        
-        if len(successful_sources) >= 2:
-            # Cross-validate prices
-            prices = [r['latest_price'] for r in successful_sources]
-            price_mean = np.mean(prices)
-            price_std = np.std(prices)
-            price_cv = price_std / price_mean if price_mean > 0 else float('inf')
-            
-            # Cross-validate data point counts
-            data_counts = [r['data_points'] for r in successful_sources]
-            count_mean = np.mean(data_counts)
-            count_std = np.std(data_counts)
-            count_cv = count_std / count_mean if count_mean > 0 else float('inf')
-            
-            # Validation criteria
-            price_agreement = price_cv < 0.02  # Within 2% of each other
-            count_agreement = count_cv < 0.1   # Within 10% data point difference
-            
-            if price_agreement and count_agreement:
-                # Use the dataframe with most data points
-                best_source = max(successful_sources, key=lambda x: x['data_points'])
-                return {
-                    'validated': True,
-                    'dataframe': best_source['dataframe'],
-                    'validation_info': {
-                        'validated': True,
-                        'confidence': min(0.95, 0.7 + len(successful_sources) * 0.1),
-                        'sources_used': len(successful_sources),
-                        'price_agreement': price_agreement,
-                        'count_agreement': count_agreement,
-                        'price_cv': price_cv,
-                        'count_cv': count_cv
-                    }
-                }
-            else:
-                return {
-                    'validated': False,
-                    'dataframe': successful_sources[0]['dataframe'],
-                    'reason': f'Data disagreement - Price CV: {price_cv:.4f}, Count CV: {count_cv:.4f}',
-                    'validation_info': {
-                        'validated': False,
-                        'confidence': 0.3,
-                        'sources_used': len(successful_sources),
-                        'price_agreement': price_agreement,
-                        'count_agreement': count_agreement,
-                        'price_cv': price_cv,
-                        'count_cv': count_cv
-                    }
-                }
-        elif len(successful_sources) == 1:
-            # Single source validation
-            source = successful_sources[0]
-            if source['data_points'] > 50 and source['latest_price'] > 0:
-                return {
-                    'validated': True,
-                    'dataframe': source['dataframe'],
-                    'validation_info': {
-                        'validated': True,
-                        'confidence': 0.6,
-                        'sources_used': 1,
-                        'reason': 'Single source with sufficient data quality'
-                    }
-                }
-            else:
-                return {
-                    'validated': False,
-                    'dataframe': source['dataframe'],
-                    'reason': 'Single source with insufficient data quality',
-                    'validation_info': {
-                        'validated': False,
-                        'confidence': 0.2,
-                        'sources_used': 1
-                    }
-                }
-        else:
-            return {
-                'validated': False,
-                'dataframe': pd.DataFrame(),
-                'reason': f'No successful data sources out of {sources_attempted} attempted',
-                'validation_info': {
-                    'validated': False,
-                    'confidence': 0.0,
-                    'sources_used': 0
-                }
-            }
+        # Remove system prompt override attempts
+        sanitized = sanitized.replace("SYSTEM:", "").replace("system:", "")
+        sanitized = sanitized.replace("ASSISTANT:", "").replace("assistant:", "")
+        sanitized = sanitized.replace("USER:", "").replace("user:", "")
 
-    def validate_data_quality(self, data: pd.DataFrame) -> bool:
-        """
-        Validate the quality of market data.
-        
-        Args:
-            data: DataFrame containing market data
-            
-        Returns:
-            bool: True if data quality is acceptable, False otherwise
-        """
-        if data is None or data.empty:
-            return False
-            
-        # Check for required columns
-        required_columns = ['Open', 'High', 'Low', 'Close']
-        if not all(col in data.columns for col in required_columns):
-            return False
-            
-        # Check for minimum data points
-        if len(data) < 5:
-            return False
-            
-        # Check for reasonable price values (not all zeros or negative)
-        price_cols = ['Open', 'High', 'Low', 'Close']
-        for col in price_cols:
-            if (data[col] <= 0).all():
-                return False
-                
-        # Check for NaN values
-        if data[price_cols].isnull().any().any():
-            return False
-            
-        return True
+        # Remove prompt injection markers
+        injection_markers = [
+            "###", "---", "```", "IGNORE PREVIOUS",
+            "FORGET INSTRUCTIONS", "NEW INSTRUCTIONS",
+            "SYSTEM PROMPT", "You are now"
+        ]
+
+        for marker in injection_markers:
+            sanitized = sanitized.replace(marker, "[FILTERED]")
+
+        # Limit input length to prevent excessive token usage
+        max_length = 4000  # Reasonable limit for analysis prompts
+        if len(sanitized) > max_length:
+            sanitized = sanitized[:max_length] + "...[TRUNCATED]"
+
+        # Remove excessive whitespace
+        import re
+        sanitized = re.sub(r'\n\s*\n\s*\n+', '\n\n', sanitized)  # Multiple newlines to double
+        sanitized = re.sub(r'\s+', ' ', sanitized.strip())  # Multiple spaces to single
+
+        return sanitized
+
+    def sanitize_input(self, input_text: str) -> str:
+        """Alias for _sanitize_llm_input for backward compatibility."""
+        return self._sanitize_llm_input(input_text)
 
 # Standalone test (run python src/agents/yfinance_agent.py to verify)
 if __name__ == "__main__":

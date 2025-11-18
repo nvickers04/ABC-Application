@@ -1,18 +1,25 @@
 import sys
 from pathlib import Path
 # Fix import path to point to the correct src directory
-sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
+project_root = Path(__file__).parent.parent
+src_path = str(project_root / 'src')
+# Remove the conflicting Grok-IBKR path and add our correct path
+sys.path = [p for p in sys.path if 'Grok-IBKR' not in p]
+sys.path.insert(0, src_path)
+# Ensure we're using the correct src directory
+import os
+os.chdir(str(project_root))
 
 import asyncio
 import json
 from datetime import datetime
-from src.agents.data import DataAgent
-from src.agents.risk import RiskAgent
-from src.agents.strategy import StrategyAgent
-from src.agents.execution import ExecutionAgent
-from src.agents.reflection import ReflectionAgent
-from src.agents.learning import LearningAgent
-from src.agents.macro import MacroAgent
+from agents.data import DataAgent
+from agents.risk import RiskAgent
+from agents.strategy import StrategyAgent
+from agents.execution import ExecutionAgent
+from agents.reflection import ReflectionAgent
+from agents.learning import LearningAgent
+from agents.macro import MacroAgent
 from src.utils.historical_simulation_engine import run_historical_portfolio_simulation
 
 async def run_full_system_integration_test():

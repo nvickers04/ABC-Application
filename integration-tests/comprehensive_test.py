@@ -3,7 +3,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.agents.data import DataAgent
-from src.agents.strategy_subs.multi_instrument_strategy_sub import MultiInstrumentStrategySub
+from src.agents.strategy_analyzers.multi_instrument_strategy_analyzer import MultiInstrumentStrategyAnalyzer
 import asyncio
 
 async def comprehensive_test():
@@ -33,7 +33,7 @@ async def comprehensive_test():
         'institutional': {'holdings': [{'symbol': 'SPY', 'shares': 1000000}]}
     }
 
-    strategy_agent = MultiInstrumentStrategySub()
+    strategy_agent = MultiInstrumentStrategyAnalyzer()
     strategy_result = await strategy_agent.process_input(strategy_input)
 
     if 'multi_instrument' in strategy_result and strategy_result['multi_instrument']:

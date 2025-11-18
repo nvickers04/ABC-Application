@@ -39,7 +39,7 @@ class SentimentMemory:
         """Get recent sentiment insights."""
         return self.session_insights[-limit:]
 
-class SentimentDatasub(BaseAgent):
+class SentimentDataAnalyzer(BaseAgent):
     """
     Comprehensive Sentiment Data Subagent implementing full specification.
     Multi-dimensional sentiment analysis across news, social media, and market data.
@@ -119,7 +119,7 @@ class SentimentDatasub(BaseAgent):
         """
         Comprehensive sentiment analysis across multiple dimensions.
         """
-        logger.info(f"SentimentDatasub processing input: {input_data or 'Default analysis'}")
+        logger.info(f"SentimentDataAnalyzer processing input: {input_data or 'Default analysis'}")
 
         # Extract analysis parameters
         focus_areas = input_data.get('focus_areas', ['news', 'social_media', 'market_data']) if input_data else ['news', 'social_media', 'market_data']
@@ -169,14 +169,14 @@ class SentimentDatasub(BaseAgent):
                     "timestamp": datetime.now().isoformat()
                 })
 
-            logger.info(f"SentimentDatasub completed analysis: {len(sentiment_data.get('sources', {}))} sources processed")
+            logger.info(f"SentimentDataAnalyzer completed analysis: {len(sentiment_data.get('sources', {}))} sources processed")
             return {
                 "sentiment_score": sentiment_data.get('composite_sentiment', {}).get('score', 0.5),
                 "sentiment": sentiment_data
             }
 
         except Exception as e:
-            logger.error(f"SentimentDatasub failed: {e}")
+            logger.error(f"SentimentDataAnalyzer failed: {e}")
             result = {
                 "sentiment_score": 0.5,
                 "sentiment": {
@@ -939,7 +939,7 @@ class SentimentDatasub(BaseAgent):
 # Standalone test
 if __name__ == "__main__":
     import asyncio
-    agent = SentimentDatasub()
+    agent = SentimentDataAnalyzer()
     result = asyncio.run(agent.process_input({
         'focus_areas': ['news', 'social_media'],
         'symbols': ['AAPL'],

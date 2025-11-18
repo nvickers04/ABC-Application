@@ -1441,19 +1441,19 @@ class MLStrategyAnalyzer(BaseAgent):
                 obv[i] = obv[i-1]
         return obv
 
-class MLStrategyAnalyzer(BaseAgent):
+class AIStrategyAnalyzer(BaseAgent):
     """
-    ML Strategy Analyzer with LLM integration and collaborative memory.
-    Reasoning: Generates ML-refined proposals using predictive models, pattern recognition, and deep analysis.
+    AI Strategy Analyzer with LLM integration and collaborative memory.
+    Reasoning: Generates AI-enhanced proposals using predictive models, pattern recognition, and deep analysis.
     """
 
     def __init__(self):
         config_paths = {'risk': 'config/risk-constraints.yaml'}  # Relative to root.
         prompt_paths = {'base': 'base_prompt.txt', 'role': 'agents/strategy-agent-complete.md'}  # Relative to root.
-        # Initialize ML refinement tool
-        qlib_ml_refine_tool = self._create_ml_refine_tool()
-        tools = [qlib_ml_refine_tool]
-        super().__init__(role='ml_strategy_sub', config_paths=config_paths, prompt_paths=prompt_paths, tools=tools)
+        # Initialize AI refinement tool
+        ai_refine_tool = self._create_ai_refine_tool()
+        tools = [ai_refine_tool]
+        super().__init__(role='ai_strategy_sub', config_paths=config_paths, prompt_paths=prompt_paths, tools=tools)
 
         # Initialize collaborative memory for subagent research
         self.subagent_memory = {}
@@ -1512,16 +1512,16 @@ class MLStrategyAnalyzer(BaseAgent):
             'fallback': True
         }
 
-    def _create_ml_refine_tool(self):
-        """Create ML refinement tool for strategy analysis."""
+    def _create_ai_refine_tool(self):
+        """Create AI refinement tool for strategy analysis."""
         try:
             # Simple tool implementation without external dependencies
-            class MLRefineTool:
-                name = "qlib_ml_refine_tool"
-                description = "Advanced ML-based strategy refinement using real market data"
+            class AIRefineTool:
+                name = "ai_refine_tool"
+                description = "Advanced AI-based strategy refinement using real market data"
 
-                def __init__(self, ml_agent):
-                    self.ml_agent = ml_agent
+                def __init__(self, ai_agent):
+                    self.ai_agent = ai_agent
 
                 def _run(self, **kwargs):
                     return self.run_analysis(**kwargs)
@@ -1530,34 +1530,34 @@ class MLStrategyAnalyzer(BaseAgent):
                     return self.run_analysis(**kwargs)
 
                 def run_analysis(self, **kwargs):
-                    """Perform ML-based strategy refinement."""
+                    """Perform AI-based strategy refinement."""
                     try:
                         symbol = kwargs.get('symbol', 'SPY')
                         timeframe = kwargs.get('timeframe', '1D')
                         features = kwargs.get('features', ['returns', 'volatility', 'volume'])
 
-                        # Use real ML analysis instead of synthetic data
-                        result = self.ml_agent._perform_ml_analysis(symbol, timeframe, features)
+                        # Use real AI analysis instead of synthetic data
+                        result = self.ai_agent._perform_ai_analysis(symbol, timeframe, features)
 
                         return {
                             'symbol': symbol,
-                            'ml_signals': result,
-                            'analysis_type': 'real_data_ml',
+                            'ai_signals': result,
+                            'analysis_type': 'real_data_ai',
                             'timestamp': datetime.now().isoformat()
                         }
                     except Exception as e:
-                        logger.warning(f"ML refinement failed: {e}")
+                        logger.warning(f"AI refinement failed: {e}")
                         return {'error': str(e)}
 
-            tool = MLRefineTool(self)
+            tool = AIRefineTool(self)
             return tool
 
         except Exception as e:
-            logger.error(f"Failed to create ML refine tool: {e}")
+            logger.error(f"Failed to create AI refine tool: {e}")
             # Return a simple dict as fallback
             return {
-                'name': 'qlib_ml_refine_tool',
-                'description': 'ML refinement tool (fallback)',
+                'name': 'ai_refine_tool',
+                'description': 'AI refinement tool (fallback)',
                 'run': lambda **kwargs: {'error': 'Tool not available'}
             }
 
@@ -1579,41 +1579,43 @@ class MLStrategyAnalyzer(BaseAgent):
 
     async def process_input(self, input_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
-        Process input with LLM-enhanced ML strategy generation.
+        Process input with AI-enhanced strategy generation.
+        Provides fallback when LLM is not available.
         """
-        logger.info(f"ML Subagent processing input: {input_data or 'Default SPY ML'}")
+        logger.info(f"AI Strategy Analyzer processing input: {input_data or 'Default SPY AI'}")
 
         # Initialize research session for collaborative memory
-        self.research_session_id = f"ml_research_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        self.research_session_id = f"ai_research_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
         try:
             symbol = input_data.get('symbols', ['SPY'])[0] if input_data else 'SPY'
             dataframe = input_data.get('dataframe') if input_data else None
 
-            # Step 1: Perform ML analysis and feature engineering
-            ml_analysis = self._perform_ml_analysis(symbol, '1D', ['returns', 'volatility', 'volume'])
+            # Step 1: Perform AI analysis and feature engineering
+            ai_analysis = self._perform_ai_analysis(symbol, '1D', ['returns', 'volatility', 'volume'])
 
-            # Step 2: LLM deep analysis for model interpretation and strategy optimization
-            llm_insights = await self._llm_model_analysis(ml_analysis)
+            # Step 2: Try LLM deep analysis - fallback gracefully if not available
+            llm_insights = await self._try_llm_analysis(ai_analysis, symbol)
 
-            # Step 3: Generate ML-based strategy proposal
-            proposal = await self._generate_ml_proposal(symbol, ml_analysis, llm_insights)
+            # Step 3: Generate AI-based strategy proposal
+            proposal = await self._generate_ai_proposal(symbol, ai_analysis, llm_insights)
 
             # Step 4: Store insights in collaborative memory
-            self._store_collaborative_insight("ml_analysis", ml_analysis)
+            self._store_collaborative_insight("ai_analysis", ai_analysis)
             self._store_collaborative_insight("llm_insights", llm_insights)
             self._store_collaborative_insight("strategy_proposal", proposal)
 
             # Step 5: Share predictive insights with other subagents
-            await self._share_predictive_insights(ml_analysis)
+            await self._share_predictive_insights(ai_analysis)
 
-            logger.info(f"Enhanced ML proposal generated: {proposal.get('setup', 'unknown')} for {symbol}")
-            return {'ml': proposal}
+            logger.info(f"Enhanced AI proposal generated: {proposal.get('setup', 'unknown')} for {symbol}")
+            return {'ai': proposal}
 
         except Exception as e:
-            logger.error(f"ML subagent processing failed: {e}")
+            logger.error(f"AI subagent processing failed: {e}")
             # Return basic fallback proposal
-            return {'ml': self._generate_fallback_proposal(symbol)}
+            symbol = input_data.get('symbols', ['SPY'])[0] if input_data else 'SPY'
+            return {'ai': self._generate_fallback_proposal(symbol)}
 
     def _engineer_features(self, dataframe: Any) -> Dict[str, Any]:
         """
@@ -1738,27 +1740,83 @@ class MLStrategyAnalyzer(BaseAgent):
 
         return risks
 
-    async def _llm_model_analysis(self, ml_analysis: Dict[str, Any]) -> Dict[str, Any]:
+    async def _try_llm_analysis(self, ai_analysis: Dict[str, Any], symbol: str) -> Dict[str, Any]:
         """
-        Use LLM for deep analysis of ML model outputs and strategy implications.
+        Try LLM analysis with graceful fallback if LLM is not available.
+        """
+        try:
+            # Check if LLM is available
+            if not hasattr(self, 'llm') or self.llm is None:
+                logger.warning("LLM not available for AI strategy analyzer - using fallback analysis")
+                return self._create_fallback_llm_insights(ai_analysis, symbol)
+
+            # Try LLM analysis
+            return await self._llm_model_analysis(ai_analysis, symbol)
+
+        except Exception as e:
+            logger.warning(f"LLM analysis failed: {e} - using fallback analysis")
+            return self._create_fallback_llm_insights(ai_analysis, symbol)
+
+    def _create_fallback_llm_insights(self, ai_analysis: Dict[str, Any], symbol: str) -> Dict[str, Any]:
+        """
+        Create fallback LLM insights when LLM is not available.
+        """
+        # Generate basic insights based on AI analysis
+        trend_prediction = ai_analysis.get('trend_prediction', 0.5)
+        volatility_forecast = ai_analysis.get('volatility_forecast', 0.25)
+        momentum_score = ai_analysis.get('momentum_score', 0.5)
+        confidence = ai_analysis.get('confidence', 0.5)
+
+        # Determine strategy recommendation based on signals
+        if trend_prediction > 0.7 and momentum_score > 0.6:
+            strategy_rec = 'ai_trend_following'
+            risk_level = 'moderate'
+        elif volatility_forecast > 0.35:
+            strategy_rec = 'ai_volatility_arbitrage'
+            risk_level = 'high'
+        else:
+            strategy_rec = 'predictive_trend'
+            risk_level = 'moderate'
+
+        # Determine confidence interpretation
+        if confidence > 0.8:
+            confidence_interp = 'high_model_confidence'
+        elif confidence > 0.6:
+            confidence_interp = 'moderate_model_confidence'
+        else:
+            confidence_interp = 'low_model_confidence'
+
+        return {
+            'llm_analysis': f'AI analysis for {symbol}: Trend={trend_prediction:.2f}, Volatility={volatility_forecast:.2f}, Momentum={momentum_score:.2f}. Strategy recommendation: {strategy_rec}',
+            'strategy_recommendation': strategy_rec,
+            'risk_assessment': risk_level,
+            'confidence_interpretation': confidence_interp,
+            'positioning_advice': 'balanced_positioning',
+            'fallback_mode': True,
+            'timestamp': datetime.now().isoformat()
+        }
+
+    async def _llm_model_analysis(self, ai_analysis: Dict[str, Any], symbol: str) -> Dict[str, Any]:
+        """
+        Use LLM for deep analysis of AI model outputs and strategy implications.
         """
         analysis_summary = f"""
-        ML Analysis Results for {ml_analysis['symbol']}:
-        - Trend Prediction: {self._format_value(ml_analysis['model_predictions'].get('trend_prediction', 'N/A'), '.2%')}
-        - Volatility Forecast: {self._format_value(ml_analysis['model_predictions'].get('volatility_forecast', 'N/A'), '.2%')}
-        - Momentum Score: {self._format_value(ml_analysis['model_predictions'].get('momentum_score', 'N/A'), '.2%')}
-        - Model Confidence: {self._format_value(ml_analysis['model_predictions'].get('model_confidence', 'N/A'), '.2%')}
-        - Market Regime: {ml_analysis['pattern_recognition'].get('regime_classification', 'unknown')}
-        - Technical Patterns: {', '.join(ml_analysis['pattern_recognition'].get('technical_patterns', []))}
+        AI Analysis Results for {symbol}:
+        - Trend Prediction: {self._format_value(ai_analysis.get('trend_prediction', 'N/A'), '.2%')}
+        - Volatility Forecast: {self._format_value(ai_analysis.get('volatility_forecast', 'N/A'), '.2%')}
+        - Momentum Score: {self._format_value(ai_analysis.get('momentum_score', 'N/A'), '.2%')}
+        - Model Confidence: {self._format_value(ai_analysis.get('confidence', 'N/A'), '.2%')}
+        - Market Regime: normal
+        - Technical Patterns: []
         """
 
         question = """
-        Based on the ML analysis results above, provide insights on:
+        Based on the AI analysis results above, provide insights on:
         1. Model reliability and confidence assessment
         2. Trading strategy implications from the predictions
         3. Risk factors and uncertainty considerations
         4. Market regime implications for strategy selection
-        5. Recommended position sizing and timing based on ML signals
+        5. Recommended position sizing and timing based on AI signals
 
         Consider model limitations, market conditions, and strategy alignment.
         """
@@ -1774,44 +1832,171 @@ class MLStrategyAnalyzer(BaseAgent):
             'timestamp': datetime.now().isoformat()
         }
 
-    async def _generate_ml_proposal(self, symbol: str, ml_analysis: Dict[str, Any],
-                                  llm_insights: Dict[str, Any]) -> Dict[str, Any]:
+    async def _generate_ai_proposal(self, symbol: str, ai_analysis: Dict[str, Any], llm_insights: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Generate ML-based strategy proposal incorporating LLM insights.
+        Generate AI-enhanced trading proposal with LLM insights and fallback support.
         """
-        # Base proposal structure
+        # Get LLM insights with fallback
+        llm_insights = await self._try_llm_analysis(ai_analysis, symbol)
+
+        # Extract key components
+        strategy_rec = llm_insights.get('strategy_recommendation', 'predictive_trend')
+        risk_level = llm_insights.get('risk_assessment', 'moderate')
+        confidence_interp = llm_insights.get('confidence_interpretation', 'moderate_model_confidence')
+        positioning = llm_insights.get('positioning_advice', 'balanced_positioning')
+
+        # Build comprehensive proposal
         proposal = {
-            'strategy_type': 'ml',
+            'strategy_type': strategy_rec,
             'symbol': symbol,
-            'llm_driven': True,
-            'research_session': self.research_session_id,
+            'confidence_level': confidence_interp,
+            'risk_profile': risk_level,
+            'position_sizing': positioning,
+            'entry_signals': self._generate_entry_signals(ai_analysis, strategy_rec),
+            'exit_signals': self._generate_exit_signals(ai_analysis, strategy_rec),
+            'risk_management': self._generate_risk_management(ai_analysis, risk_level),
+            'performance_expectation': self._calculate_performance_expectation(ai_analysis, confidence_interp),
+            'llm_insights': llm_insights.get('llm_analysis', ''),
+            'fallback_mode': llm_insights.get('fallback_mode', False),
             'timestamp': datetime.now().isoformat()
         }
 
-        # Determine strategy type based on ML analysis and LLM insights
-        predictions = ml_analysis['model_predictions']
-        strategy_rec = llm_insights.get('strategy_recommendation', 'predictive_trend')
-
-        if predictions.get('trend_prediction', 0.5) > 0.7 and predictions.get('momentum_score', 0.5) > 0.65:
-            proposal['setup'] = 'ml_trend_following'
-        elif predictions.get('volatility_forecast', 0.25) > 0.35:
-            proposal['setup'] = 'ml_volatility_arbitrage'
-        elif ml_analysis['pattern_recognition'].get('regime_classification') == 'high_volatility':
-            proposal['setup'] = 'ml_regime_adaptation'
-        else:
-            proposal['setup'] = strategy_rec
-
-        # Add ML signals and risk metrics
-        proposal.update(self._calculate_ml_signals(ml_analysis, llm_insights))
-
-        # Add LLM insights
-        proposal['llm_analysis'] = llm_insights.get('llm_analysis', '')
-        proposal['model_interpretation'] = llm_insights.get('confidence_interpretation', '')
-
-        # Add collaborative insights
-        proposal['shared_insights'] = self._get_shared_insights()
-
         return proposal
+
+    def _generate_entry_signals(self, ai_analysis: Dict[str, Any], strategy_type: str) -> Dict[str, Any]:
+        """
+        Generate entry signals based on AI analysis and strategy type.
+        """
+        trend_prediction = ai_analysis.get('trend_prediction', 0.5)
+        momentum_score = ai_analysis.get('momentum_score', 0.5)
+        volatility_forecast = ai_analysis.get('volatility_forecast', 0.25)
+
+        signals = {
+            'primary_signal': 'trend_confirmation',
+            'secondary_signals': [],
+            'technical_filters': [],
+            'momentum_filters': []
+        }
+
+        # Strategy-specific entry signals
+        if strategy_type == 'ai_trend_following':
+            signals['primary_signal'] = 'strong_trend_confirmation'
+            signals['secondary_signals'] = ['momentum_divergence', 'volume_confirmation']
+            signals['technical_filters'] = ['rsi_oversold', 'macd_crossover']
+        elif strategy_type == 'ai_volatility_arbitrage':
+            signals['primary_signal'] = 'volatility_expansion'
+            signals['secondary_signals'] = ['mean_reversion_setup', 'range_breakout']
+            signals['technical_filters'] = ['bollinger_squeeze', 'atr_expansion']
+        else:  # predictive_trend
+            signals['primary_signal'] = 'predictive_signal'
+            signals['secondary_signals'] = ['trend_alignment', 'momentum_support']
+            signals['technical_filters'] = ['sma_crossover', 'support_resistance']
+
+        # Add momentum filters based on analysis
+        if momentum_score > 0.7:
+            signals['momentum_filters'].append('strong_momentum')
+        elif momentum_score < 0.3:
+            signals['momentum_filters'].append('weak_momentum_filter')
+
+        return signals
+
+    def _generate_exit_signals(self, ai_analysis: Dict[str, Any], strategy_type: str) -> Dict[str, Any]:
+        """
+        Generate exit signals based on AI analysis and strategy type.
+        """
+        signals = {
+            'profit_targets': [],
+            'stop_losses': [],
+            'time_exits': [],
+            'signal_reversals': []
+        }
+
+        # Strategy-specific exit signals
+        if strategy_type == 'ai_trend_following':
+            signals['profit_targets'] = ['2:1_reward_ratio', 'resistance_level']
+            signals['stop_losses'] = ['trend_break', 'support_level']
+            signals['signal_reversals'] = ['momentum_reversal', 'trend_weakening']
+        elif strategy_type == 'ai_volatility_arbitrage':
+            signals['profit_targets'] = ['volatility_contraction', 'mean_reversion_target']
+            signals['stop_losses'] = ['volatility_expansion_stop', 'range_break']
+            signals['signal_reversals'] = ['volatility_spike', 'regime_change']
+        else:  # predictive_trend
+            signals['profit_targets'] = ['target_projection', 'resistance_touch']
+            signals['stop_losses'] = ['prediction_failure', 'support_break']
+            signals['signal_reversals'] = ['signal_weakening', 'contrarian_setup']
+
+        signals['time_exits'] = ['max_holding_period', 'signal_timeout']
+
+        return signals
+
+    def _generate_risk_management(self, ai_analysis: Dict[str, Any], risk_level: str) -> Dict[str, Any]:
+        """
+        Generate risk management parameters based on AI analysis and risk level.
+        """
+        base_position_size = 0.10  # 10% of portfolio
+        volatility_forecast = ai_analysis.get('volatility_forecast', 0.25)
+
+        # Adjust position size based on risk level
+        risk_multipliers = {
+            'low': 1.2,
+            'moderate': 1.0,
+            'high': 0.7
+        }
+        risk_multiplier = risk_multipliers.get(risk_level, 1.0)
+
+        # Adjust for volatility
+        volatility_adjustment = max(0.5, 1.0 - volatility_forecast)
+
+        position_size = base_position_size * risk_multiplier * volatility_adjustment
+
+        return {
+            'max_position_size': min(0.25, position_size),  # Cap at 25%
+            'stop_loss_percentage': 0.05 + (volatility_forecast * 0.10),  # 5-15% stop loss
+            'trailing_stop': True,
+            'max_holding_period': '30_days',
+            'risk_reward_ratio': 2.0,
+            'portfolio_heat_limit': 0.40,  # Max 40% portfolio heat
+            'correlation_limits': {
+                'max_correlation': 0.7,
+                'hedge_required': risk_level == 'high'
+            }
+        }
+
+    def _calculate_performance_expectation(self, ai_analysis: Dict[str, Any], confidence_level: str) -> Dict[str, Any]:
+        """
+        Calculate performance expectations based on AI analysis and confidence.
+        """
+        confidence = ai_analysis.get('confidence', 0.5)
+        trend_prediction = ai_analysis.get('trend_prediction', 0.5)
+        momentum_score = ai_analysis.get('momentum_score', 0.5)
+
+        # Base expectations
+        base_return = 0.15  # 15% expected return
+        base_win_rate = 0.65  # 65% win rate
+
+        # Adjust based on confidence level
+        confidence_multipliers = {
+            'high_model_confidence': 1.3,
+            'moderate_model_confidence': 1.0,
+            'low_model_confidence': 0.7
+        }
+        confidence_multiplier = confidence_multipliers.get(confidence_level, 1.0)
+
+        # Adjust based on signal strength
+        signal_strength = (trend_prediction + momentum_score + confidence) / 3.0
+        signal_multiplier = 0.7 + (signal_strength * 0.6)  # 0.7 to 1.3 range
+
+        expected_return = base_return * confidence_multiplier * signal_multiplier
+        expected_win_rate = min(0.85, base_win_rate * confidence_multiplier * signal_multiplier)
+
+        return {
+            'expected_annual_return': expected_return,
+            'expected_win_rate': expected_win_rate,
+            'expected_max_drawdown': 0.12 / confidence_multiplier,  # Lower confidence = higher drawdown
+            'sharpe_ratio_expectation': expected_return / 0.15,  # Assuming 15% volatility
+            'confidence_adjustment': confidence_multiplier,
+            'signal_strength_score': signal_strength
+        }
 
     def _calculate_ml_signals(self, ml_analysis: Dict[str, Any], llm_insights: Dict[str, Any]) -> Dict[str, Any]:
         """

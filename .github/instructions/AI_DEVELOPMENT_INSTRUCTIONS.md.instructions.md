@@ -35,6 +35,20 @@ applyTo: '*ABC-Application*'
 - **LLM Integration**: Consistent ChatXAI_grok4 integration across all agents
 - **Error Recovery**: Graceful degradation and circuit breakers
 
+### 5. **Performance Optimization**
+- **Async Patterns**: Use asyncio for I/O-bound operations; avoid blocking calls in async contexts
+- **Dependency Management**: Minimize heavy imports; use lazy loading for optional deps
+- **Caching**: Leverage Redis for data caching to reduce API calls
+- **Profiling**: Use cProfile or line_profiler for bottlenecks; aim for <1s response times
+- **Scalability**: Design for horizontal scaling; avoid global state
+
+### 6. **GDPR and Data Privacy Compliance**
+- **Data Minimization**: Collect only necessary data; anonymize personal info
+- **Consent**: Obtain explicit consent for data processing; provide opt-out
+- **Retention**: Limit data storage to required periods; implement auto-deletion
+- **Security**: Encrypt sensitive data; use secure APIs; audit access logs
+- **Transparency**: Document data usage in privacy policies; notify breaches within 72h
+
 ## File Organization Guide
 
 ### Source Code Structure (`src/`)

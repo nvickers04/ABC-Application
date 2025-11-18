@@ -17,7 +17,7 @@ from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
-class NewsDatasub(BaseAgent):
+class NewsDataAnalyzer(BaseAgent):
     """
     News Data Subagent with LLM-powered exploration.
     Reasoning: Intelligently explores multiple news sources and filters content for relevance.
@@ -135,6 +135,10 @@ class NewsDatasub(BaseAgent):
         logger.info(f"NewsDatasub processing input: {input_data}")
 
         try:
+            # Initialize LLM if not already done
+            if not self.llm:
+                await self.async_initialize_llm()
+
             symbol = input_data.get('symbol', 'SPY') if input_data else 'SPY'
 
             # Step 1: Plan news exploration with LLM

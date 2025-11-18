@@ -18,7 +18,7 @@ from src.utils.tools import kalshi_data_tool
 
 logger = logging.getLogger(__name__)
 
-class KalshiDatasub(BaseAgent):
+class KalshiDataAnalyzer(BaseAgent):
     """
     Kalshi Data Subagent.
     Reasoning: Fetches prediction market odds for alternative sentiment and probability analysis.

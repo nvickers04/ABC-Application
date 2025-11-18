@@ -156,7 +156,7 @@
 ---
 
 ## Sentiment Data Subagent
-**File**: `src/agents/data_subs/sentiment_datasub.py`
+**File**: `src/agents/data_analyzers/sentiment_data_analyzer.py`
 **Role**: Multi-dimensional sentiment analysis across news, social media, and market data
 **LLM Integration**: Uses xAI/Grok memory for sentiment pattern research and behavioral analysis
 
@@ -491,7 +491,7 @@ Output: Comprehensive data intelligence for A2A collaboration; include foundatio
 ---
 
 ## Sentiment Data Subagent
-**File**: `src/agents/data_subs/sentiment_datasub.py`
+**File**: `src/agents/data_analyzers/sentiment_data_analyzer.py`
 **Role**: Multi-dimensional sentiment analysis across news, social media, and market data
 **LLM Integration**: Uses Grok memory for sentiment pattern research and behavioral analysis
 

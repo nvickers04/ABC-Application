@@ -77,7 +77,7 @@ The DataAgent coordinates 10 specialized analyzers that form the backbone of **I
 
 ## Sentiment & News Analyzers
 
-### SentimentDatasub
+### SentimentDataAnalyzer
 **Role**: Multi-dimensional sentiment analysis
 **Capabilities**:
 - News sentiment classification

@@ -17,7 +17,7 @@ from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
-class MarketDataAppDatasub(BaseAgent):
+class MarketDataAppDataAnalyzer(BaseAgent):
     """
     MarketDataApp Data Subagent with LLM-powered exploration.
     Reasoning: Fetches premium market data from MarketDataApp API for institutional-grade insights.
@@ -50,6 +50,10 @@ class MarketDataAppDatasub(BaseAgent):
 
     async def process_input(self, input_data: Dict[str, Any] = None) -> Dict[str, Any]:
         logger.info(f"MarketDataApp Subagent processing input: {input_data or 'Default SPY premium data'}")
+
+        # Initialize LLM if not already done
+        if not self.llm:
+            await self.async_initialize_llm()
 
         symbol = input_data.get('symbol', 'SPY') if input_data else 'SPY'
 

@@ -15,7 +15,7 @@ from src.utils.tools import institutional_holdings_analysis_tool, thirteen_f_fil
 
 logger = logging.getLogger(__name__)
 
-class InstitutionalDatasub(BaseAgent):
+class InstitutionalDataAnalyzer(BaseAgent):
     def __init__(self):
         # Temporarily disable tools until they are properly implemented as StructuredTool objects
         super().__init__("institutional_data", config_paths={}, prompt_paths={}, tools=[])

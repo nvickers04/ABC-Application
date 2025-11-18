@@ -19,15 +19,15 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 # Mock the subagents before importing DataAgent
-with patch('src.agents.data_subs.yfinance_datasub.YfinanceDatasub'):
-    with patch('src.agents.data_subs.sentiment_datasub.SentimentDatasub'):
-        with patch('src.agents.data_subs.news_datasub.NewsDatasub'):
-            with patch('src.agents.data_subs.economic_datasub.EconomicDatasub'):
-                with patch('src.agents.data_subs.institutional_datasub.InstitutionalDatasub'):
-                    with patch('src.agents.data_subs.fundamental_datasub.FundamentalDatasub'):
-                        with patch('src.agents.data_subs.microstructure_datasub.MicrostructureDatasub'):
-                            with patch('src.agents.data_subs.kalshi_datasub.KalshiDatasub'):
-                                with patch('src.agents.data_subs.options_datasub.OptionsDatasub'):
+with patch('src.agents.data_analyzers.yfinance_data_analyzer.YfinanceDataAnalyzer'):
+    with patch('src.agents.data_analyzers.sentiment_data_analyzer.SentimentDataAnalyzer'):
+        with patch('src.agents.data_analyzers.news_data_analyzer.NewsDataAnalyzer'):
+            with patch('src.agents.data_analyzers.economic_data_analyzer.EconomicDataAnalyzer'):
+                with patch('src.agents.data_analyzers.institutional_data_analyzer.InstitutionalDataAnalyzer'):
+                    with patch('src.agents.data_analyzers.fundamental_data_analyzer.FundamentalDataAnalyzer'):
+                        with patch('src.agents.data_analyzers.microstructure_data_analyzer.MicrostructureDataAnalyzer'):
+                            with patch('src.agents.data_analyzers.kalshi_data_analyzer.KalshiDataAnalyzer'):
+                                with patch('src.agents.data_analyzers.options_data_analyzer.OptionsDataAnalyzer'):
                                     from src.agents.data import DataAgent
 
 from src.agents.strategy import StrategyAgent
