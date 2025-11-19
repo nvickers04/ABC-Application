@@ -1,64 +1,33 @@
 # [LABEL:DOC:framework] [LABEL:DOC:topic:ai_reasoning] [LABEL:DOC:audience:architect]
 # [LABEL:AUTHOR:system] [LABEL:UPDATED:2025-11-17] [LABEL:REVIEWED:pending]
 #
-# Purpose: Comprehensive guide to AI reasoning through 18-agent collaborative architecture (with 4 in development)
+# Purpose: Comprehensive guide to AI reasoning through 7-agent collaborative architecture
 # Dependencies: Multi-agent system, A2A protocol, specialized agent roles
 # Related: docs/architecture.md, docs/AGENTS/index.md, src/agents/
 #
 # AI Reasoning Through Agent Collaboration: The ABC Application Breakthrough
 
 ## Overview
-The fundamental innovation of ABC Application is its **18-agent collaborative reasoning architecture** (with 4 in development) - a sophisticated AI system where specialized agents debate, deliberate, and reach consensus on investment decisions. This approach creates institutional-grade decision quality through collective AI intelligence, far surpassing what any single AI model could achieve.
+The fundamental innovation of ABC Application is its **7-agent collaborative reasoning architecture** - a sophisticated AI system where specialized agents debate, deliberate, and reach consensus on investment decisions. This approach creates institutional-grade decision quality through collective AI intelligence, far surpassing what any single AI model could achieve.
 
 ## The Reasoning Revolution
 
 ### Why AI Reasoning Matters
 Traditional AI systems rely on single models for decision-making, limited by individual model capabilities and potential biases. ABC Application introduces **collaborative reasoning** - multiple AI agents working together in structured deliberation, mimicking institutional investment committees but with AI precision, speed, and scalability.
 
-### The 22-Agent Architecture
+### The 7-Agent Architecture
 Each agent represents a specialized domain of financial expertise, working in orchestrated reasoning loops:
 
-#### Data Analysis Agents (10 Analyzers)
-- **Yfinance Analyzer**: Primary market data collection via yfinance API
-- **MarketDataApp Analyzer**: Premium real-time trading data from MarketDataApp
-- **Economic Data Analyzer**: Macroeconomic indicators and trends
-- **Fundamental Data Analyzer**: Company financials and valuation metrics
-- **Sentiment Analyzer**: News and social media sentiment analysis
-- **Institutional Data Analyzer**: 13F filings and institutional holdings
-- **Options Data Analyzer**: Options chain analysis and Greeks
-- **News Data Analyzer**: Real-time news impact assessment
-- **Kalshi Data Analyzer**: Prediction market data integration
-- **Microstructure Analyzer**: High-frequency trading patterns
+#### Core Agents (7)
+- **Data Agent**: Multi-source data validation and sentiment analysis
+- **Strategy Agent**: Options, flow, and ML strategy generation with debate
+- **Risk Agent**: Probability-of-profit evaluations and risk assessments
+- **Execution Agent**: Trade execution with real-time monitoring
+- **Learning Agent**: Performance analysis and model refinement
+- **Reflection Agent**: Decision validation and continuous improvement
+- **Macro Agent**: Sector scanning and market regime analysis
 
-**Reasoning Role**: Data agents collectively validate information quality, cross-reference sources, and provide comprehensive market intelligence. They debate data reliability and consensus on market signals.
-
-#### Strategy Generation Agents (4 Analyzers)
-- **Options Strategy Analyzer**: Complex options strategies and spreads
-- **Flow Strategy Analyzer**: Order flow-based trading strategies
-- **ML Strategy Analyzer**: Machine learning-driven quantitative strategies
-- **Multi-Instrument Strategy Analyzer**: Complex multi-asset and cross-market strategies
-
-**Reasoning Role**: Strategy agents independently generate proposals, then debate approaches, challenge assumptions, and refine strategies through collaborative reasoning.
-
-#### Risk Management Agent (1)
-**Reasoning Role**: Provides probabilistic reasoning, uncertainty analysis, and risk-adjusted decision frameworks. Acts as the "devil's advocate" challenging optimistic assumptions.
-
-#### Execution Agent (1)
-**Reasoning Role**: Validates trade execution logic, timing, and market impact considerations. Ensures practical feasibility of proposed strategies.
-
-#### Learning Agent (1)
-**Reasoning Role**: Incorporates historical performance data, backtest results, and experiential learning to refine future reasoning processes.
-
-#### Reflection Agent (1)
-**Reasoning Role**: Serves as the system's supreme arbiter with unilateral authority to ensure decision quality, logical consistency, and crisis prevention. Possesses veto power over any decision and can mandate additional iterations based on "canary in the coal mine" indicators or catastrophic risk scenarios.
-
-#### Macro Agent (1)
-**Reasoning Role**: Provides market regime context and sector-level reasoning to inform micro-level decisions.
-
-#### Supporting Infrastructure Agents (3)
-- **Memory Management Agent**: Maintains collaborative reasoning history
-- **Coordination Agent**: Orchestrates agent communication and workflow
-- **Health Monitoring Agent**: Ensures system reliability and performance
+**Reasoning Role**: Each agent provides specialized insights while collaborating through A2A protocol to ensure comprehensive analysis.
 
 ## The Collaborative Reasoning Process
 
@@ -76,8 +45,8 @@ The collaborative reasoning process operates in two distinct iterations, each bu
 
 **Strategic Output**: MacroAgent delivers a focused investment universe and market context that constrains and guides all subsequent analysis, ensuring resources are allocated to the most promising opportunities.
 
-#### **Iteration 1: Comprehensive Multi-Agent Deliberation (All 22 Agents)**
-All agents, including analyzers, participate in the complete 7-phase process to ensure maximum information gathering, diverse perspectives, and thorough analysis on the MacroAgent's prioritized opportunities.
+#### **Iteration 1: Comprehensive Multi-Agent Deliberation (All 7 Agents)**
+All agents participate in the complete 7-phase process to ensure maximum information gathering, diverse perspectives, and thorough analysis on the MacroAgent's prioritized opportunities.
 
 ### Phase 1: Integrated Intelligence Gathering & Analysis
 **All agents collaboratively collect, validate, and analyze market intelligence simultaneously:**
@@ -130,8 +99,8 @@ Execution agent validates practical feasibility with final sanity checks from al
 ### Phase 7: Learning Integration & Continuous Improvement
 Learning agent incorporates outcomes into future reasoning processes, with all agents contributing insights for system-wide adaptation and improvement.
 
-#### **Iteration 2: Executive-Level Strategic Oversight (Main 8 Agents Only)**
-Following the comprehensive deliberation, the main agents conduct a focused strategic review, applying executive-level judgment and risk sensitivity.
+#### **Iteration 2: Executive-Level Strategic Oversight (All 7 Agents)**
+Following the comprehensive deliberation, all agents conduct a focused strategic review, applying executive-level judgment and risk sensitivity.
 
 ### Phase 1-7: Executive Strategic Review
 **The main 8 agents (DataAgent, StrategyAgent, RiskAgent, ExecutionAgent, ReflectionAgent, LearningAgent, MemoryAgent, MacroAgent) repeat the 7-phase process with enhanced strategic focus:**
@@ -168,15 +137,15 @@ The ReflectionAgent serves as the system's final arbiter with extraordinary auth
 - Macro regime shift indications
 - Learning agent pattern disruptions
 
-## Why 22 Agents Create Superior Reasoning
+## Why 7 Agents Create Superior Reasoning
 
 ### **Two-Tier Intelligence Architecture**
 1. **Macro Foundation**: MacroAgent establishes market context and prioritizes opportunities before detailed analysis
-2. **Comprehensive Depth (Iteration 1)**: All 22 agents provide maximum analytical breadth and specialized insights
-3. **Executive Judgment (Iteration 2)**: Main agents apply strategic synthesis and risk management
+2. **Comprehensive Depth (Iteration 1)**: All 7 agents provide maximum analytical breadth and specialized insights
+3. **Executive Judgment (Iteration 2)**: All agents apply strategic synthesis and risk management
 4. **Supreme Oversight**: ReflectionAgent's veto authority and intervention powers ensure decision quality
 5. **Crisis Detection**: "Canary in the coal mine" monitoring prevents catastrophic decisions
-5. **Adaptive Risk Management**: ReflectionAgent can elevate risk thresholds based on emerging threats
+6. **Adaptive Risk Management**: ReflectionAgent can elevate risk thresholds based on emerging threats
 
 ### Collective Intelligence Benefits
 - **Integrated Information Flow**: No information silos - all agents access complete data simultaneously
@@ -243,7 +212,7 @@ The system's reasoning architecture has been validated through:
 
 ## Conclusion
 
-The refined 22-agent collaborative reasoning architecture with its macro-foundation and two-iteration framework represents a fundamental breakthrough in AI-driven investment systems. By beginning with MacroAgent-driven market regime assessment and opportunity identification, then conducting comprehensive multi-agent deliberation followed by executive-level strategic review, while maintaining the ReflectionAgent's authority to veto decisions and trigger additional iterations based on crisis indicators, the system achieves unparalleled decision quality through truly collective intelligence.
+The refined 7-agent collaborative reasoning architecture with its macro-foundation and two-iteration framework represents a fundamental breakthrough in AI-driven investment systems. By beginning with MacroAgent-driven market regime assessment and opportunity identification, then conducting comprehensive multi-agent deliberation followed by executive-level strategic review, while maintaining the ReflectionAgent's authority to veto decisions and trigger additional iterations based on crisis indicators, the system achieves unparalleled decision quality through truly collective intelligence.
 
 **This sophisticated framework eliminates blind spots through layered validation, prevents catastrophic decisions through supreme oversight, and ensures institutional-grade risk management that surpasses traditional investment processes.**
 

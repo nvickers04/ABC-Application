@@ -9,10 +9,11 @@ import json
 import asyncio
 import logging
 from typing import Dict, Any, Optional
+from datetime import datetime, timedelta
 import websockets
 import requests
 
-from langchain.tools import tool
+from langchain_core.tools import tool
 from .validation import circuit_breaker, DataValidator
 from .vault_client import get_vault_secret
 
@@ -42,11 +43,14 @@ def marketdataapp_api_tool(symbol: str, data_type: str = "quotes") -> Dict[str, 
 
         elif data_type == "historical":
             url = f"{base_url}/stocks/candles"
+            # Use dynamic date range (last 2 years)
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=730)  # 2 years
             params = {
                 "symbols": symbol,
                 "resolution": "D",
-                "from": "2023-01-01",
-                "to": "2024-01-01",
+                "from": start_date.strftime("%Y-%m-%d"),
+                "to": end_date.strftime("%Y-%m-%d"),
                 "apikey": api_key
             }
         else:
@@ -325,7 +329,16 @@ def thirteen_f_filings_tool(cik: str, limit: int = 5) -> Dict[str, Any]:
     """
     try:
         # Placeholder for SEC EDGAR API
-        return {"filings": [{"date": "2023-01-01", "holdings": 100}] * limit}
+        current_date = datetime.now()
+        # Generate recent filing dates (quarterly filings)
+        filings = []
+        for i in range(limit):
+            filing_date = current_date - timedelta(days=i * 90)  # Approximate quarterly
+            filings.append({
+                "date": filing_date.strftime("%Y-%m-%d"),
+                "holdings": 100  # Placeholder value
+            })
+        return {"filings": filings}
     except Exception as e:
         return {"error": str(e)}
 
@@ -395,7 +408,7 @@ def kalshi_data_tool(market_id: str) -> Dict[str, Any]:
 
 
 @tool
-def sec_edgar_13f_tool(cik: str, date: str = None) -> Dict[str, Any]:
+def sec_edgar_13f_tool(cik: str, date: Optional[str] = None) -> Dict[str, Any]:
     """
     Fetch 13F filings from SEC EDGAR.
 

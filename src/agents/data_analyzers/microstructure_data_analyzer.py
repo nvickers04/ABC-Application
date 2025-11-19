@@ -336,48 +336,15 @@ class MicrostructureDataAnalyzer(BaseAgent):
         
         async def fetch_level2_orderbook(symbol: str) -> Dict[str, Any]:
             """Fetch L2 order book data."""
-            try:
-                # Mock L2 data
-                return {
-                    "source": "level2",
-                    "bids": [[100.0, 1000], [99.5, 2000], [99.0, 1500]],
-                    "asks": [[100.5, 800], [101.0, 1200], [101.5, 900]],
-                    "spread": 0.5,
-                    "depth": 10000
-                }
-            except Exception as e:
-                return {"source": "level2", "error": str(e)}
+            raise NotImplementedError("Real L2 order book API implementation required - no mock data allowed in production")
         
         async def fetch_time_and_sales(symbol: str) -> Dict[str, Any]:
             """Fetch time & sales data."""
-            try:
-                # Mock time & sales
-                return {
-                    "source": "time_sales",
-                    "trades": [
-                        {"time": "10:00:00", "price": 100.0, "volume": 500, "side": "buy"},
-                        {"time": "10:00:05", "price": 100.2, "volume": 300, "side": "sell"},
-                        {"time": "10:00:10", "price": 100.1, "volume": 700, "side": "buy"}
-                    ],
-                    "avg_volume": 500,
-                    "trade_frequency": 20
-                }
-            except Exception as e:
-                return {"source": "time_sales", "error": str(e)}
+            raise NotImplementedError("Real time & sales API implementation required - no mock data allowed in production")
         
         async def fetch_liquidity_metrics(symbol: str) -> Dict[str, Any]:
             """Fetch liquidity and slippage metrics."""
-            try:
-                # Mock liquidity data
-                return {
-                    "source": "liquidity",
-                    "market_depth": 50000,
-                    "estimated_slippage": 0.02,
-                    "liquidity_score": 8.5,
-                    "turnover_ratio": 2.1
-                }
-            except Exception as e:
-                return {"source": "liquidity", "error": str(e)}
+            raise NotImplementedError("Real liquidity metrics API implementation required - no mock data allowed in production")
         
         # Execute concurrent fetches
         tasks = [

@@ -750,6 +750,162 @@ class MultiAgentMemoryCoordinator:
         logger.info(f"Agent {agent_role} contributed to session {session_id}")
         return True
 
+    async def update_session_context(self, session_id: str, agent_role: str,
+                                   context_type: str, context_data: Dict[str, Any]) -> bool:
+        """
+        Update session context with shared information.
+
+        Args:
+            session_id: Session ID
+            agent_role: Updating agent
+            context_type: Type of context (e.g., 'position', 'workflow')
+            context_data: Context data to share
+
+        Returns:
+            bool: Success status
+        """
+        if session_id not in self.collaborative_sessions:
+            return False
+
+        session = self.collaborative_sessions[session_id]
+        if agent_role not in session["participants"]:
+            return False
+
+        # Initialize context storage if not exists
+        if "shared_context" not in session:
+            session["shared_context"] = {}
+
+        # Update context
+        session["shared_context"][context_type] = {
+            "agent": agent_role,
+            "timestamp": datetime.now().isoformat(),
+            "data": context_data
+        }
+
+        logger.info(f"Agent {agent_role} updated {context_type} context in session {session_id}")
+        return True
+
+    async def get_session_context(self, session_id: str, context_type: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Get session context data.
+
+        Args:
+            session_id: Session ID
+            context_type: Specific context type to retrieve (optional)
+
+        Returns:
+            Dict containing context data
+        """
+        if session_id not in self.collaborative_sessions:
+            return {}
+
+        session = self.collaborative_sessions[session_id]
+        context = session.get("shared_context", {})
+
+        if context_type:
+            return context.get(context_type, {})
+
+        return context
+
+    async def record_session_decision(self, session_id: str, agent_role: str,
+                                    decision: Dict[str, Any]) -> bool:
+        """
+        Record a collaborative decision in the session.
+
+        Args:
+            session_id: Session ID
+            agent_role: Agent recording the decision
+            decision: Decision data
+
+        Returns:
+            bool: Success status
+        """
+        if session_id not in self.collaborative_sessions:
+            return False
+
+        session = self.collaborative_sessions[session_id]
+        if agent_role not in session["participants"]:
+            return False
+
+        # Initialize decisions storage if not exists
+        if "decisions" not in session:
+            session["decisions"] = []
+
+        # Record decision
+        decision_record = {
+            "agent": agent_role,
+            "timestamp": datetime.now().isoformat(),
+            **decision
+        }
+
+        session["decisions"].append(decision_record)
+        logger.info(f"Agent {agent_role} recorded decision in session {session_id}")
+        return True
+
+    async def get_session_summary(self, session_id: str) -> Dict[str, Any]:
+        """
+        Get a summary of the collaborative session.
+
+        Args:
+            session_id: Session ID
+
+        Returns:
+            Dict containing session summary
+        """
+        if session_id not in self.collaborative_sessions:
+            return {}
+
+        session = self.collaborative_sessions[session_id]
+
+        summary = {
+            "session_id": session_id,
+            "topic": session["topic"],
+            "creator": session["creator"],
+            "participants": session["participants"],
+            "participant_count": len(session["participants"]),
+            "created_at": session["created_at"],
+            "status": session["status"],
+            "insights_count": len(session.get("insights", [])),
+            "decisions_count": len(session.get("decisions", [])),
+            "context_types": list(session.get("shared_context", {}).keys())
+        }
+
+        return summary
+
+    async def archive_session(self, session_id: str) -> bool:
+        """
+        Archive a collaborative session.
+
+        Args:
+            session_id: Session ID
+
+        Returns:
+            bool: Success status
+        """
+        if session_id not in self.collaborative_sessions:
+            return False
+
+        session = self.collaborative_sessions[session_id]
+        session["status"] = "archived"
+        session["archived_at"] = datetime.now().isoformat()
+
+        logger.info(f"Session {session_id} archived")
+        return True
+
+    @property
+    def active_sessions(self) -> Dict[str, Any]:
+        """
+        Get active collaborative sessions.
+
+        Returns:
+            Dict of active sessions
+        """
+        return {
+            session_id: info
+            for session_id, info in self.collaborative_sessions.items()
+            if info["status"] == "active"
+        }
+
     async def get_session_insights(self, session_id: str, agent_role: Optional[str] = None) -> List[Dict[str, Any]]:
         """
         Get insights from a collaborative session.
@@ -869,12 +1025,12 @@ async def list_active_sessions() -> List[Dict[str, Any]]:
 _multi_agent_coordinator = None
 
 def get_multi_agent_coordinator() -> MultiAgentMemoryCoordinator:
-    '''
+    """
     Get global multi-agent memory coordinator instance.
 
     Returns:
         MultiAgentMemoryCoordinator: Global instance
-    '''
+    """
     global _multi_agent_coordinator
     if _multi_agent_coordinator is None:
         _multi_agent_coordinator = MultiAgentMemoryCoordinator()
@@ -883,42 +1039,42 @@ def get_multi_agent_coordinator() -> MultiAgentMemoryCoordinator:
 # Convenience functions
 async def share_memory_between_agents(from_agent: str, to_agent: str, namespace: str,
                                    key: str, data: Any) -> bool:
-    '''Share memory between agents.'''
+    """Share memory between agents."""
     return await get_multi_agent_coordinator().share_memory(from_agent, to_agent, namespace, key, data)
 
 async def broadcast_coordination_signal(from_agent: str, signal_type: str,
                                       signal_data: Dict[str, Any] = None):
-    '''Broadcast coordination signal.'''
+    """Broadcast coordination signal."""
     await get_multi_agent_coordinator().broadcast_coordination_signal(from_agent, signal_type, signal_data)
 
 # Convenience functions for collaborative sessions
 async def create_collaborative_session(creator_agent: str, topic: str,
                                      max_participants: int = 10,
                                      session_timeout: int = 3600) -> Optional[str]:
-    '''Create a new collaborative session.'''
+    """Create a new collaborative session."""
     return await get_multi_agent_coordinator().create_collaborative_session(
         creator_agent, topic, max_participants, session_timeout
     )
 
 async def join_collaborative_session(session_id: str, agent_role: str,
                                    agent_context: Dict[str, Any] = None) -> bool:
-    '''Join an existing collaborative session.'''
+    """Join an existing collaborative session."""
     return await get_multi_agent_coordinator().join_collaborative_session(
         session_id, agent_role, agent_context
     )
 
 async def contribute_to_session(session_id: str, agent_role: str,
                               insight: Dict[str, Any]) -> bool:
-    '''Contribute an insight to a collaborative session.'''
+    """Contribute an insight to a collaborative session."""
     return await get_multi_agent_coordinator().contribute_to_session(
         session_id, agent_role, insight
     )
 
 async def get_session_insights(session_id: str, agent_role: str = None) -> List[Dict[str, Any]]:
-    '''Get insights from a collaborative session.'''
+    """Get insights from a collaborative session."""
     return await get_multi_agent_coordinator().get_session_insights(session_id, agent_role)
 
 async def list_active_sessions() -> List[Dict[str, Any]]:
-    '''List all active collaborative sessions.'''
+    """List all active collaborative sessions."""
     return get_multi_agent_coordinator().list_active_sessions()
 

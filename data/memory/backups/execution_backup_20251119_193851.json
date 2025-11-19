@@ -1,0 +1,41 @@
+{
+  "agent_role": "execution",
+  "timestamp": "2025-11-06T08:12:00.853568",
+  "version": "1.0",
+  "data": {
+    "outcome_logs": [
+      {
+        "timestamp": "2025-11-06T14:12:00.852145+00:00",
+        "symbol": "ETH-USD",
+        "action": "BUY",
+        "quantity": 100,
+        "price": 100.04,
+        "total_value": 10003.73,
+        "commission": 0.0,
+        "roi_estimate": 0.25,
+        "simulated": true,
+        "source": "simulation_fallback",
+        "microstructure_analysis": {
+          "symbol": "ETH-USD",
+          "analysis_type": "comprehensive",
+          "timestamp": "2025-11-06T08:10:23.788984",
+          "analysis": {
+            "slippage_model": {
+              "base_slippage": 0.0005,
+              "multiplier": 1.0,
+              "optimal_slippage": 0.0005,
+              "expected_fill_quality": "excellent"
+            },
+            "market_condition": "challenging"
+          },
+          "execution_recommendations": {
+            "overall": "Market conditions are challenging for execution"
+          }
+        },
+        "slippage_pct": 0.037,
+        "microstructure_used": true
+      }
+    ],
+    "scaling_history": []
+  }
+}

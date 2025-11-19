@@ -191,7 +191,7 @@ class IBKRConnector:
                         logger.info(f"Attempting to connect to IBKR at {self.host}:{self.port} with client ID {self.client_id}")
 
                         # Use connectAsync directly in our event loop
-                        connect_task = temp_ib.connectAsync(self.host, self.port, self.client_id)
+                        connect_task = temp_ib.connectAsync(self.host, self.port, self.client_id, timeout=10)
                         loop.run_until_complete(connect_task)
 
                         # Wait for connection to be fully established

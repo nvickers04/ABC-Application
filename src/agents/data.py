@@ -16,6 +16,7 @@ import logging
 from typing import Dict, Any, List, Optional
 import pandas as pd  # For DataFrames (ingestion output).
 import yfinance as yf  # type: ignore  # For data pulls.
+import numpy as np  # For numerical operations.
 from datetime import datetime
 # Lazy imports for subagents
 from src.utils.redis_cache import cache_get, cache_set
@@ -147,17 +148,13 @@ class DataAgent(BaseAgent):
             logger.error(f"Failed to initialize OptionsDataAnalyzer: {e}")
             raise
             
-        # try:
-        #     print("Initializing MarketDataAppDatasub...")
-        #     import importlib
-        #     marketdataapp_module = importlib.import_module('src.agents.data_subs.marketdataapp_datasub')
-        #     MarketDataAppDatasub = marketdataapp_module.MarketDataAppDatasub
-        #     self.marketdataapp_sub = MarketDataAppDatasub()
-        #     logger.info("MarketDataAppDatasub initialized")
-        # except Exception as e:
-        #     logger.error(f"Failed to initialize MarketDataAppDatasub: {e}")
-        #     self.marketdataapp_sub = None
-        self.massive_sub = None
+        try:
+            from src.agents.data_analyzers.marketdataapp_data_analyzer import MarketDataAppDataAnalyzer
+            self.marketdataapp_sub = MarketDataAppDataAnalyzer()
+            logger.info("MarketDataAppDataAnalyzer initialized")
+        except Exception as e:
+            logger.error(f"Failed to initialize MarketDataAppDataAnalyzer: {e}")
+            raise
 
         # Create subs dictionary for test compatibility
         self.subs = {
@@ -169,7 +166,8 @@ class DataAgent(BaseAgent):
             'institutional_data': self.institutional_sub,
             'microstructure_data': self.microstructure_sub,
             'kalshi_data': self.kalshi_sub,
-            'options_data': self.options_sub
+            'options_data': self.options_sub,
+            'marketdataapp_data': self.marketdataapp_sub
         }
 
         # Initialize optimized pipeline processor
@@ -530,7 +528,8 @@ class DataAgent(BaseAgent):
                 'institutional': self.institutional_sub.process_input,
                 'fundamental': self.fundamental_sub.process_input,
                 'microstructure': self.microstructure_sub.process_input,
-                'kalshi': self.kalshi_sub.process_input
+                'kalshi': self.kalshi_sub.process_input,
+                'marketdataapp': self.marketdataapp_sub.process_input
             }
 
             try:
@@ -554,6 +553,11 @@ class DataAgent(BaseAgent):
                 cross_symbol_analysis = self._aggregate_cross_symbol_llm_analysis(symbol_results)
                 combined_result['cross_symbol_analysis'] = cross_symbol_analysis
                 logger.info(f"Added cross-symbol analysis for {len(symbols)} symbols")
+
+            # Perform cross-verification of data quality across analyzers
+            cross_verification_results = await self._perform_cross_verification(symbols, symbol_results)
+            combined_result['cross_verification'] = cross_verification_results
+            logger.info(f"Completed cross-verification for {len(symbols)} symbols")
 
             logger.info(f"Data output completed for {len(symbols)} symbols")
             return combined_result
@@ -989,6 +993,20 @@ class DataAgent(BaseAgent):
             if enhanced_analysis_available:
                 logger.info(f"Using enhanced subagent LLM analysis for {symbol} from {len(subagent_llm_analysis) if subagent_llm_analysis else 0} sources")
 
+            # Retrieve cross-verified quality data for enhanced LLM analysis
+            verified_quality_data = await self.retrieve_shared_memory("verified_data_quality", symbol)
+            quality_context = ""
+            if verified_quality_data:
+                consensus = verified_quality_data.get('verification_result', {})
+                quality_context = f"""
+VERIFIED DATA QUALITY ASSESSMENT:
+- Overall Quality Score: {consensus.get('overall_quality_score', 'N/A')}
+- Confidence Level: {consensus.get('confidence_level', 'N/A')}
+- Consensus Level: {consensus.get('consensus_level', 'N/A')}
+- Analyzers Contributed: {consensus.get('analyzers_contributed', 0)}
+- Quality Distribution: {consensus.get('quality_distribution', {})}
+"""
+
             # Prepare comprehensive data context for LLM analysis
             data_context: Dict[str, Any] = {
                 'symbol': symbol,
@@ -1000,7 +1018,8 @@ class DataAgent(BaseAgent):
                 'fundamental_health': fundamental,
                 'market_microstructure': microstructure,
                 'prediction_market_sentiment': kalshi,
-                'enhanced_subagent_analysis': subagent_llm_analysis if enhanced_analysis_available else {}
+                'enhanced_subagent_analysis': subagent_llm_analysis if enhanced_analysis_available else {},
+                'verified_quality_assessment': quality_context
             }
             
             # Use optimized LLM prompt (leverages enhanced subagent analysis when available)
@@ -1393,6 +1412,241 @@ class DataAgent(BaseAgent):
             } for i, data in enumerate(symbol_data_list)]
 
 
+    async def _perform_cross_verification(self, symbols: List[str], symbol_results: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Perform cross-verification of data quality across all analyzers using shared memory.
+        This enables coordinated quality assessment and LLM analysis with verified sources.
+        """
+        cross_verification_results = {
+            'symbols_verified': symbols,
+            'verification_timestamp': datetime.now().isoformat(),
+            'quality_consensus': {},
+            'discrepancies': [],
+            'verified_sources': {},
+            'llm_cross_analysis': {}
+        }
+
+        try:
+            for symbol in symbols:
+                # Retrieve quality assessments from all analyzers
+                quality_assessments = await self._retrieve_quality_assessments(symbol)
+
+                if quality_assessments:
+                    # Perform cross-verification analysis
+                    verification_result = await self._analyze_quality_consensus(symbol, quality_assessments)
+
+                    # Store verified results back in shared memory
+                    await self.store_shared_memory("verified_data_quality", symbol, {
+                        "quality_assessments": quality_assessments,
+                        "verification_result": verification_result,
+                        "timestamp": datetime.now().isoformat()
+                    })
+
+                    cross_verification_results['quality_consensus'][symbol] = verification_result
+                    cross_verification_results['verified_sources'][symbol] = list(quality_assessments.keys())
+
+                    # Check for discrepancies
+                    discrepancies = self._identify_quality_discrepancies(quality_assessments)
+                    if discrepancies:
+                        cross_verification_results['discrepancies'].extend([{
+                            'symbol': symbol,
+                            'discrepancy': disc
+                        } for disc in discrepancies])
+
+            # Perform LLM analysis of cross-verified data
+            if cross_verification_results['quality_consensus']:
+                llm_analysis = await self._perform_llm_cross_verification_analysis(cross_verification_results)
+                cross_verification_results['llm_cross_analysis'] = llm_analysis
+
+            logger.info(f"Cross-verification completed for {len(symbols)} symbols with {len(cross_verification_results['discrepancies'])} discrepancies identified")
+            return cross_verification_results
+
+        except Exception as e:
+            logger.error(f"Cross-verification failed: {e}")
+            return {
+                'error': str(e),
+                'symbols_attempted': symbols,
+                'verification_timestamp': datetime.now().isoformat()
+            }
+
+    async def _retrieve_quality_assessments(self, symbol: str) -> Dict[str, Dict[str, Any]]:
+        """
+        Retrieve quality assessments from all data analyzers for a symbol.
+        """
+        analyzers = ['news', 'sentiment', 'yfinance', 'fundamental', 'economic', 'institutional', 'microstructure']
+        quality_assessments = {}
+
+        for analyzer in analyzers:
+            try:
+                assessment = await self.retrieve_shared_memory("data_quality_assessments", f"{analyzer}_{symbol}")
+                if assessment:
+                    quality_assessments[analyzer] = assessment
+            except Exception as e:
+                logger.debug(f"Could not retrieve {analyzer} quality assessment for {symbol}: {e}")
+
+        return quality_assessments
+
+    async def _analyze_quality_consensus(self, symbol: str, quality_assessments: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Analyze consensus across quality assessments from different analyzers.
+        """
+        consensus_result = {
+            'symbol': symbol,
+            'analyzers_contributed': len(quality_assessments),
+            'overall_quality_score': 0.0,
+            'confidence_level': 0.0,
+            'quality_distribution': {},
+            'consensus_level': 'unknown'
+        }
+
+        if not quality_assessments:
+            return consensus_result
+
+        # Extract quality scores from each analyzer
+        quality_scores = {}
+        confidence_scores = {}
+
+        for analyzer, assessment in quality_assessments.items():
+            # Extract quality score based on analyzer type
+            if analyzer == 'news':
+                quality_scores[analyzer] = assessment.get('credibility_score', 0.5)
+                confidence_scores[analyzer] = assessment.get('data_quality_score', 5.0) / 10.0  # Normalize 0-10 to 0-1
+            elif analyzer == 'sentiment':
+                quality_scores[analyzer] = assessment.get('confidence', 0.5)
+                confidence_scores[analyzer] = assessment.get('consistency_score', 0.5)
+            else:
+                # For other analyzers, use a default quality score
+                quality_scores[analyzer] = 0.7  # Assume reasonable quality for implemented analyzers
+                confidence_scores[analyzer] = 0.6
+
+        # Calculate overall quality score as weighted average
+        if quality_scores:
+            total_weight = sum(confidence_scores.values())
+            if total_weight > 0:
+                weighted_sum = sum(quality_scores[analyzer] * confidence_scores[analyzer] for analyzer in quality_scores.keys())
+                consensus_result['overall_quality_score'] = weighted_sum / total_weight
+                consensus_result['confidence_level'] = min(0.9, total_weight / len(quality_scores))
+
+        # Determine consensus level
+        score_std = np.std(list(quality_scores.values())) if len(quality_scores) > 1 else 0
+        if score_std < 0.1:
+            consensus_result['consensus_level'] = 'high'
+        elif score_std < 0.2:
+            consensus_result['consensus_level'] = 'moderate'
+        else:
+            consensus_result['consensus_level'] = 'low'
+
+        consensus_result['quality_distribution'] = quality_scores
+
+        return consensus_result
+
+    def _identify_quality_discrepancies(self, quality_assessments: Dict[str, Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Identify discrepancies in quality assessments that may indicate data issues.
+        """
+        discrepancies = []
+
+        if len(quality_assessments) < 2:
+            return discrepancies
+
+        # Extract quality scores
+        quality_scores = {}
+        for analyzer, assessment in quality_assessments.items():
+            if analyzer == 'news':
+                quality_scores[analyzer] = assessment.get('credibility_score', 0.5)
+            elif analyzer == 'sentiment':
+                quality_scores[analyzer] = assessment.get('confidence', 0.5)
+            else:
+                quality_scores[analyzer] = 0.7
+
+        # Find outliers (scores that deviate significantly from the mean)
+        if quality_scores:
+            scores_list = list(quality_scores.values())
+            mean_score = np.mean(scores_list)
+            std_score = np.std(scores_list)
+
+            for analyzer, score in quality_scores.items():
+                deviation = abs(score - mean_score)
+                if deviation > std_score * 1.5:  # 1.5 standard deviations
+                    discrepancies.append({
+                        'analyzer': analyzer,
+                        'score': score,
+                        'mean_score': mean_score,
+                        'deviation': deviation,
+                        'severity': 'high' if deviation > std_score * 2 else 'moderate',
+                        'description': f"{analyzer} quality score deviates significantly from consensus"
+                    })
+
+        return discrepancies
+
+    async def _perform_llm_cross_verification_analysis(self, cross_verification_results: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Use LLM to analyze cross-verification results and provide insights on data quality consensus.
+        """
+        try:
+            consensus_data = cross_verification_results.get('quality_consensus', {})
+            discrepancies = cross_verification_results.get('discrepancies', [])
+
+            # Prepare analysis context
+            analysis_context = f"""
+Cross-Verification Analysis of Data Quality:
+
+Symbols Analyzed: {list(consensus_data.keys())}
+Total Discrepancies: {len(discrepancies)}
+
+Quality Consensus Summary:
+"""
+
+            for symbol, consensus in consensus_data.items():
+                analysis_context += f"""
+{symbol}:
+- Analyzers Contributed: {consensus.get('analyzers_contributed', 0)}
+- Overall Quality Score: {consensus.get('overall_quality_score', 0):.2f}
+- Confidence Level: {consensus.get('confidence_level', 0):.2f}
+- Consensus Level: {consensus.get('consensus_level', 'unknown')}
+"""
+
+            if discrepancies:
+                analysis_context += f"\nQuality Discrepancies Identified:\n"
+                for disc in discrepancies[:5]:  # Limit to top 5
+                    analysis_context += f"- {disc.get('analyzer', 'Unknown')}: {disc.get('description', 'N/A')}\n"
+
+            # LLM analysis prompt
+            analysis_prompt = f"""
+{analysis_context}
+
+Based on this cross-verification analysis, provide insights on:
+
+1. Overall data quality reliability across the analyzed symbols
+2. Trustworthiness of the consensus quality scores
+3. Impact of identified discrepancies on data reliability
+4. Recommendations for improving data quality coordination
+5. Confidence levels for using this data in trading decisions
+
+Focus on actionable insights for data quality assessment and cross-verification.
+"""
+
+            # Perform LLM analysis
+            if self.llm:
+                llm_response = await self.llm.ainvoke(analysis_prompt)
+                analysis_text = str(llm_response.content) if hasattr(llm_response, 'content') else str(llm_response)
+            else:
+                analysis_text = "LLM not available for cross-verification analysis"
+
+            return {
+                'llm_analysis': analysis_text,
+                'analysis_timestamp': datetime.now().isoformat(),
+                'symbols_analyzed': len(consensus_data),
+                'discrepancies_analyzed': len(discrepancies)
+            }
+
+        except Exception as e:
+            logger.error(f"LLM cross-verification analysis failed: {e}")
+            return {
+                'error': str(e),
+                'analysis_timestamp': datetime.now().isoformat()
+            }
+
     def _parse_predictive_response_optimized(self, llm_response: str, symbol: str) -> Dict[str, Any]:
         """Parse optimized LLM response into structured predictive insights."""
         try:
@@ -1468,7 +1722,7 @@ class DataAgent(BaseAgent):
         return {'indicators': {}, 'source': 'deprecated'}
 
     def _parse_massive_result(self, result: str) -> Dict[str, Any]:
-        """DEPRECATED: Parsing now handled by MarketDataAppDatasub (when implemented)."""
+        """DEPRECATED: Parsing now handled by MarketDataAppDataAnalyzer."""
         logger.warning("_parse_massive_result is deprecated - use MarketDataAppDatasub instead")
         return {'error': 'MarketDataApp API not available', 'source': 'deprecated'}
 
@@ -1830,7 +2084,7 @@ class DataAgent(BaseAgent):
             recent_alerts = []
 
             for entry in self.memory['data_quality_history']:
-                entry_time = pd.to_datetime(entry.get('timestamp', '2000-01-01'))
+                entry_time = pd.to_datetime(entry.get('timestamp', datetime.now().isoformat()))
                 if entry_time >= cutoff_time:
                     # Extract any alerts from this entry
                     # Note: In a full implementation, alerts would be stored separately

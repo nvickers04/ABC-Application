@@ -25,28 +25,35 @@ project_root = Path(__file__).parent.parent.parent  # From src/agents/base.py ->
 sys.path.insert(0, str(project_root))
 
 from src.utils.utils import load_yaml, load_prompt_template  # Absolute from src/utils.py (now discoverable).
-from langchain_core.tools import BaseTool
+
+# Try to import BaseTool for type hints, fallback to Any if not available
+try:
+    from langchain_core.tools import BaseTool
+except ImportError:
+    logger.warning("langchain_core.tools not available, using Any for type hints")
+    from typing import Any as BaseTool
 
 # Lazy imports for heavy dependencies to avoid startup failures
-_langchain_openai = None
+_langchain_core_tools = None
 _langchain_xai = None
+_langchain_openai = None
 _langchain_anthropic = None
 _langchain_google = None
-_memory_persistence = None
-_advanced_memory = None
-_shared_memory = None
 _api_health_monitor = None
+_memory_persistence = None
+_advanced_memory_manager = None
+_multi_agent_coordinator = None
 
-def _get_langchain_openai():
-    global _langchain_openai
-    if _langchain_openai is None:
+def _get_langchain_core_tools():
+    global _langchain_core_tools
+    if _langchain_core_tools is None:
         try:
-            from langchain_openai import ChatOpenAI
-            _langchain_openai = ChatOpenAI
+            from langchain_core.tools import BaseTool
+            _langchain_core_tools = BaseTool
         except ImportError as e:
-            logger.warning(f"Failed to import langchain_openai: {e}")
-            _langchain_openai = None
-    return _langchain_openai
+            logger.warning(f"Failed to import langchain_core.tools: {e}")
+            _langchain_core_tools = None
+    return _langchain_core_tools
 
 def _get_langchain_xai():
     global _langchain_xai
@@ -58,6 +65,17 @@ def _get_langchain_xai():
             logger.warning(f"Failed to import langchain_xai: {e}")
             _langchain_xai = None
     return _langchain_xai
+
+def _get_langchain_openai():
+    global _langchain_openai
+    if _langchain_openai is None:
+        try:
+            from langchain_openai import ChatOpenAI
+            _langchain_openai = ChatOpenAI
+        except ImportError as e:
+            logger.warning(f"Failed to import langchain_openai: {e}")
+            _langchain_openai = None
+    return _langchain_openai
 
 def _get_langchain_anthropic():
     global _langchain_anthropic
@@ -82,14 +100,13 @@ def _get_langchain_google():
     return _langchain_google
 
 def _get_api_health_monitor():
-    """Get the centralized API health monitor instance"""
     global _api_health_monitor
     if _api_health_monitor is None:
         try:
-            from src.utils.api_health_monitor import get_health_monitor
-            _api_health_monitor = get_health_monitor()
+            from src.utils.api_health_monitor import APIHealthMonitor
+            _api_health_monitor = APIHealthMonitor()
         except ImportError as e:
-            logger.warning(f"Failed to import API health monitor: {e}")
+            logger.warning(f"Failed to import APIHealthMonitor: {e}")
             _api_health_monitor = None
     return _api_health_monitor
 
@@ -97,34 +114,34 @@ def _get_memory_persistence():
     global _memory_persistence
     if _memory_persistence is None:
         try:
-            from src.utils.memory_persistence import get_memory_persistence
-            _memory_persistence = get_memory_persistence()
+            from src.utils.memory_persistence import MemoryPersistence
+            _memory_persistence = MemoryPersistence()
         except ImportError as e:
-            logger.warning(f"Failed to import memory_persistence: {e}")
+            logger.warning(f"Failed to import MemoryPersistence: {e}")
             _memory_persistence = None
     return _memory_persistence
 
 def _get_advanced_memory_manager():
-    global _advanced_memory
-    if _advanced_memory is None:
+    global _advanced_memory_manager
+    if _advanced_memory_manager is None:
         try:
-            from src.utils.advanced_memory import get_advanced_memory_manager
-            _advanced_memory = get_advanced_memory_manager()
+            from src.utils.advanced_memory import AdvancedMemoryManager
+            _advanced_memory_manager = AdvancedMemoryManager()
         except ImportError as e:
-            logger.warning(f"Failed to import advanced_memory: {e}")
-            _advanced_memory = None
-    return _advanced_memory
+            logger.warning(f"Failed to import AdvancedMemoryManager: {e}")
+            _advanced_memory_manager = None
+    return _advanced_memory_manager
 
 def _get_multi_agent_coordinator():
-    global _shared_memory
-    if _shared_memory is None:
+    global _multi_agent_coordinator
+    if _multi_agent_coordinator is None:
         try:
-            from src.utils.shared_memory import get_multi_agent_coordinator
-            _shared_memory = get_multi_agent_coordinator()
+            from src.utils.shared_memory import MultiAgentMemoryCoordinator
+            _multi_agent_coordinator = MultiAgentMemoryCoordinator()
         except ImportError as e:
-            logger.warning(f"Failed to import shared_memory: {e}")
-            _shared_memory = None
-    return _shared_memory
+            logger.warning(f"Failed to import MultiAgentCoordinator: {e}")
+            _multi_agent_coordinator = None
+    return _multi_agent_coordinator
 
 # Setup logging (shared across agents for audits)
 logger = logging.getLogger(__name__)
@@ -759,6 +776,12 @@ DECISION REQUIRED:
 ADDITIONAL CONTEXT:
 {sanitized_options or 'No additional context provided'}
 
+IMPORTANT TIMESTAMP GUIDELINES:
+- Always use current, real timestamps for any date/time references
+- Never use simulated, historical, or placeholder dates like "2023-10-15"
+- Use actual current date/time when reporting system status or events
+- Format timestamps as ISO format (YYYY-MM-DDTHH:MM:SS) when needed
+
 Please provide your reasoning and recommendation based on the foundation analysis above.
 Consider market conditions, risk factors, and alignment with our goals (10-20% monthly ROI, <5% drawdown).
 """
@@ -850,7 +873,7 @@ Consider market conditions, risk factors, and alignment with our goals (10-20% m
 
         return sanitized_options
 
-    def _should_use_tool(self, tool: BaseTool, query_lower: str) -> bool:
+    def _should_use_tool(self, tool: Any, query_lower: str) -> bool:
         """Determine if a tool should be used based on query keywords."""
         tool_name = tool.name.lower()
         

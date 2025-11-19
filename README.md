@@ -36,6 +36,7 @@ For comprehensive documentation of the ABC-Application system, see the [`docs/`]
 - **IBKR Integration**: Unified interface for IBKR connectivity with LangChain tool integration for seamless trading operations
 - **IBKR Historical Data**: Professional-grade historical market data for accurate backtesting and simulation, with direct integration to IBKR's comprehensive data feeds.
 - **API Health Monitoring**: Automated monitoring system tracking response times, success rates, and circuit breaker status for all data APIs (MarketDataApp, Kalshi, yFinance, NewsAPI, FRED, Currents, Twitter, Whale Wisdom, Grok) with real-time dashboard and alerts.
+- **MarketDataApp Integration**: Premium institutional-grade market data with 7 data endpoints (quotes, trades, orderbook, options, darkpool, microstructure, flow) now fully activated with LLM-powered data exploration and circuit breaker protection.
 - **Modular Tools Architecture**: Organized utility functions into specialized modules (validation, financial, news, market data, backtesting, social media, agent tools) for better maintainability and code organization.
 - **Robust Error Handling**: Comprehensive input validation, circuit breakers, and graceful degradation with backup data sources and redundant systems.
 - **A2A Protocols**: Agent-to-agent communication for coordinated decision-making.
@@ -99,11 +100,12 @@ For comprehensive documentation of the ABC-Application system, see the [`docs/`]
 - **[Production Checklist](./docs/production_readiness_checklist.md)**: Deployment and security requirements
 
 ## Current Status
-- **Implemented**: Full agent framework with LLM integration, collaborative memory systems, and enhanced strategy subagents. IBKR integration with LangChain tools for unified trading interface. IBKR historical data provider for professional-grade backtesting. API health monitoring system with automated checks, circuit breaker integration, and real-time dashboard. Modular tools architecture with specialized modules for better code organization and maintainability. Comprehensive error handling with input validation, circuit breakers, and graceful degradation.
+- **Implemented**: Full agent framework with LLM integration, collaborative memory systems, and enhanced strategy subagents. IBKR integration with LangChain tools for unified trading interface. IBKR historical data provider for professional-grade backtesting. API health monitoring system with automated checks, circuit breaker integration, and real-time dashboard. Modular tools architecture with specialized modules for better code organization and maintainability. Comprehensive error handling with input validation, circuit breakers, and graceful degradation. **MarketDataApp premium data source fully activated** with LLM-powered exploration of institutional-grade market data.
 - **Testing**: Comprehensive test suite for subagents, memory systems, bridge integration, API health monitoring, and historical data providers. System robustness validated through comprehensive audit and fixes.
 - **Integration**: A2A protocols, shared memory coordinator, base agent inheritance, unified IBKR trading interface, automated API health monitoring, professional historical data feeds, and modular utility architecture.
 
 ## Recent Improvements (v2.1)
+- **MarketDataApp Activation**: Fully activated premium institutional data source with 7 data endpoints (quotes, trades, orderbook, options, darkpool, microstructure, flow) and LLM-powered intelligent exploration capabilities.
 - **Code Modularization**: Split monolithic 296KB `tools.py` file into 7 specialized modules for better maintainability
 - **System Robustness**: Implemented comprehensive error handling, circuit breakers, and graceful degradation
 - **Input Validation**: Enhanced data sanitization and validation with HTML/script removal and anomaly detection
@@ -123,6 +125,7 @@ ABC Application supports comprehensive historical portfolio simulations using mu
 ### Data Sources
 - **yfinance**: Free historical data (default for quick testing)
 - **IBKR Historical Data**: Professional-grade market data via IBKR API (recommended for production backtesting)
+- **MarketDataApp**: Premium institutional-grade real-time market data with 7 data endpoints (quotes, trades, orderbook, options, darkpool, microstructure, flow)
 
 ### Running Simulations
 

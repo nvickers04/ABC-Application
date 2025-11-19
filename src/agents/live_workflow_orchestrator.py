@@ -13,6 +13,7 @@ import discord
 import os
 import time
 import json
+import re
 from datetime import datetime
 from typing import Dict, List, Any, Optional, cast
 from dotenv import load_dotenv
@@ -25,7 +26,8 @@ try:
     from src.agents.macro import MacroAgent
     from src.agents.data import DataAgent
     from src.agents.strategy import StrategyAgent
-    from src.agents.risk import RiskAgent
+    # Temporarily skip RiskAgent due to TensorFlow import issues
+    # from src.agents.risk import RiskAgent
     from src.agents.reflection import ReflectionAgent
     from src.agents.execution import ExecutionAgent
     from src.agents.learning import LearningAgent
@@ -37,6 +39,7 @@ except ImportError as e:
     MacroAgent = None
     DataAgent = None
     StrategyAgent = None
+    RiskAgent = None  # Explicitly set to None
     ReflectionAgent = None
     ExecutionAgent = None
     LearningAgent = None
@@ -89,6 +92,77 @@ class LiveWorkflowOrchestrator:
 
         self._initialize_workflow_commands()
 
+    def _sanitize_user_input(self, input_text: str) -> str:
+        """
+        Sanitize user input to prevent injection attacks and ensure safe processing.
+        Removes potentially harmful content while preserving legitimate analysis requests.
+        """
+        if not isinstance(input_text, str):
+            return ""
+
+        # Remove excessive whitespace and control characters
+        import re
+        sanitized = re.sub(r'\s+', ' ', input_text.strip())
+
+        # Remove or escape potentially harmful patterns
+        harmful_patterns = [
+            r'<script[^>]*>.*?</script>',  # Script tags
+            r'javascript:',  # JavaScript URLs
+            r'data:',  # Data URLs
+            r'vbscript:',  # VBScript
+            r'on\w+\s*=',  # Event handlers
+            r'\\x[0-9a-fA-F]{2}',  # Hex escapes
+            r'\\u[0-9a-fA-F]{4}',  # Unicode escapes
+        ]
+
+        for pattern in harmful_patterns:
+            sanitized = re.sub(pattern, '[FILTERED]', sanitized, flags=re.IGNORECASE)
+
+        # Limit length to prevent abuse
+        if len(sanitized) > 2000:
+            sanitized = sanitized[:2000] + "...[TRUNCATED]"
+
+        # Remove attempts to override system behavior
+        system_override_patterns = [
+            r'SYSTEM:', r'ASSISTANT:', r'USER:',
+            r'IGNORE.*INSTRUCTIONS', r'FORGET.*INSTRUCTIONS',
+            r'NEW.*INSTRUCTIONS', r'SYSTEM.*PROMPT',
+            r'You are now', r'FROM NOW ON', r'HENCEFORTH',
+            r'STARTING NOW', r'BEGINNING NOW'
+        ]
+
+        for pattern in system_override_patterns:
+            sanitized = re.sub(pattern, '[FILTERED]', sanitized, flags=re.IGNORECASE)
+
+        return sanitized
+
+    def _sanitize_agent_output(self, output_text: str) -> str:
+        """
+        Sanitize agent output before displaying to users.
+        Ensures no sensitive information or harmful content is exposed.
+        """
+        if not isinstance(output_text, str):
+            return str(output_text)
+
+        # Remove potential sensitive patterns
+        sensitive_patterns = [
+            r'API_KEY[=:]\s*[\w-]+',  # API keys
+            r'TOKEN[=:]\s*[\w-]+',  # Tokens
+            r'PASSWORD[=:]\s*[\w-]+',  # Passwords
+            r'SECRET[=:]\s*[\w-]+',  # Secrets
+            r'PRIVATE_KEY[=:]\s*[\w-]+',  # Private keys
+        ]
+
+        sanitized = output_text
+        for pattern in sensitive_patterns:
+            sanitized = re.sub(pattern, '[REDACTED]', sanitized, flags=re.IGNORECASE)
+
+        # Limit output length for display
+        if len(sanitized) > 1000:
+            sanitized = sanitized[:1000] + "...[TRUNCATED]"
+
+        return sanitized
+
     def _initialize_agents(self):
         """Initialize direct agent instances for enhanced integration (sync placeholder)"""
         # Agent initialization will be done asynchronously in initialize_agents_async
@@ -106,7 +180,7 @@ class LiveWorkflowOrchestrator:
                 'macro': MacroAgent,
                 'data': DataAgent,
                 'strategy': StrategyAgent,
-                'risk': RiskAgent,
+                # 'risk': RiskAgent,  # Temporarily disabled due to TensorFlow issues
                 'reflection': ReflectionAgent,
                 'execution': ExecutionAgent,
                 'learning': LearningAgent
@@ -211,7 +285,7 @@ class LiveWorkflowOrchestrator:
 
     async def send_direct_agent_command(self, agent_name: str, command: str, 
                                       data: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
-        """Send command directly to agent using BaseAgent methods"""
+        """Send command directly to agent using BaseAgent methods via A2A"""
         if agent_name not in self.agent_instances:
             print(f"⚠️ Agent {agent_name} not available for direct command")
             return None
@@ -219,6 +293,10 @@ class LiveWorkflowOrchestrator:
         agent = self.agent_instances[agent_name]
         
         try:
+            # Handle debate commands specially
+            if 'debate' in command.lower():
+                return await self._handle_debate_command(agent, command, data)
+            
             # Parse command for direct agent method calls
             if command.startswith('!analyze') or command.startswith('analyze'):
                 # Extract analysis query
@@ -241,6 +319,122 @@ class LiveWorkflowOrchestrator:
         except Exception as e:
             print(f"⚠️ Direct agent command failed for {agent_name}: {e}")
             return {'error': str(e), 'agent': agent_name}
+
+    async def _handle_debate_command(self, initiating_agent, command: str, data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Handle debate commands by coordinating multiple agents via A2A"""
+        try:
+            # Parse debate command: '!m debate "topic" agent1 agent2 agent3'
+            parts = command.split()
+            if len(parts) < 4:
+                return {'error': 'Invalid debate command format', 'expected': '!agent debate "topic" agent1 agent2 ...'}
+            
+            debate_topic = parts[2].strip('"')  # Remove quotes
+            participant_names = parts[3:]  # Remaining agents
+            
+            # Validate participants
+            participants = []
+            for name in participant_names:
+                if name in self.agent_instances:
+                    participants.append(self.agent_instances[name])
+                else:
+                    return {'error': f'Agent {name} not available for debate'}
+            
+            if not participants:
+                return {'error': 'No valid participants found for debate'}
+            
+            # Create debate session
+            debate_session = {
+                'topic': debate_topic,
+                'participants': [p.role for p in participants],
+                'initiator': initiating_agent.role,
+                'timestamp': datetime.now().isoformat()
+            }
+            
+            # Collect initial positions from all participants
+            debate_responses = []
+            for participant in participants:
+                try:
+                    # Ask each agent for their position on the debate topic
+                    position = await participant.analyze(f"Debate Topic: {debate_topic}. What is your position and reasoning?")
+                    debate_responses.append({
+                        'agent': participant.role,
+                        'position': position
+                    })
+                except Exception as e:
+                    debate_responses.append({
+                        'agent': participant.role,
+                        'error': str(e)
+                    })
+            
+            # Have agents respond to each other's positions
+            for i, participant in enumerate(participants):
+                other_positions = [
+                    resp for j, resp in enumerate(debate_responses) 
+                    if j != i and 'position' in resp
+                ]
+                
+                if other_positions:
+                    try:
+                        # Ask agent to respond to other positions
+                        response_prompt = f"Review these positions from other agents on '{debate_topic}': " + \
+                                        ". ".join([f"{p['agent']}: {str(p['position'])[:200]}..." for p in other_positions]) + \
+                                        ". Do you agree, disagree, or want to modify your position?"
+                        
+                        counter_response = await participant.analyze(response_prompt)
+                        debate_responses[i]['counter_response'] = counter_response
+                    except Exception as e:
+                        debate_responses[i]['counter_error'] = str(e)
+            
+            # Synthesize debate results
+            debate_result = {
+                'debate_topic': debate_topic,
+                'participants': len(participants),
+                'responses': debate_responses,
+                'consensus_level': self._calculate_debate_consensus(debate_responses),
+                'key_insights': self._extract_debate_insights(debate_responses),
+                'session_info': debate_session
+            }
+            
+            return debate_result
+            
+        except Exception as e:
+            return {'error': f'Debate coordination failed: {str(e)}'}
+
+    def _calculate_debate_consensus(self, responses: List[Dict[str, Any]]) -> str:
+        """Calculate consensus level from debate responses"""
+        if not responses:
+            return 'none'
+        
+        # Simple consensus calculation based on response similarity
+        # In a real implementation, this could use NLP similarity metrics
+        successful_responses = [r for r in responses if 'position' in r and 'error' not in r]
+        
+        if len(successful_responses) < 2:
+            return 'insufficient_data'
+        
+        # For now, assume moderate consensus if all agents responded
+        consensus_ratio = len(successful_responses) / len(responses)
+        
+        if consensus_ratio >= 0.8:
+            return 'high'
+        elif consensus_ratio >= 0.6:
+            return 'moderate'
+        else:
+            return 'low'
+
+    def _extract_debate_insights(self, responses: List[Dict[str, Any]]) -> List[str]:
+        """Extract key insights from debate responses"""
+        insights = []
+        
+        for response in responses:
+            if 'position' in response and isinstance(response['position'], dict):
+                # Look for key insights in structured responses
+                if 'recommendations' in response['position']:
+                    recs = response['position']['recommendations']
+                    if isinstance(recs, list):
+                        insights.extend(recs[:2])  # Take up to 2 insights per agent
+        
+        return insights[:5]  # Limit to 5 total insights
 
     async def create_collaborative_session(self, topic: str) -> bool:
         """Create a collaborative session using BaseAgent methods"""
@@ -302,26 +496,221 @@ class LiveWorkflowOrchestrator:
         except Exception as e:
             print(f"⚠️ Context sharing failed: {e}")
 
-    async def collect_agent_insights(self, phase_key: str) -> List[Dict[str, Any]]:
-        """Collect insights from all agents using A2A protocol"""
-        insights = []
-        
-        if not self.collaborative_session_id:
-            return insights
-            
+    async def _share_full_workflow_context(self, phase_key: str, phase_title: str):
+        """Share complete workflow context with all agents for enhanced collaboration"""
+        if not self.agent_instances or not self.collaborative_session_id:
+            return
+
+        # Compile comprehensive context from all previous phases
+        full_context = {
+            'current_phase': phase_key,
+            'phase_title': phase_title,
+            'timestamp': datetime.now().isoformat(),
+            'workflow_progress': self._get_workflow_progress_summary(),
+            'all_previous_responses': self.responses_collected,
+            'human_interventions': self.human_interventions,
+            'agent_health_status': await self.check_agent_health(),
+            'collaborative_session_id': self.collaborative_session_id
+        }
+
+        # Share with all agents via A2A protocol
+        context_sharing_tasks = []
+        for agent_name, agent in self.agent_instances.items():
+            task = agent.update_session_context(
+                self.collaborative_session_id,
+                'full_workflow_context',
+                full_context
+            )
+            context_sharing_tasks.append(task)
+
+        await asyncio.gather(*context_sharing_tasks, return_exceptions=True)
+        print(f"✅ Shared full workflow context with {len(self.agent_instances)} agents")
+
+    async def _share_position_context(self):
+        """Share current position data with all agents for position-aware trade proposals"""
+        if not self.agent_instances or not self.collaborative_session_id:
+            return
+
+        # Get current position data (this would integrate with your trading platform)
+        position_data = await self._get_current_positions()
+
+        # Share position context with all agents
+        position_sharing_tasks = []
+        for agent_name, agent in self.agent_instances.items():
+            task = agent.update_session_context(
+                self.collaborative_session_id,
+                'current_positions',
+                position_data
+            )
+            position_sharing_tasks.append(task)
+
+        await asyncio.gather(*position_sharing_tasks, return_exceptions=True)
+        print(f"✅ Shared position context with {len(self.agent_instances)} agents")
+
+    async def _get_current_positions(self) -> Dict[str, Any]:
+        """Get current position data from trading platform"""
         try:
-            # Get insights from collaborative session
-            first_agent = next(iter(self.agent_instances.values()))
-            session_insights = await first_agent.get_session_insights(self.collaborative_session_id)
-            insights.extend(session_insights)
-            
+            # This would integrate with your IBKR or other trading platform
+            raise NotImplementedError("Real trading platform integration required - no mock position data allowed in production")
+
         except Exception as e:
-            print(f"⚠️ Failed to collect agent insights: {e}")
-            
-        return insights
+            print(f"⚠️ Failed to get position data: {e}")
+            return {
+                'error': str(e),
+                'timestamp': datetime.now().isoformat(),
+                'positions': [],
+                'cash_balance': 0.0
+            }
+
+    async def _execute_command_with_full_context(self, command: str, phase_key: str) -> List[Dict[str, Any]]:
+        """Execute command with all agents having full context"""
+        agent_responses = []
+
+        # Send command to ALL agents (not just target) so they can collaborate
+        command_tasks = []
+        for agent_name, agent in self.agent_instances.items():
+            task = self._send_context_aware_command(agent_name, agent, command, phase_key)
+            command_tasks.append(task)
+
+        # Wait for all agent responses
+        command_results = await asyncio.gather(*command_tasks, return_exceptions=True)
+
+        # Process results
+        for agent_name, result in zip(self.agent_instances.keys(), command_results):
+            if isinstance(result, Exception):
+                print(f"⚠️ Agent {agent_name} failed: {result}")
+                continue
+
+            if result:
+                agent_responses.append({
+                    'agent': agent_name,
+                    'method': 'a2a_enhanced',
+                    'response': result,
+                    'phase': phase_key,
+                    'command': command
+                })
+                print(f"✅ Enhanced A2A response from {agent_name}")
+
+        return agent_responses
+
+    async def _send_context_aware_command(self, agent_name: str, agent, command: str, phase_key: str) -> Optional[Dict[str, Any]]:
+        """Send command to agent with full context awareness"""
+        try:
+            # Enrich command with context
+            enriched_command = self._enrich_command_with_context(command, agent_name, phase_key)
+
+            # Send via A2A protocol
+            result = await self.send_direct_agent_command(agent_name, enriched_command)
+
+            # Allow agent to see and respond to other agents' analyses
+            if result and self.collaborative_session_id:
+                # Share this agent's response with others for cross-agent learning
+                await agent.contribute_session_insight(
+                    self.collaborative_session_id,
+                    {
+                        'type': 'phase_contribution',
+                        'phase': phase_key,
+                        'agent': agent_name,
+                        'command': command,
+                        'analysis': result,
+                        'timestamp': datetime.now().isoformat()
+                    }
+                )
+
+            return result
+
+        except Exception as e:
+            print(f"⚠️ Context-aware command failed for {agent_name}: {e}")
+            return None
+
+    def _enrich_command_with_context(self, command: str, agent_name: str, phase_key: str) -> str:
+        """Enrich command with relevant context for the specific agent"""
+        # Get phase-specific context enrichment
+        phase_context = self._get_phase_context_enrichment(phase_key, agent_name)
+
+        # Add position awareness to trade-related commands
+        if any(word in command.lower() for word in ['trade', 'proposal', 'strategy', 'position']):
+            command += " Consider current portfolio positions and risk constraints."
+
+        # Add cross-agent collaboration context
+        command += f" {phase_context}"
+
+        return command
+
+    def _get_phase_context_enrichment(self, phase_key: str, agent_name: str) -> str:
+        """Get phase-specific context enrichment for agents"""
+        phase_contexts = {
+            'macro_foundation_analysis': "Build on the collected economic and market data. Consider how macro regime affects sector opportunities.",
+            'intelligence_gathering': "Use technical, fundamental, and sentiment data to identify specific trade setups. Cross-validate with institutional activity.",
+            'strategy_development': "Develop actionable trade proposals considering current market regime and position constraints.",
+            'risk_assessment': "Evaluate risk-adjusted returns for proposed trades, considering portfolio diversification and tail risk.",
+            'consensus': "Synthesize all agent perspectives to identify the strongest trade opportunities with highest conviction.",
+            'execution_validation': "Ensure trade proposals are executable given current market conditions and position limits.",
+            'learning': "Learn from historical trade performance to improve future proposal quality."
+        }
+
+        base_context = phase_contexts.get(phase_key, "Contribute your specialized analysis to the collaborative decision process.")
+
+        # Add agent-specific context
+        agent_contexts = {
+            'macro': "Focus on broader market regime and sector allocation opportunities.",
+            'data': "Provide data-driven insights and validate information quality.",
+            'strategy': "Develop specific, actionable trade proposals with clear entry/exit criteria.",
+            'risk': "Assess risk/reward profiles and identify potential failure modes.",
+            'reflection': "Synthesize perspectives and identify consensus vs disagreement.",
+            'execution': "Validate practical execution feasibility and costs.",
+            'learning': "Apply historical lessons to improve current proposals."
+        }
+
+        agent_specific = agent_contexts.get(agent_name, "")
+        return f"{base_context} {agent_specific}"
+
+    def _get_workflow_progress_summary(self) -> Dict[str, Any]:
+        """Get comprehensive workflow progress summary"""
+        completed_phases = []
+        current_responses = {}
+
+        # Analyze responses by phase
+        for response in self.responses_collected:
+            phase = response.get('phase', 'unknown')
+            if phase not in current_responses:
+                current_responses[phase] = []
+            current_responses[phase].append(response)
+
+        # Identify completed phases
+        for phase_key in self.phase_commands.keys():
+            if phase_key in current_responses and len(current_responses[phase_key]) > 0:
+                completed_phases.append(phase_key)
+
+        return {
+            'completed_phases': completed_phases,
+            'current_phase': self.current_phase,
+            'total_responses': len(self.responses_collected),
+            'responses_by_phase': {phase: len(responses) for phase, responses in current_responses.items()},
+            'human_interventions': len(self.human_interventions),
+            'key_insights': self._extract_key_workflow_insights()
+        }
+
+    def _extract_key_workflow_insights(self) -> List[str]:
+        """Extract key insights from workflow responses"""
+        insights = []
+
+        # Look for trade proposals across all responses
+        for response in self.responses_collected:
+            response_data = response.get('response', {})
+            if isinstance(response_data, dict):
+                # Look for trade proposals in structured responses
+                if 'trade_proposals' in response_data:
+                    proposals = response_data['trade_proposals']
+                    if isinstance(proposals, list):
+                        for proposal in proposals[:2]:  # Limit per response
+                            if isinstance(proposal, dict) and 'description' in proposal:
+                                insights.append(f"{response.get('agent', 'Unknown')}: {proposal['description'][:100]}...")
+
+        return insights[:10]  # Limit total insights
 
     async def execute_phase_with_agents(self, phase_key: str, phase_title: str):
-        """Execute a phase using both Discord and direct agent methods"""
+        """Execute a phase using enhanced A2A protocol - agents share full workflow context and collaborate"""
         if not self.channel:
             print(f"❌ No channel available for phase {phase_key}")
             return
@@ -334,75 +723,216 @@ class LiveWorkflowOrchestrator:
         await general_channel.send("─" * 50)
 
         commands = self.phase_commands.get(phase_key, [])
-        
-        # Share phase context with agents
-        await self.share_workflow_context('current_phase', {
-            'phase_key': phase_key,
-            'phase_title': phase_title,
-            'timestamp': datetime.now().isoformat()
-        })
+
+        # ENHANCED CONTEXT SHARING: Share complete workflow context with all agents
+        await self._share_full_workflow_context(phase_key, phase_title)
+
+        # POSITION AWARENESS: Include current position data in context
+        await self._share_position_context()
 
         for i, command in enumerate(commands, 1):
             if not self.workflow_active:
                 return
 
-            # Try direct agent communication first, then Discord
-            agent_responses = []
-            
-            # Extract target agent from command
-            if command.startswith('!'):
-                prefix = command.split()[0].replace('!', '')
-                agent_name = {'m': 'macro', 'd': 'data', 's': 'strategy', 
-                            'r': 'risk', 'ref': 'reflection', 'exec': 'execution', 
-                            'l': 'learning'}.get(prefix)
-                            
-                if agent_name and agent_name in self.agent_instances:
-                    # Try direct agent call
-                    direct_response = await self.send_direct_agent_command(agent_name, command)
-                    if direct_response:
-                        agent_responses.append({
-                            'agent': agent_name,
-                            'method': 'direct',
-                            'response': direct_response,
-                            'phase': phase_key
-                        })
-                        print(f"✅ Direct agent response from {agent_name}")
+            # Send command to ALL agents with full context, not just target agent
+            agent_responses = await self._execute_command_with_full_context(command, phase_key)
 
-            # Also send via Discord for broader participation
-            target_channel = self.get_command_channel(command)
-            channel_name = target_channel.name if target_channel else "general"
-            
-            await general_channel.send(f"📤 **Command {i}/{len(commands)}:** `{command}` → #{channel_name}")
+            # Announce command and show responses
+            await general_channel.send(f"📤 **Command {i}/{len(commands)}:** `{command}`")
 
-            if target_channel:
-                await target_channel.send(command)
-
-            # Wait for responses (both direct and Discord)
-            max_wait_time = self.phase_delays.get(phase_key, 30)
-            await general_channel.send(f"⏳ Waiting for responses (max {max_wait_time}s)...")
-
-            start_time = time.time()
-            discord_responses = 0
-            direct_responses = len(agent_responses)
-
-            while time.time() - start_time < max_wait_time and self.workflow_active:
-                await asyncio.sleep(2)
-                
-                # Check for new Discord responses
-                current_discord = len([r for r in self.responses_collected if r['phase'] == phase_key])
-                if current_discord > discord_responses:
-                    discord_responses = current_discord
-                    await general_channel.send(f"📥 Discord responses: {discord_responses}")
-
-            # Combine responses
-            total_responses = direct_responses + discord_responses
-            if total_responses > 0:
-                await general_channel.send(f"✅ **Received {total_responses} response(s) for command {i}** ({direct_responses} direct, {discord_responses} Discord)")
+            # Format and display agent responses
+            if agent_responses:
+                await self._present_agent_responses(general_channel, agent_responses, i)
             else:
-                await general_channel.send(f"⏰ **No responses received within {max_wait_time}s timeout**")
+                await general_channel.send("⏰ **No agent responses received**")
 
         await general_channel.send(f"✅ **{phase_title} Complete!**")
         await asyncio.sleep(3)
+
+    async def _present_agent_responses(self, channel: discord.TextChannel, responses: List[Dict[str, Any]], command_index: int):
+        """Present agent responses in a unified, readable format with proper Discord markdown"""
+        if not responses:
+            return
+
+        # Group responses by agent
+        agent_summaries = []
+        detailed_responses = []
+
+        for response_data in responses:
+            agent_name = response_data['agent']
+            response = response_data['response']
+
+            # SECURITY: Sanitize agent output before display
+            sanitized_response = self._sanitize_agent_output(response)
+
+            # Create agent summary
+            if isinstance(sanitized_response, dict):
+                # Handle structured agent responses
+                response_dict = cast(Dict[str, Any], sanitized_response)
+                if 'analysis_type' in response_dict:
+                    summary = f"**{agent_name.title()} Agent Analysis:** {response_dict.get('analysis_type', 'general')}"
+                    if 'confidence_level' in response_dict:
+                        summary += f" (Confidence: {response_dict['confidence_level']})"
+                elif 'error' in response_dict:
+                    summary = f"**{agent_name.title()} Agent:** Error - {response_dict['error']}"
+                else:
+                    summary = f"**{agent_name.title()} Agent:** Analysis complete"
+            else:
+                # Handle string responses
+                summary = f"**{agent_name.title()} Agent:** {str(sanitized_response)[:100]}..."
+
+            agent_summaries.append(summary)
+
+            # Prepare detailed response with proper formatting
+            if isinstance(sanitized_response, dict):
+                detailed = f"🤖 **{agent_name.title()} Agent Details:**\n"
+                for key, value in sanitized_response.items():
+                    if key not in ['timestamp', 'agent_role']:  # Skip metadata
+                        formatted_value = self._format_response_value(key, value)
+                        detailed += f"• **{key.replace('_', ' ').title()}:** {formatted_value}\n"
+                detailed_responses.append(detailed.rstrip())
+            else:
+                # Format string responses with potential table/chart detection
+                formatted_response = self._format_text_response(str(sanitized_response))
+                detailed_responses.append(f"🤖 **{agent_name.title()} Agent:** {formatted_response}")
+
+        # Send summary first
+        summary_text = f"📊 **Agent Responses Summary:**\n" + "\n".join(f"• {summary}" for summary in agent_summaries)
+        await channel.send(summary_text)
+
+        # Send detailed responses with proper chunking
+        for detailed in detailed_responses:
+            # Split long messages if needed (Discord limit is 2000 chars)
+            if len(detailed) > 1900:
+                chunks = self._smart_chunk_message(detailed, 1900)
+                for chunk in chunks:
+                    await channel.send(chunk)
+            else:
+                await channel.send(detailed)
+
+        await channel.send(f"✅ **Command {command_index} processing complete**")
+
+    def _format_response_value(self, key: str, value: Any) -> str:
+        """Format individual response values with appropriate Discord markdown"""
+        if isinstance(value, (int, float)):
+            # Format numbers appropriately
+            if isinstance(value, float) and key.lower() in ['pnl', 'return', 'profit', 'loss', 'percentage', 'pct']:
+                return f"{value:.3f}"  # 3 decimal places for percentages
+            elif isinstance(value, float):
+                return f"{value:.2f}"  # 2 decimal places for other floats
+            else:
+                return str(value)
+        elif isinstance(value, str) and len(value) < 200:
+            return value
+        elif isinstance(value, list) and len(value) <= 5:
+            # Format small lists nicely
+            return ', '.join(str(x) for x in value)
+        elif isinstance(value, dict) and len(value) <= 3:
+            # Format small dicts as inline key-value pairs
+            pairs = [f"{k}: {v}" for k, v in value.items() if len(str(v)) < 50]
+            return ' | '.join(pairs) if pairs else str(value)[:100]
+        else:
+            # For complex data, truncate appropriately
+            str_value = str(value)
+            return str_value[:200] + "..." if len(str_value) > 200 else str_value
+
+    def _format_text_response(self, text: str) -> str:
+        """Format text responses with table/chart detection and proper markdown"""
+        # Check for table-like content (multiple lines with similar structure)
+        lines = text.strip().split('\n')
+        if len(lines) > 3:
+            # Look for potential table patterns
+            if self._is_table_content(lines):
+                # Format as code block for better table display
+                return f"```\n{text}\n```"
+            elif self._is_chart_content(text):
+                # Format charts/data as code block
+                return f"```\n{text}\n```"
+
+        # Check for JSON-like content
+        if text.strip().startswith(('{', '[')):
+            try:
+                import json
+                parsed = json.loads(text)
+                # Format JSON as code block
+                return f"```json\n{json.dumps(parsed, indent=2)}\n```"
+            except:
+                pass
+
+        # Return as regular text if no special formatting needed
+        return text
+
+    def _is_table_content(self, lines: List[str]) -> bool:
+        """Detect if content appears to be tabular data"""
+        if len(lines) < 3:
+            return False
+
+        # Check for common table indicators
+        separators = ['|', '\t', ',', ';']
+        has_separator = any(any(sep in line for sep in separators) for line in lines)
+
+        # Check for consistent column structure
+        if has_separator:
+            first_line_separators = sum(1 for sep in separators if sep in lines[0])
+            consistent_structure = all(
+                sum(1 for sep in separators if sep in line) == first_line_separators
+                for line in lines[1:3]  # Check first few lines
+            )
+            return consistent_structure
+
+        return False
+
+    def _is_chart_content(self, text: str) -> bool:
+        """Detect if content appears to be chart/data visualization"""
+        chart_indicators = [
+            '│', '─', '┌', '┐', '└', '┘', '├', '┤', '┬', '┴', '┼',  # Box drawing chars
+            '█', '▌', '▐', '░', '▒', '▓',  # Block elements
+            '↑', '↓', '→', '←',  # Arrows
+            'plot', 'chart', 'graph', 'axis', 'scale'  # Keywords
+        ]
+
+        return any(indicator in text.lower() for indicator in chart_indicators)
+
+    def _smart_chunk_message(self, message: str, max_length: int) -> List[str]:
+        """Smartly chunk messages at natural break points"""
+        if len(message) <= max_length:
+            return [message]
+
+        chunks = []
+        remaining = message
+
+        while len(remaining) > max_length:
+            # Find the best break point
+            chunk = remaining[:max_length]
+
+            # Try to break at paragraph breaks first
+            last_paragraph = chunk.rfind('\n\n')
+            if last_paragraph > max_length * 0.7:  # Don't break too early
+                chunk = remaining[:last_paragraph]
+                remaining = remaining[last_paragraph:].lstrip()
+            else:
+                # Try to break at line breaks
+                last_line = chunk.rfind('\n')
+                if last_line > max_length * 0.8:
+                    chunk = remaining[:last_line]
+                    remaining = remaining[last_line:].lstrip()
+                else:
+                    # Force break at word boundary
+                    last_space = chunk.rfind(' ')
+                    if last_space > max_length * 0.9:
+                        chunk = remaining[:last_space]
+                        remaining = remaining[last_space:].lstrip()
+                    else:
+                        # Hard break if necessary
+                        chunk = remaining[:max_length]
+                        remaining = remaining[max_length:]
+
+            chunks.append(chunk)
+
+        if remaining:
+            chunks.append(remaining)
+
+        return chunks
 
     def _initialize_workflow_commands(self):
         """Initialize the command sequences for each workflow phase with realistic data-driven tasks"""
@@ -415,24 +945,24 @@ class LiveWorkflowOrchestrator:
             ],
             'macro_foundation_analysis': [
                 # Phase 0b: Macro Analysis (using collected data)
-                "!m analyze Based on collected economic and market data, assess market regime: Identify if we're in risk-on/risk-off, trending/range-bound, bull/bear market",
-                "!m analyze Analyze sector performance data to generate top 5 sector opportunities based on relative strength, momentum, and risk-adjusted returns"
+                "!m analyze Based on collected economic and market data, assess market regime: Identify if we're in risk-on/risk-off, trending/range-bound, bull/bear market. Generate 5 specific trade proposals based on macro regime (e.g., sector rotation, duration positioning, currency trades) with Probability of Profit (PoP) calculations. Consider current portfolio positions and risk constraints.",
+                "!m analyze Analyze sector performance data to generate top 5 sector opportunities based on relative strength, momentum, and risk-adjusted returns. For each sector, propose specific ETF or stock trades with entry/exit criteria and PoP estimates. Ensure proposals complement existing positions without excessive concentration."
             ],
 
             'intelligence_gathering': [
-                "!d analyze Pull detailed data for top 5 sectors: price action, volume, technical indicators (RSI, MACD, moving averages)",
-                "!d analyze Fetch institutional holdings data for sector leaders (13F filings, ETF flows, options positioning)",
-                "!d analyze Gather news sentiment and social media metrics for market-moving events and sector catalysts",
-                "!d analyze Calculate volatility metrics and options data (put/call ratios, VIX term structure, gamma exposure)",
-                "!d analyze Cross-validate data sources and identify any discrepancies or data quality issues"
+                "!d analyze Pull detailed data for top 5 sectors: price action, volume, technical indicators (RSI, MACD, moving averages). Identify 5 specific trade setups with support/resistance levels, momentum signals, and Probability of Profit (PoP) calculations based on historical patterns.",
+                "!d analyze Fetch institutional holdings data for sector leaders (13F filings, ETF flows, options positioning). Generate 5 trade proposals based on institutional accumulation/distribution patterns with PoP estimates derived from institutional activity correlations.",
+                "!d analyze Gather news sentiment and social media metrics for market-moving events and sector catalysts. Propose 5 trades based on sentiment extremes or breaking news developments with PoP calculations considering sentiment impact history.",
+                "!d analyze Calculate volatility metrics and options data (put/call ratios, VIX term structure, gamma exposure). Develop 5 volatility-based trade proposals (straddles, spreads, directional bets) with PoP assessments based on volatility regime analysis.",
+                "!d analyze Cross-validate data sources and identify any discrepancies or data quality issues. Refine 5 trade proposals based on data reliability and market microstructure analysis, updating PoP calculations accordingly."
             ],
 
             'strategy_development': [
-                "!s analyze Based on macro regime and sector data, develop 3-5 specific trading strategies with entry/exit criteria",
-                "!s analyze Incorporate technical analysis: support/resistance levels, trend channels, momentum divergence signals",
-                "!s analyze Design risk management overlays: position sizing, stop losses, hedging strategies using options/futures",
-                "!s analyze Consider market timing: optimal entry points, holding periods, exit triggers based on technicals",
-                "!s analyze Evaluate strategy robustness across different market scenarios (bull/bear/sideways)"
+                "!s analyze Based on macro regime and sector data, develop 5 specific trading strategies with entry/exit criteria. Each strategy must include: instrument selection, position sizing, entry triggers, profit targets, stop losses, and Probability of Profit (PoP) calculations. Consider current portfolio positions and ensure proposals maintain proper diversification and risk limits.",
+                "!s analyze Incorporate technical analysis: support/resistance levels, trend channels, momentum divergence signals. Generate 5 specific trade proposals with technical entry/exit points, risk/reward ratios, and PoP estimates based on historical success rates. Account for existing position sizes and avoid over-concentration in similar assets.",
+                "!s analyze Design risk management overlays: position sizing, stop losses, hedging strategies using options/futures. Propose 5 complete trade structures with defined risk parameters and PoP calculations considering win rate and risk/reward profiles. Ensure total portfolio risk remains within acceptable limits.",
+                "!s analyze Consider market timing: optimal entry points, holding periods, exit triggers based on technicals. Develop 5 timing-based trade proposals with specific entry windows, holding periods, and PoP assessments. Factor in current market exposure and rebalancing needs.",
+                "!s analyze Evaluate strategy robustness across different market scenarios (bull/bear/sideways). Generate 5 scenario-specific trade proposals with conditional execution criteria and PoP calculations for each scenario. Consider how proposals perform relative to current portfolio composition."
             ],
 
             'debate': [
@@ -441,53 +971,53 @@ class LiveWorkflowOrchestrator:
             ],
 
             'risk_assessment': [
-                "!ref analyze Calculate Value at Risk (VaR) for each strategy using historical simulation and parametric methods",
-                "!ref analyze Assess tail risk: Black Swan scenarios, correlation breakdowns, liquidity crunch possibilities",
-                "!ref analyze Evaluate strategy drawdown potential and maximum loss scenarios under stress conditions",
-                "!ref analyze Consider systemic risks: Fed policy changes, geopolitical events, economic data surprises",
-                "!ref analyze Generate risk-adjusted return metrics and Sharpe/Sortino ratios for strategy comparison"
+                "!ref analyze Calculate Value at Risk (VaR) for each proposed trade using historical simulation and parametric methods. Rank trades by risk-adjusted return potential and refine Probability of Profit (PoP) calculations. Consider how new trades affect total portfolio VaR and correlation with existing positions.",
+                "!ref analyze Assess tail risk: Black Swan scenarios, correlation breakdowns, liquidity crunch possibilities. Identify which trade proposals are most vulnerable to extreme events and adjust PoP estimates downward accordingly. Evaluate impact on current portfolio resilience.",
+                "!ref analyze Evaluate strategy drawdown potential and maximum loss scenarios under stress conditions. Propose risk mitigation strategies for high-risk trades and recalibrate PoP calculations based on stress testing results. Assess combined drawdown risk with existing positions.",
+                "!ref analyze Consider systemic risks: Fed policy changes, geopolitical events, economic data surprises. Generate contingency trade proposals for different risk scenarios with updated PoP assessments. Review current portfolio exposure to these risks.",
+                "!ref analyze Generate risk-adjusted return metrics and Sharpe/Sortino ratios for strategy comparison. Recommend trade sizing based on risk tolerance and finalize PoP calculations. Ensure proposals align with current portfolio risk profile."
             ],
 
             'consensus': [
-                "!ref analyze Synthesize all agent inputs: Which strategies pass risk/reward hurdles? What are the trade-offs?",
-                "!ref analyze Evaluate strategy consensus: Where do all agents agree? Where are there material disagreements?",
-                "!ref analyze Consider implementation feasibility: Capital requirements, slippage costs, execution complexity",
-                "!ref analyze Assess market capacity: Can strategies be scaled without moving markets or exhausting liquidity?",
-                "!ref analyze Generate final strategy rankings with confidence levels and implementation priorities"
+                "!ref analyze Synthesize all agent inputs: Which trade proposals pass risk/reward hurdles? What are the trade-offs between different proposals? Consider portfolio impact, diversification benefits, and refine Probability of Profit (PoP) calculations based on consensus confidence.",
+                "!ref analyze Evaluate strategy consensus: Where do all agents agree on trade proposals? Where are there material disagreements on specific trades? Assess alignment with current position strategy and adjust PoP estimates based on consensus levels.",
+                "!ref analyze Consider implementation feasibility: Capital requirements, slippage costs, execution complexity for each proposed trade. Evaluate funding needs relative to current cash balance and factor feasibility into final PoP calculations.",
+                "!ref analyze Assess market capacity: Can proposed trades be scaled without moving markets or exhausting liquidity? Consider position size limits relative to average daily volume and adjust PoP estimates for scalability concerns.",
+                "!ref analyze Generate final trade proposal rankings with confidence levels and implementation priorities. Ensure selected trades complement current portfolio without excessive risk concentration, with final PoP assessments."
             ],
 
             'execution_validation': [
-                "!exec analyze Model transaction costs: Commissions, spreads, market impact for proposed position sizes",
-                "!exec analyze Assess execution logistics: Trading hours, venue selection, algorithmic execution requirements",
-                "!exec analyze Evaluate position management: Rebalancing triggers, scaling in/out protocols, exit strategies",
-                "!exec analyze Consider tax implications and wash sale rules for strategy implementation",
-                "!exec analyze Generate detailed execution playbook with step-by-step implementation guide"
+                "!exec analyze Model transaction costs: Commissions, spreads, market impact for proposed position sizes. Calculate total execution costs for each trade proposal. Consider tax implications for current holdings.",
+                "!exec analyze Assess execution logistics: Trading hours, venue selection, algorithmic execution requirements. Validate execution feasibility for each proposed trade. Check for position size limits and margin requirements.",
+                "!exec analyze Evaluate position management: Rebalancing triggers, scaling in/out protocols, exit strategies. Develop detailed execution plans for each trade proposal. Consider rebalancing impact on current portfolio.",
+                "!exec analyze Consider tax implications and wash sale rules for strategy implementation. Optimize trade structure for tax efficiency. Review current position cost basis and holding periods.",
+                "!exec analyze Generate detailed execution playbook with step-by-step implementation guide for top-ranked trade proposals. Include position sizing relative to current portfolio value and risk limits."
             ],
 
             'learning': [
-                "!l analyze Review historical performance of similar strategies in current market regime",
-                "!l analyze Identify key success factors and common failure modes from past implementations",
-                "!l analyze Update strategy templates and decision frameworks based on current analysis",
-                "!l analyze Document lessons learned and update institutional knowledge base",
-                "!l analyze Generate strategy improvement recommendations for future workflow iterations"
+                "!l analyze Review historical performance of similar trade proposals in current market regime. Identify patterns in successful vs failed trades. Consider how similar trades performed in current portfolio context.",
+                "!l analyze Identify key success factors and common failure modes from past trade implementations. Update trade proposal templates based on historical outcomes. Learn from current position performance history.",
+                "!l analyze Update strategy templates and decision frameworks based on current analysis. Refine trade proposal generation criteria. Incorporate lessons from current portfolio composition.",
+                "!l analyze Document lessons learned and update institutional knowledge base with trade-specific insights. Include position management learnings from current holdings.",
+                "!l analyze Generate trade improvement recommendations for future workflow iterations based on current proposal outcomes. Suggest portfolio rebalancing strategies based on historical performance."
             ],
 
             'executive_review': [
-                "!ref analyze ITERATION 2: Review Iteration 1 results and identify gaps, assumptions, or alternative perspectives that were missed",
-                "!ref analyze ITERATION 2: Reassess risks using Iteration 1 findings - are there hidden risks or overconfidence in the initial analysis?",
-                "!s analyze ITERATION 2: Develop enhanced strategies building on Iteration 1 - consider counter-trend approaches, timing refinements, or position sizing adjustments",
-                "!ref analyze ITERATION 2: Challenge Iteration 1 consensus - what dissenting views or devil's advocate positions should be considered?",
-                "!exec analyze ITERATION 2: Evaluate execution feasibility of Iteration 1 strategies under various market conditions and liquidity scenarios",
-                "!l analyze ITERATION 2: Apply historical lessons to Iteration 1 strategies - what similar market conditions produced different outcomes?",
-                "!m analyze ITERATION 2: Consider macroeconomic regime changes - how would Iteration 1 strategies perform if the regime shifts?"
+                "!ref analyze ITERATION 2: Review Iteration 1 trade proposals and identify gaps, assumptions, or alternative perspectives that were missed. Consider portfolio fit, position implications, and refine Probability of Profit (PoP) calculations with additional insights.",
+                "!ref analyze ITERATION 2: Reassess risks using Iteration 1 findings - are there hidden risks or overconfidence in the initial trade proposals? Evaluate combined portfolio risk and adjust PoP estimates based on deeper risk analysis.",
+                "!s analyze ITERATION 2: Develop enhanced trade proposals building on Iteration 1 - consider counter-trend approaches, timing refinements, or position sizing adjustments. Ensure proposals work with current holdings and include updated PoP calculations.",
+                "!ref analyze ITERATION 2: Challenge Iteration 1 consensus - what dissenting views or devil's advocate positions should be considered for trade proposals? Review position concentration risks and recalibrate PoP estimates.",
+                "!exec analyze ITERATION 2: Evaluate execution feasibility of Iteration 1 trade proposals under various market conditions and liquidity scenarios. Consider current portfolio liquidity and position sizes, factoring execution risks into PoP calculations.",
+                "!l analyze ITERATION 2: Apply historical lessons to Iteration 1 trade proposals - what similar market conditions produced different trade outcomes? Learn from current position performance and update PoP estimates with historical context.",
+                "!m analyze ITERATION 2: Consider macroeconomic regime changes - how would Iteration 1 trade proposals perform if the regime shifts? Assess portfolio resilience to regime changes and adjust PoP calculations for regime risk."
             ],
 
             'supreme_oversight': [
-                "!ref analyze SUPREME OVERSIGHT: Compare Iteration 1 vs Iteration 2 analyses - which insights are most robust and actionable?",
-                "!ref analyze SUPREME OVERSIGHT: Synthesize both iterations into final recommendations - what is the strongest consensus position?",
-                "!ref analyze SUPREME OVERSIGHT: Crisis detection across both iterations - identify any black swan risks or critical assumptions",
-                "!ref analyze SUPREME OVERSIGHT: Final veto authority - approve/reject strategies or mandate additional analysis based on both iterations",
-                "!ref analyze SUPREME OVERSIGHT: Implementation prioritization - rank strategies by conviction level considering both iteration insights"
+                "!ref analyze SUPREME OVERSIGHT: Compare Iteration 1 vs Iteration 2 trade proposal analyses - which insights are most robust and actionable? Consider portfolio integration, risk management, and consolidate Probability of Profit (PoP) calculations across both iterations.",
+                "!ref analyze SUPREME OVERSIGHT: Synthesize both iterations into final trade recommendations - what is the strongest consensus position? Ensure recommendations align with current portfolio strategy and provide final PoP assessments.",
+                "!ref analyze SUPREME OVERSIGHT: Crisis detection across both iterations - identify any black swan risks or critical assumptions in trade proposals. Assess portfolio vulnerability to identified risks and adjust final PoP estimates.",
+                "!ref analyze SUPREME OVERSIGHT: Final veto authority - approve/reject trade proposals or mandate additional analysis based on both iterations. Consider overall portfolio health, risk limits, and PoP confidence levels.",
+                "!ref analyze SUPREME OVERSIGHT: Implementation prioritization - rank trade proposals by conviction level considering both iteration insights. Provide final position sizing recommendations relative to current portfolio and PoP-based confidence scores."
             ]
         }
 
@@ -525,42 +1055,20 @@ class LiveWorkflowOrchestrator:
                         self.channel = guild.text_channels[0]
                         print(f"📝 Using default general channel: #{self.channel.name}")
 
-                    # Set up agent-specific channels
-                    agent_channel_map = {
-                        'macro': 'macro',
-                        'data': 'data', 
-                        'strategy': 'strategy',
-                        'risk': 'risk',
-                        'reflection': 'reflection',
-                        'execution': 'execution',
-                        'learning': 'learning',
-                        'debates': 'debates',  # For debate commands
-                        'alerts': 'alerts'     # For system alerts
-                    }
-                    
-                    for agent_type, channel_name in agent_channel_map.items():
-                        for ch in guild.text_channels:
-                            if ch.name == channel_name:
-                                self.agent_channels[agent_type] = ch
-                                print(f"🤖 {agent_type.title()} agent channel: #{ch.name}")
-                                break
-                    
-                    # Report missing channels
-                    missing_channels = []
-                    for agent_type in agent_channel_map.keys():
-                        if agent_type not in self.agent_channels:
-                            missing_channels.append(f"#{agent_type}")
-                    
-                    if missing_channels:
-                        print(f"⚠️  Missing agent channels: {', '.join(missing_channels)}")
-                        print("   Agents will respond in general channel instead")
-                    else:
-                        print(f"✅ All {len(self.agent_channels)} agent channels configured!")
-                        print(f"   Agent channels: {list(self.agent_channels.keys())}")
+                    # Set up general channel only (no agent-specific channels needed)
+                    for ch in guild.text_channels:
+                        if ch.name in ['general', 'workflow', 'analysis', 'trading']:
+                            self.channel = ch
+                            print(f"📝 General channel: #{ch.name}")
+                            break
+
+                    if not self.channel and guild.text_channels:
+                        self.channel = guild.text_channels[0]
+                        print(f"📝 Using default general channel: #{self.channel.name}")
 
                     # Announce orchestrator presence
                     if self.channel:
-                        await self.channel.send("🎯 **Live Workflow Orchestrator Online**\n🤖 Ready to begin iterative reasoning workflow. Type `!start_workflow` to begin, or ask questions at any time!")
+                        await self.channel.send("🎯 **Live Workflow Orchestrator Online**\n🤖 Ready to begin iterative reasoning workflow with unified agent coordination. Type `!start_workflow` to begin, or ask questions at any time!")
 
         @self.client.event
         async def on_message(message):
@@ -594,17 +1102,6 @@ class LiveWorkflowOrchestrator:
                 await self.send_status_update()
                 return
 
-            # Collect agent responses (from bots in any channel)
-            if message.author.bot and message.author != self.client.user:
-                self.responses_collected.append({
-                    'agent': message.author.display_name,
-                    'content': message.content,
-                    'channel': message.channel.name,
-                    'timestamp': message.created_at.isoformat(),
-                    'phase': self.current_phase
-                })
-                self.workflow_log.append(f"🤖 {message.author.display_name} (#{message.channel.name}): {message.content[:100]}...")
-
             # Handle human questions/interventions during active workflow
             elif self.workflow_active and not message.author.bot:
                 await self.handle_human_intervention(message)
@@ -614,31 +1111,66 @@ class LiveWorkflowOrchestrator:
             raise ValueError("❌ DISCORD_ORCHESTRATOR_TOKEN not found. Please create a separate Discord bot for the orchestrator.")
 
     async def handle_human_intervention(self, message):
-        """Handle human questions or interventions during workflow"""
+        """Handle human questions or interventions during workflow via A2A"""
+        # SECURITY: Validate message structure
+        if not message or not hasattr(message, 'content') or not hasattr(message, 'author'):
+            return
+
+        content = message.content.strip()
+        if len(content) > 2000:  # Discord message limit + safety buffer
+            await message.channel.send("⚠️ Message too long. Please keep interventions under 2000 characters.")
+            return
+
+        # SECURITY: Sanitize user input
+        sanitized_content = self._sanitize_user_input(content)
+        if not sanitized_content:
+            await message.add_reaction("❌")
+            await message.channel.send("⚠️ Message contains invalid content and was rejected.")
+            return
+
         intervention = {
-            'user': message.author.display_name,
-            'content': message.content,
+            'user': message.author.display_name[:50],  # Limit username length
+            'user_id': str(message.author.id),  # Track user ID for audit
+            'content': sanitized_content,
             'timestamp': message.created_at.isoformat(),
             'phase': self.current_phase
         }
         self.human_interventions.append(intervention)
-        self.workflow_log.append(f"👤 {message.author.display_name}: {message.content}")
+        self.workflow_log.append(f"👤 {message.author.display_name[:50]}: {sanitized_content[:100]}...")
 
         # Acknowledge the intervention
         await message.add_reaction("👀")
 
-        # If it's a question, pause briefly to allow agents to respond
+        # If it's a question, consult reflection agent via A2A
         if any(word in message.content.lower() for word in ['?', 'what', 'how', 'why', 'can you', 'explain']):
-            await message.channel.send(f"🤔 Human intervention noted: `{message.content[:100]}...`\n⏸️  Pausing workflow briefly for consideration...")
-            await asyncio.sleep(5)  # Give time for consideration
+            await message.channel.send(f"🤔 Human intervention noted: `{message.content[:100]}...`\n⏸️  Consulting reflection agent...")
 
-            # Ask reflection agent to address the question
-            await message.channel.send("!ref analyze Please address the human question above and incorporate it into our reasoning process.")
+            # Ask reflection agent to address the question via A2A
+            if 'reflection' in self.agent_instances:
+                try:
+                    reflection_response = await self.agent_instances['reflection'].analyze(
+                        f"Human Question: {message.content}. Please analyze this question in the context of our current workflow phase ({self.current_phase}) and provide relevant insights or recommendations."
+                    )
+                    
+                    # Format and present reflection agent's response
+                    await message.channel.send("🤖 **Reflection Agent Analysis:**")
+                    if isinstance(reflection_response, dict):
+                        for key, value in reflection_response.items():
+                            if key not in ['timestamp', 'agent_role']:
+                                # SECURITY: Sanitize agent output before display
+                                sanitized_value = self._sanitize_agent_output(str(value))
+                                await message.channel.send(f"• **{key.replace('_', ' ').title()}:** {sanitized_value[:500]}")
+                    else:
+                        # SECURITY: Sanitize agent output before display
+                        sanitized_response = self._sanitize_agent_output(str(reflection_response))
+                        await message.channel.send(sanitized_response[:1000])
+                        
+                except Exception as e:
+                    await message.channel.send(f"⚠️ Reflection agent consultation failed: {str(e)}")
+            else:
+                await message.channel.send("⚠️ Reflection agent not available for consultation")
 
-            # Wait for reflection agent response
-            await asyncio.sleep(25)
-
-            await message.channel.send("▶️ Resuming workflow...")
+            await message.channel.send("▶️ Continuing workflow...")
         else:
             # For non-questions, just log and continue
             await message.channel.send(f"📝 Intervention logged. Continuing workflow...")
@@ -665,12 +1197,14 @@ class LiveWorkflowOrchestrator:
             await channel.send("⚠️ **WARNING: System health degraded - proceeding with caution**")
             await channel.send(f"Healthy agents: {len(health_status['healthy_agents'])}/{health_status['total_agents']}")
 
-        # Create collaborative session for direct agent coordination
-        session_created = await self.create_collaborative_session("Live Workflow Orchestration")
+        await channel.send("🤝 **Collaborative session established for unified agent coordination**")
+
+        # Create collaborative session for enhanced cross-agent communication
+        session_created = await self.create_collaborative_session("Enhanced Trading Analysis with Position Awareness")
         if session_created:
-            await channel.send("🤝 **Collaborative session established for direct agent coordination**")
+            await channel.send("🎯 **Enhanced A2A Session Active** - Agents now share full workflow context and position data")
         else:
-            await channel.send("⚠️ **Discord-only mode: Direct agent coordination unavailable**")
+            await channel.send("⚠️ **Limited Collaboration Mode** - Agents operating with reduced context sharing")
 
         self.workflow_active = True
         self.current_phase = "starting"
@@ -854,10 +1388,11 @@ class LiveWorkflowOrchestrator:
         final_health = await self.check_agent_health()
         
         await channel.send("📊 **Final Summary:**")
-        await channel.send(f"• Total Agent Responses: {len(self.responses_collected)}")
+        await channel.send(f"• Agent Interactions: {len(self.responses_collected)} A2A communications")
         await channel.send(f"• Human Interventions: {len(self.human_interventions)}")
         await channel.send(f"• Phases Completed: All 11 phases")
         await channel.send(f"• Agent Health: {final_health['overall_health'].title()} ({len(final_health['healthy_agents'])}/{final_health['total_agents']} healthy)")
+        await channel.send(f"• Architecture: Unified A2A coordination (no separate Discord bots)")
         
         if self.collaborative_session_id:
             await channel.send(f"• Collaborative Session: {self.collaborative_session_id}")

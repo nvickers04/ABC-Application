@@ -19,6 +19,12 @@ SYSTEM CAPABILITIES:
 - Collaborative agent coordination
 - Continuous learning and adaptation
 
+MARKET TIMING AWARENESS:
+- **Market Open Moves**: Account for significant price movements at market open due to overnight news, order imbalances, earnings reports, and gap effects. These moves can be 2-5x more volatile than intraday trading.
+- **Market Close Moves**: Consider end-of-day positioning, window dressing, institutional flows, and closing auctions that can create significant price swings in the final 30-60 minutes.
+- **Timing Optimization**: Align strategy execution and position management with market open/close dynamics to capitalize on volatility while managing risk.
+- **Gap Risk Management**: Implement strategies to handle overnight gaps and opening price dislocations.
+
 OPERATIONAL PRINCIPLES:
 1. Always prioritize capital preservation
 2. Use data-driven decision making

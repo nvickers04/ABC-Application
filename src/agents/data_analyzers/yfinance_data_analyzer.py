@@ -112,7 +112,7 @@ class YfinanceDataAnalyzer(BaseAgent):
         # Market data indicators
         self.technical_indicators = self._initialize_technical_indicators()
 
-    def _initialize_technical_indicators(self) -> Dict[str, Callable[[pd.Series, int], Optional[pd.Series | Dict[str, pd.Series]]]]:
+    def _initialize_technical_indicators(self) -> Dict[str, Callable[..., Any]]:
         """Initialize technical indicator functions."""
         return {
             'sma': self._calculate_sma,
@@ -377,59 +377,7 @@ Return a JSON object with:
                 'source': 'yfinance'
             }
 
-    async def _fetch_alpha_vantage_data(self, symbol: str, data_types: List[str], time_horizon: str) -> Dict[str, Any]:
-        """Fetch data from Alpha Vantage."""
-        # Mock implementation - would use Alpha Vantage API
-        return {
-            'symbol': symbol,
-            'data': {
-                'technical': {
-                    'sma_20': 152.5,
-                    'rsi': 65.2,
-                    'macd': 1.23,
-                    'source': 'alpha_vantage'
-                }
-            },
-            'timestamp': datetime.now().isoformat(),
-            'source': 'alpha_vantage'
-        }
 
-    async def _fetch_marketdataapp_data(self, symbol: str, data_types: List[str], time_horizon: str) -> Dict[str, Any]:
-        """Fetch data from MarketDataApp."""
-        # Mock implementation - would use MarketDataApp API
-        return {
-            'symbol': symbol,
-            'data': {
-                'quote': {
-                    'price': 152.5,
-                    'bid': 152.48,
-                    'ask': 152.52,
-                    'source': 'marketdataapp'
-                }
-            },
-            'timestamp': datetime.now().isoformat(),
-            'source': 'marketdataapp'
-        }
-
-    async def _fetch_ibkr_data(self, symbol: str, data_types: List[str], time_horizon: str) -> Dict[str, Any]:
-        """Fetch data from Interactive Brokers."""
-        # Mock implementation - would use IBKR API
-        return {
-            'symbol': symbol,
-            'data': {},
-            'timestamp': datetime.now().isoformat(),
-            'source': 'ibkr'
-        }
-
-    async def _fetch_polygon_data(self, symbol: str, data_types: List[str], time_horizon: str) -> Dict[str, Any]:
-        """Fetch data from Polygon.io."""
-        # Mock implementation - would use Polygon API
-        return {
-            'symbol': symbol,
-            'data': {},
-            'timestamp': datetime.now().isoformat(),
-            'source': 'polygon'
-        }
 
     def _consolidate_market_data(self, symbols: List[str], exploration_results: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -476,56 +424,7 @@ Return a JSON object with:
 
         return consolidated
 
-    def _consolidate_symbol_data(self, symbol_data: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Consolidate data for a single symbol from multiple sources.
-        Enhanced version that creates proper DataFrames.
-        """
-        consolidated = {
-            'symbol': symbol_data.get('symbol', 'unknown'),
-            'sources': list(symbol_data.keys()),
-            'timestamp': datetime.now().isoformat()
-        }
 
-        # Create historical price DataFrame
-        historical_data = None
-        for source, source_data in symbol_data.items():
-            if isinstance(source_data, dict) and 'data' in source_data:
-                hist = source_data['data'].get('historical', {})
-                if hist and 'prices' in hist:
-                    # Convert dict of dicts to DataFrame
-                    prices_dict = hist['prices']
-                    if prices_dict:
-                        df = pd.DataFrame.from_dict(prices_dict, orient='index')
-                        df.index = pd.to_datetime(df.index)
-                        df = df.rename(columns={
-                            'Open': 'open',
-                            'High': 'high',
-                            'Low': 'low',
-                            'Close': 'close',
-                            'Volume': 'volume'
-                        })
-                        if historical_data is None:
-                            historical_data = df
-                        else:
-                            # Merge with existing data (prioritize newer data)
-                            historical_data = historical_data.combine_first(df)
-
-        if historical_data is not None:
-            consolidated['historical_df'] = historical_data
-
-        # Add quote data
-        quotes = {}
-        for source, source_data in symbol_data.items():
-            if isinstance(source_data, dict) and 'data' in source_data:
-                quote = source_data['data'].get('quote', {})
-                if quote:
-                    quotes[source] = quote
-
-        if quotes:
-            consolidated['quotes'] = quotes
-
-        return consolidated
 
     def _calculate_market_data_quality_score(self, exploration_results: Dict[str, Any]) -> float:
         """Calculate overall market data quality score."""
@@ -840,14 +739,7 @@ Return a JSON object with:
         }
 
         # This would implement actual WebSocket streaming
-        # For now, return mock streaming status
-        for symbol in symbols:
-            streaming_data['active_streams'].append({
-                'symbol': symbol,
-                'status': 'connected',
-                'data_types': data_types,
-                'update_frequency': 'real-time'
-            })
+        raise NotImplementedError("Real-time WebSocket streaming implementation required - no mock streaming data allowed in production")
 
         return streaming_data
 
@@ -987,8 +879,33 @@ Return a JSON object with:
         except:
             return None
 
-    def _calculate_volume_profile(self, volume: pd.Series, price_levels: int = 10) -> Dict[str, Any]:
-        """Calculate volume profile."""
+    def _calculate_price_trend_slope(self, prices: pd.DataFrame) -> float:
+        """Calculate the slope of the price trend using linear regression."""
+        try:
+            if prices is None or prices.empty or 'Close' not in prices.columns:
+                return 0.0
+
+            # Use the last 20 data points for trend calculation
+            recent_prices = prices.tail(20)
+            if len(recent_prices) < 2:
+                return 0.0
+
+            # Simple linear regression slope
+            import numpy as np
+            x = np.array(range(len(recent_prices)))
+            y = recent_prices['Close'].values.astype(float)
+
+            # Calculate slope using numpy polyfit
+            slope = np.polyfit(x, y, 1)[0]
+
+            return float(slope)
+
+        except Exception as e:
+            logger.error(f"Failed to calculate price trend slope: {e}")
+            return 0.0
+
+    def _calculate_volume_profile(self, volume: pd.Series) -> Dict[str, Any]:
+        """Calculate volume profile metrics."""
         # Simplified volume profile calculation
         try:
             return {
@@ -1341,7 +1258,7 @@ Price Statistics:
 - Price Volatility: {price_stats.get('price_volatility', 'N/A')}
 - Total Volume: {price_stats.get('total_volume', 'N/A')}
 - Price Range: {price_stats.get('price_range', 'N/A')}
-- Trend Direction: {'upward' if isinstance(price_stats.get('trend_slope', 0), (int, float)) and price_stats.get('trend_slope', 0) > 0 else 'downward'}
+- Trend Direction: {'upward' if isinstance(price_stats.get('trend_slope', 0), (int, float)) and float(price_stats.get('trend_slope', 0)) > 0 else 'downward'}
 
 Market Insights:
 {self._extract_market_insights(consolidated_data.get('exploration_results', {}))}

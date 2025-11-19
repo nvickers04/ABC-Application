@@ -1,0 +1,23 @@
+{
+  "completed_at": "2025-11-19T19:55:50.433020",
+  "total_responses": 0,
+  "human_interventions": 0,
+  "responses": [],
+  "interventions": [],
+  "workflow_log": [],
+  "agent_health": {
+    "healthy_agents": [
+      "macro",
+      "strategy",
+      "reflection",
+      "execution",
+      "learning"
+    ],
+    "unhealthy_agents": [],
+    "total_agents": 5,
+    "overall_health": "healthy"
+  },
+  "collaborative_session_id": "session_1",
+  "direct_agent_integration": true,
+  "phases_completed": 11
+}

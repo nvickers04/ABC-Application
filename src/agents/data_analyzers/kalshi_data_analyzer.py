@@ -356,7 +356,7 @@ class KalshiDataAnalyzer(BaseAgent):
         try:
             consolidated = {
                 "market_category": market_category,
-                "consolidation_timestamp": "2024-01-01T00:00:00Z",  # Placeholder
+                "consolidation_timestamp": datetime.now().isoformat() + "Z",  # Current timestamp
                 "queries_analyzed": raw_data.get("queries", []),
                 "prediction_markets": {},
                 "sentiment_summary": {},

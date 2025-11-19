@@ -1,0 +1,27 @@
+{
+  "agent_role": "macro",
+  "timestamp": "2025-11-19T19:48:09.494822",
+  "version": "1.0",
+  "data": {
+    "data": {
+      "timestamp": "2025-11-19T19:48:09.473053",
+      "type": "general",
+      "result": {
+        "agent_role": "macro",
+        "analysis_type": "general",
+        "timestamp": "2025-11-19T19:48:09.473053",
+        "llm_analysis": "{\n  \"agent\": \"MacroAgent\",\n  \"selected_sectors\": [\n    {\"ticker\": \"XLK\", \"name\": \"Technology\", \"score\": 2.85},\n    {\"ticker\": \"BTC-USD\", \"name\": \"Bitcoin\", \"score\": 2.42},\n    {\"ticker\": \"ETH-USD\", \"name\": \"Ethereum\", \"score\": 2.31},\n    {\"ticker\": \"XLE\", \"name\": \"Energy\", \"score\": 1.78},\n    {\"ticker\": \"GC=F\", \"name\": \"Gold Futures\", \"score\": 1.65}\n  ],\n  \"allocation_weights\": {\n    \"Technology\": 0.25,\n    \"Bitcoin\": 0.20,\n    \"Ethereum\": 0.20,\n    \"Energy\": 0.20,\n    \"Gold Futures\": 0.15\n  },\n  \"market_regime\": \"bull_moderate\",\n  \"macro_intelligence\": \"Current market regime is characterized by moderate bullish momentum driven by AI and tech sector leadership, with supportive macroeconomic trends including cooling inflation (CPI at ~3.2% YoY) and steady Fed rate expectations (no hikes anticipated in next 6 months). Volatility (VIX ~15) remains subdued, favoring risk-on assets. Equity sectors show relative strength in tech (XLK outperforming SPY by 12% over 3mo), while commodities like gold provide diversification amid geopolitical tensions. Crypto assets exhibit high momentum but elevated volatility, suitable for tactical allocation. Broader trends: Sector rotation from defensives to cyclicals; energy benefits from oil supply constraints. Risk environment: Low systemic risk (<5% drawdown feasible with hedges), but monitor USD strength (DXY ~105) for currency impacts. Alignment with goals: Prioritized assets target 10-20% monthly ROI via momentum capture, with gold as drawdown buffer. All selected assets are IBKR-compatible. Top 5 selected based on composite scoring (RS 40%, Momentum 30%, Risk-Adj 30%) across 1mo/3mo/6mo timeframes vs. SPY benchmark. No current portfolio positions specified; assumes greenfield allocation with max 2% per trade risk.\"\n}",
+        "data_summary": "{'data_keys': ['query', 'analysis_type'], 'data_types': {'query': 'str', 'analysis_type': 'str'}, 'has_numeric_data': False, 'has_text_data': True, 'has_list_data': False, 'data_size_estimate': '300 bytes'}",
+        "confidence_level": "medium"
+      }
+    },
+    "timestamp": "2025-11-19T19:48:09.473129",
+    "memory_type": "long_term",
+    "metadata": {
+      "agent_role": "macro",
+      "agent_type": "ai_portfolio_manager"
+    },
+    "user": "macro",
+    "size": 2241
+  }
+}

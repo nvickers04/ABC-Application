@@ -151,29 +151,39 @@ StandardError=journal
 WantedBy=multi-user.target
 EOF
 
-# Create IBKR TWS systemd service
-echo "🔧 Creating IBKR TWS service..."
-sudo tee /etc/systemd/system/ibkr-tws.service > /dev/null <<EOF
+# Create 24/6 Workflow Orchestrator systemd service
+echo "🤖 Creating 24/6 Workflow Orchestrator service..."
+sudo tee /etc/systemd/system/abc-24-6-orchestrator.service > /dev/null <<EOF
 [Unit]
-Description=IBKR Trader Workstation Paper Trading
-After=network.target
+Description=ABC Application 24/6 Continuous Workflow Orchestrator
+After=network.target abc-application.service
+Wants=abc-application.service
 
 [Service]
 Type=simple
 User=$USER
-Environment=DISPLAY=:99
-ExecStart=/mnt/blockstorage/ibkr/tws
+WorkingDirectory=/opt/abc-application
+Environment=PATH=/opt/abc-application/venv/bin
+Environment=PYTHONPATH=/opt/abc-application/src
+ExecStart=/opt/abc-application/venv/bin/python tools/twenty_four_six_workflow_orchestrator.py
 Restart=always
 RestartSec=10
+StandardOutput=journal
+StandardError=journal
+# Allow up to 5 restarts within 10 minutes
+StartLimitInterval=600
+StartLimitBurst=5
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-# Enable and start the service
+# Enable and start the services
 sudo systemctl daemon-reload
 sudo systemctl enable abc-application
+sudo systemctl enable abc-24-6-orchestrator
 sudo systemctl start abc-application
+sudo systemctl start abc-24-6-orchestrator
 
 # Set up log rotation
 echo "📝 Configuring log rotation..."
@@ -290,15 +300,20 @@ echo "   - Run: sudo systemctl start ibkr-tws"
 echo "   - Log into IBKR TWS with your paper trading credentials"
 echo "   - Enable API connections in TWS settings (File > Global Configuration > API)"
 echo "   - Set API port to 7497 and enable 'Create API message log'"
-echo "3. Test the application: curl http://localhost:8000/health"
-echo "4. Check logs: journalctl -u abc-application -f"
-echo "5. Monitor IBKR connection: journalctl -u ibkr-tws -f"
+echo "3. Configure Discord Bot:"
+echo "   - Set DISCORD_ORCHESTRATOR_TOKEN in your vault/.env"
+echo "   - Set DISCORD_GUILD_ID to your Discord server ID"
+echo "   - Invite the bot to your Discord server with appropriate permissions"
+echo "4. Test the 24/6 orchestrator: sudo systemctl status abc-24-6-orchestrator"
+echo "5. Check Discord for automated workflow announcements"
+echo "6. Monitor IBKR connection: journalctl -u ibkr-tws -f"
 echo ""
 echo "🔧 Useful commands:"
-echo "- Start services: sudo systemctl start abc-application ibkr-tws"
-echo "- Stop services: sudo systemctl stop abc-application ibkr-tws"
-echo "- Restart services: sudo systemctl restart abc-application ibkr-tws"
+echo "- Start services: sudo systemctl start abc-application abc-24-6-orchestrator ibkr-tws"
+echo "- Stop services: sudo systemctl stop abc-application abc-24-6-orchestrator ibkr-tws"
+echo "- Restart services: sudo systemctl restart abc-application abc-24-6-orchestrator ibkr-tws"
 echo "- View ABC logs: journalctl -u abc-application -f"
+echo "- View 24/6 Orchestrator logs: journalctl -u abc-24-6-orchestrator -f"
 echo "- View IBKR logs: journalctl -u ibkr-tws -f"
 echo "- Manual backup: /usr/local/bin/abc-backup.sh"
 echo "- Health check: /usr/local/bin/abc-health-check.sh"

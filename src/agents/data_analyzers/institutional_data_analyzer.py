@@ -214,12 +214,17 @@ class InstitutionalDataAnalyzer(BaseAgent):
         async def fetch_sec_edgar(symbol: str) -> Dict[str, Any]:
             """Fetch 13F filings from SEC EDGAR."""
             try:
-                # Mock SEC EDGAR data for now
+                # Mock SEC EDGAR data for now - use dynamic quarters
+                from datetime import datetime
+                current_date = datetime.now()
+                current_quarter = f"Q{(current_date.month - 1) // 3 + 1} {current_date.year}"
+                prev_quarter = f"Q{((current_date.month - 1) // 3)} {current_date.year if current_date.month > 3 else current_date.year - 1}"
+                
                 return {
                     "source": "sec_edgar",
                     "filings": [
-                        {"quarter": "Q1 2024", "institutions": 1250, "total_value": 450000000000},
-                        {"quarter": "Q4 2023", "institutions": 1180, "total_value": 420000000000}
+                        {"quarter": current_quarter, "institutions": 1250, "total_value": 450000000000},
+                        {"quarter": prev_quarter, "institutions": 1180, "total_value": 420000000000}
                     ]
                 }
             except Exception as e:

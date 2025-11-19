@@ -1,4 +1,4 @@
-# src/agents/data_subs/marketdataapp_datasub.py
+# src/agents/data_analyzers/marketdataapp_data_analyzer.py
 # Purpose: MarketDataApp Data Subagent for fetching premium market data.
 # Provides institutional-grade data including real-time quotes, trades, options chains, and dark pool indicators.
 # Structural Reasoning: Dedicated subagent for premium data sources, enabling parallel processing with free sources.
@@ -11,9 +11,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))  # Dynamic root pat
 
 from src.agents.base import BaseAgent  # Absolute import.
 import logging
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 import pandas as pd
 from datetime import datetime, timedelta
+import requests
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +29,13 @@ class MarketDataAppDataAnalyzer(BaseAgent):
         config_paths = {'risk': 'config/risk-constraints.yaml'}  # Relative to root.
         prompt_paths = {'base': 'base_prompt.txt', 'role': 'docs/AGENTS/main-agents/data-agent.md'}  # Relative to root.
         tools = []  # MarketDataAppDatasub uses internal methods instead of tools
-        super().__init__(role='massive_data', config_paths=config_paths, prompt_paths=prompt_paths, tools=tools)
+        super().__init__(role='marketdataapp_data', config_paths=config_paths, prompt_paths=prompt_paths, tools=tools)
+
+        # Initialize MarketDataApp API
+        self.api_key = os.getenv('MARKETDATAAPP_API_KEY')
+        if not self.api_key:
+            logger.warning("MARKETDATAAPP_API_KEY not found in environment variables - real API calls will fail")
+        self.base_url = "https://api.marketdata.app/v1"
 
         # Available data endpoints for LLM exploration
         self.available_endpoints = {
@@ -45,10 +53,10 @@ class MarketDataAppDataAnalyzer(BaseAgent):
         Reflect on batch adjustments for self-improvement.
         Stub: Returns empty dict.
         """
-        logger.info(f"Massive Reflecting on adjustments: {adjustments}")
+        logger.info(f"Reflecting on adjustments: {adjustments}")
         return {}
 
-    async def process_input(self, input_data: Dict[str, Any] = None) -> Dict[str, Any]:
+    async def process_input(self, input_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         logger.info(f"MarketDataApp Subagent processing input: {input_data or 'Default SPY premium data'}")
 
         # Initialize LLM if not already done
@@ -182,144 +190,71 @@ Example response:
         return results
 
     async def _fetch_quotes_data(self, symbol: str) -> Dict[str, Any]:
-        """Fetch real-time and historical quotes."""
-        # Enhanced mock data with more institutional-grade fields
-        return {
-            'symbol': symbol,
-            'price': 152.5,
-            'bid': 152.48,
-            'ask': 152.52,
-            'volume': 5000000,
-            'market_cap': 2500000000000.0,
-            'pe_ratio': 28.5,
-            'dividend_yield': 0.82,
-            'beta': 1.2,
-            '52_week_high': 198.23,
-            '52_week_low': 124.17,
-            'vwap': 152.3,
-            'avg_volume_30d': 4500000,
-            'short_interest': 0.025,
-            'source': 'marketdataapp_quotes',
-            'timestamp': datetime.now().isoformat()
-        }
+        """Fetch real-time and historical quotes from MarketDataApp API."""
+        if not self.api_key:
+            raise Exception(f"MarketDataApp API key not configured. Set MARKETDATAAPP_API_KEY environment variable.")
+
+        try:
+            # Make API call to MarketDataApp
+            url = f"{self.base_url}/stocks/quotes/{symbol}"
+            params = {'token': self.api_key}
+
+            response = requests.get(url, params=params, timeout=10)
+            response.raise_for_status()
+
+            data = response.json()
+
+            if data and 'last' in data:
+                quote_data = data['last'][0] if isinstance(data['last'], list) else data['last']
+                return {
+                    'symbol': symbol,
+                    'price': quote_data.get('price', 0),
+                    'bid': quote_data.get('bid', 0),
+                    'ask': quote_data.get('ask', 0),
+                    'volume': quote_data.get('volume', 0),
+                    'market_cap': quote_data.get('marketCap', 0),
+                    'pe_ratio': quote_data.get('pe', 0),
+                    'dividend_yield': quote_data.get('dividendYield', 0),
+                    'beta': quote_data.get('beta', 0),
+                    '52_week_high': quote_data.get('52WeekHigh', 0),
+                    '52_week_low': quote_data.get('52WeekLow', 0),
+                    'vwap': quote_data.get('vwap', 0),
+                    'avg_volume_30d': quote_data.get('avgVolume30Day', 0),
+                    'short_interest': quote_data.get('shortInterest', 0),
+                    'source': 'marketdataapp_api',
+                    'timestamp': datetime.now().isoformat()
+                }
+            else:
+                raise Exception(f"No quote data received for {symbol} from MarketDataApp API")
+
+        except Exception as e:
+            raise Exception(f"Error fetching quotes from MarketDataApp API for {symbol}: {e}")
+
+
 
     async def _fetch_trades_data(self, symbol: str) -> Dict[str, Any]:
         """Fetch detailed trade execution data."""
-        # Mock trade data with microstructure insights
-        trades = []
-        base_time = datetime.now()
-
-        for i in range(10):
-            trades.append({
-                'timestamp': (base_time - timedelta(minutes=i)).isoformat(),
-                'price': 152.5 + (i * 0.01),
-                'volume': 1000 + (i * 100),
-                'trade_type': 'regular' if i % 3 != 0 else 'block',
-                'exchange': 'NYSE' if i % 2 == 0 else 'NASDAQ',
-                'conditions': ['regular'] if i % 4 != 0 else ['odd_lot', 'intermarket_sweep']
-            })
-
-        return {
-            'symbol': symbol,
-            'trades': trades,
-            'total_volume': sum(t['volume'] for t in trades),
-            'avg_trade_size': sum(t['volume'] for t in trades) / len(trades),
-            'block_trades_count': len([t for t in trades if t['trade_type'] == 'block']),
-            'source': 'marketdataapp_trades'
-        }
+        raise NotImplementedError("Real MarketDataApp trades API implementation required - no mock data allowed in production")
 
     async def _fetch_orderbook_data(self, symbol: str) -> Dict[str, Any]:
         """Fetch Level 2 order book depth."""
-        # Mock order book with bid/ask depth
-        bids = []
-        asks = []
-
-        for i in range(10):
-            bids.append({
-                'price': 152.5 - (i * 0.01),
-                'volume': 5000 - (i * 200),
-                'orders': 5 + i
-            })
-            asks.append({
-                'price': 152.5 + (i * 0.01),
-                'volume': 5000 - (i * 200),
-                'orders': 5 + i
-            })
-
-        return {
-            'symbol': symbol,
-            'bids': bids,
-            'asks': asks,
-            'spread': asks[0]['price'] - bids[0]['price'],
-            'bid_volume_total': sum(b['volume'] for b in bids),
-            'ask_volume_total': sum(a['volume'] for a in asks),
-            'imbalance_ratio': sum(b['volume'] for b in bids[:5]) / sum(a['volume'] for a in asks[:5]),
-            'source': 'marketdataapp_orderbook'
-        }
+        raise NotImplementedError("Real MarketDataApp orderbook API implementation required - no mock data allowed in production")
 
     async def _fetch_options_data(self, symbol: str) -> Dict[str, Any]:
         """Fetch options chain data."""
-        # Mock options data
-        return {
-            'symbol': symbol,
-            'calls': [
-                {'strike': 150, 'bid': 5.2, 'ask': 5.4, 'volume': 1200, 'oi': 5000, 'implied_vol': 0.25},
-                {'strike': 155, 'bid': 2.1, 'ask': 2.3, 'volume': 800, 'oi': 3200, 'implied_vol': 0.22}
-            ],
-            'puts': [
-                {'strike': 150, 'bid': 1.8, 'ask': 2.0, 'volume': 950, 'oi': 4100, 'implied_vol': 0.23},
-                {'strike': 145, 'bid': 0.9, 'ask': 1.1, 'volume': 600, 'oi': 2800, 'implied_vol': 0.20}
-            ],
-            'put_call_ratio': 0.85,
-            'total_oi': 15100,
-            'source': 'marketdataapp_options'
-        }
+        raise NotImplementedError("Real MarketDataApp options API implementation required - no mock data allowed in production")
 
     async def _fetch_darkpool_data(self, symbol: str) -> Dict[str, Any]:
         """Fetch dark pool trade detection."""
-        # Mock dark pool activity
-        return {
-            'symbol': symbol,
-            'dark_pool_trades': [
-                {'timestamp': datetime.now().isoformat(), 'volume': 50000, 'price': 152.4, 'venue': 'Anonymous'},
-                {'timestamp': (datetime.now() - timedelta(minutes=5)).isoformat(), 'volume': 75000, 'price': 152.3, 'venue': 'Anonymous'}
-            ],
-            'total_dark_volume': 125000,
-            'dark_volume_pct': 2.5,
-            'institutional_score': 8.2,  # 1-10 scale
-            'source': 'marketdataapp_darkpool'
-        }
+        raise NotImplementedError("Real MarketDataApp darkpool API implementation required - no mock data allowed in production")
 
     async def _fetch_microstructure_data(self, symbol: str) -> Dict[str, Any]:
         """Fetch advanced market microstructure analysis."""
-        return {
-            'symbol': symbol,
-            'effective_spread': 0.02,
-            'realized_spread': 0.015,
-            'price_impact': 0.005,
-            'liquidity_score': 9.1,  # 1-10 scale
-            'algorithmic_trading_pct': 68.5,
-            'human_trading_pct': 31.5,
-            'flow_toxicity': 0.12,  # Lower is better
-            'source': 'marketdataapp_microstructure'
-        }
+        raise NotImplementedError("Real MarketDataApp microstructure API implementation required - no mock data allowed in production")
 
     async def _fetch_flow_data(self, symbol: str) -> Dict[str, Any]:
         """Fetch institutional order flow data."""
-        return {
-            'symbol': symbol,
-            'institutional_flow': {
-                'buy_volume': 2500000,
-                'sell_volume': 1800000,
-                'net_flow': 700000,
-                'large_orders': 45,
-                'small_orders': 1200
-            },
-            'smart_money_score': 7.8,  # 1-10 scale
-            'accumulation_days': 12,
-            'distribution_days': 3,
-            'source': 'marketdataapp_flow'
-        }
+        raise NotImplementedError("Real MarketDataApp flow API implementation required - no mock data allowed in production")
 
     def _consolidate_marketdataapp_data(self, symbol: str, exploration_results: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -435,13 +370,13 @@ Example response:
             'source': 'marketdataapp_data_subagent'
         }
 
-# Standalone test (run python src/agents/data_subs/marketdataapp_datasub.py to verify)
+# Standalone test (run python src/agents/data_analyzers/marketdataapp_data_analyzer.py to verify)
 if __name__ == "__main__":
     import asyncio
-    agent = MarketDataAppDatasub()
-    result = asyncio.run(agent.process_input({'symbols': ['SPY']}))
+    agent = MarketDataAppDataAnalyzer()
+    result = asyncio.run(agent.process_input({'symbol': 'SPY'}))
     print("MarketDataApp Subagent Test Result:")
     print(f"Keys: {list(result.keys())}")
-    if 'marketdataapp' in result:
-        print(f"Premium data types: {list(result['marketdataapp'].keys())}")
-        print(f"Sample quotes: {result['marketdataapp'].get('quotes', {})}")
+    if 'quotes_df' in result:
+        print(f"Quotes DataFrame shape: {result['quotes_df'].shape}")
+        print(f"Sample quotes: {result.get('quotes_df', {}).head() if 'quotes_df' in result else 'No quotes data'}")

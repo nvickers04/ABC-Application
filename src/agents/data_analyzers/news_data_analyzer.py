@@ -168,6 +168,25 @@ class NewsDataAnalyzer(BaseAgent):
                 "timestamp": pd.Timestamp.now().isoformat()
             })
 
+            # Store quality assessment for cross-verification
+            quality_assessment = {
+                "analyzer": "news",
+                "symbol": symbol,
+                "credibility_score": consolidated_data.get('avg_credibility_score', 0.5),
+                "relevance_score": consolidated_data.get('avg_relevance_score', 0.5),
+                "data_quality_score": consolidated_data.get('data_quality_score', 5.0),
+                "article_count": consolidated_data.get('total_articles', 0),
+                "sources_used": consolidated_data.get('sources_explored', []),
+                "impact_distribution": consolidated_data.get('impact_distribution', {}),
+                "timestamp": pd.Timestamp.now().isoformat(),
+                "llm_insights": {
+                    "sentiment": llm_analysis.get('sentiment_summary', {}).get('overall_sentiment', 'neutral'),
+                    "key_themes": llm_analysis.get('key_themes', []),
+                    "risk_level": llm_analysis.get('risk_assessment', {}).get('risk_level', 'moderate')
+                }
+            }
+            await self.store_shared_memory("data_quality_assessments", f"news_{symbol}", quality_assessment)
+
             logger.info(f"NewsDatasub output: LLM-enhanced news data collected for {symbol}")
             return result
 
@@ -288,117 +307,27 @@ Example response:
 
     async def _fetch_currentsapi_data(self, symbol: str) -> Dict[str, Any]:
         """Fetch news from CurrentsAPI."""
-        # Mock implementation - in real scenario would use CurrentsAPI
-        return {
-            'symbol': symbol,
-            'articles': [
-                {
-                    'title': f'Breaking: {symbol} Shows Strong Momentum',
-                    'description': f'Latest developments in {symbol} trading activity',
-                    'url': f'https://currentsapi.com/{symbol}',
-                    'source': 'CurrentsAPI',
-                    'published_at': datetime.now().isoformat(),
-                    'author': 'CurrentsAPI'
-                }
-            ],
-            'source': 'currentsapi',
-            'total_results': 1
-        }
+        raise NotImplementedError("Real CurrentsAPI implementation required - no mock data allowed in production")
 
     async def _fetch_alphavantage_news(self, symbol: str) -> Dict[str, Any]:
         """Fetch financial news from Alpha Vantage."""
-        # Mock implementation - would use Alpha Vantage news API
-        return {
-            'symbol': symbol,
-            'articles': [
-                {
-                    'title': f'{symbol} Financial Report Analysis',
-                    'description': f'Detailed financial analysis for {symbol}',
-                    'url': f'https://alphavantage.com/{symbol}',
-                    'source': 'Alpha Vantage',
-                    'published_at': datetime.now().isoformat(),
-                    'author': 'Alpha Vantage'
-                }
-            ],
-            'source': 'alphavantage',
-            'total_results': 1
-        }
+        raise NotImplementedError("Real Alpha Vantage news API implementation required - no mock data allowed in production")
 
     async def _fetch_bing_news(self, symbol: str) -> Dict[str, Any]:
         """Fetch news from Bing News Search."""
-        # Mock implementation - would use Bing Search API
-        return {
-            'symbol': symbol,
-            'articles': [
-                {
-                    'title': f'{symbol} Market Update from Bing',
-                    'description': f'Comprehensive market update for {symbol}',
-                    'url': f'https://bing.com/news/{symbol}',
-                    'source': 'Bing News',
-                    'published_at': datetime.now().isoformat(),
-                    'author': 'Bing News'
-                }
-            ],
-            'source': 'bing_news',
-            'total_results': 1
-        }
+        raise NotImplementedError("Real Bing News Search API implementation required - no mock data allowed in production")
 
     async def _fetch_google_news(self, symbol: str) -> Dict[str, Any]:
         """Fetch news from Google News."""
-        # Mock implementation - would use Google News API or scraping
-        return {
-            'symbol': symbol,
-            'articles': [
-                {
-                    'title': f'{symbol} Trending on Google News',
-                    'description': f'Latest trending news about {symbol}',
-                    'url': f'https://news.google.com/{symbol}',
-                    'source': 'Google News',
-                    'published_at': datetime.now().isoformat(),
-                    'author': 'Google News'
-                }
-            ],
-            'source': 'google_news',
-            'total_results': 1
-        }
+        raise NotImplementedError("Real Google News API implementation required - no mock data allowed in production")
 
     async def _fetch_twitter_trends(self, symbol: str) -> Dict[str, Any]:
         """Fetch Twitter trends and sentiment for symbol."""
-        # Mock implementation - would use Twitter API
-        return {
-            'symbol': symbol,
-            'articles': [
-                {
-                    'title': f'{symbol} Twitter Sentiment Analysis',
-                    'description': f'Social media sentiment trends for {symbol}',
-                    'url': f'https://twitter.com/search/{symbol}',
-                    'source': 'Twitter Trends',
-                    'published_at': datetime.now().isoformat(),
-                    'author': 'Twitter API'
-                }
-            ],
-            'source': 'twitter_trends',
-            'total_results': 1
-        }
+        raise NotImplementedError("Real Twitter API implementation required - no mock data allowed in production")
 
     async def _fetch_rss_feeds(self, symbol: str) -> Dict[str, Any]:
         """Fetch news from financial RSS feeds."""
-        # Mock implementation - would aggregate RSS feeds
-        return {
-            'symbol': symbol,
-            'articles': [
-                {
-                    'title': f'{symbol} RSS Feed Update',
-                    'description': f'Latest updates from financial RSS feeds about {symbol}',
-                    'url': f'https://rss.financial.com/{symbol}',
-                    'source': 'Financial RSS',
-                    'published_at': datetime.now().isoformat(),
-                    'author': 'RSS Aggregator'
-                }
-            ],
-            'source': 'rss_feeds',
-            'total_results': 1
-        }
+        raise NotImplementedError("Real RSS feed aggregation implementation required - no mock data allowed in production")
 
     def _enhance_news_data(self, news_data: Dict[str, Any], symbol: str, source: str) -> Dict[str, Any]:
         """Enhance news data with additional processing and validation."""

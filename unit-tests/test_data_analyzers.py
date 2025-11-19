@@ -30,6 +30,7 @@ from src.agents.data_analyzers.microstructure_data_analyzer import Microstructur
 from src.agents.data_analyzers.kalshi_data_analyzer import KalshiDataAnalyzer
 from src.agents.data_analyzers.options_data_analyzer import OptionsDataAnalyzer
 from src.agents.data_analyzers.marketdataapp_data_analyzer import MarketDataAppDataAnalyzer
+from src.agents.live_workflow_orchestrator import LiveWorkflowOrchestrator
 
 
 class TestYfinanceDataAnalyzer:
@@ -531,6 +532,59 @@ class TestDataAnalyzersIntegration:
         """Test memory sharing between subagents."""
         # Test that subagents can share insights through memory
         pass
+
+
+class TestMockDataRemoval:
+    """Test that mock data has been properly removed from production analyzers."""
+
+    @pytest.fixture
+    def sentiment_analyzer(self):
+        """Create a SentimentDataAnalyzer instance for testing."""
+        with patch('src.agents.base.BaseAgent.__init__', return_value=None):
+            analyzer = SentimentDataAnalyzer()
+            analyzer.memory_persistence = Mock()
+            analyzer.advanced_memory = Mock()
+            analyzer.shared_memory_coordinator = Mock()
+            return analyzer
+
+    @pytest.fixture
+    def yfinance_analyzer(self):
+        """Create a YfinanceDataAnalyzer instance for testing."""
+        with patch('src.agents.base.BaseAgent.__init__', return_value=None):
+            analyzer = YfinanceDataAnalyzer()
+            analyzer.memory_persistence = Mock()
+            analyzer.advanced_memory = Mock()
+            analyzer.shared_memory_coordinator = Mock()
+            return analyzer
+
+    @pytest.fixture
+    def live_orchestrator(self):
+        """Create a LiveWorkflowOrchestrator instance for testing."""
+        orchestrator = LiveWorkflowOrchestrator()
+        return orchestrator
+
+    def test_sentiment_analyzer_no_mock_market_sentiment(self, sentiment_analyzer):
+        """Test that sentiment analyzer properly handles market sentiment without mock data."""
+        result = asyncio.run(sentiment_analyzer._analyze_market_sentiment(["AAPL"], "current"))
+        
+        # Should return a dict with error indicating NotImplementedError was caught
+        assert isinstance(result, dict)
+        assert 'error' in result
+        assert "Market sentiment analysis requires real API integration" in result['error']
+
+    def test_yfinance_analyzer_no_mock_streaming(self, yfinance_analyzer):
+        """Test that yfinance analyzer raises NotImplementedError for streaming."""
+        with pytest.raises(NotImplementedError, match="Real-time WebSocket streaming implementation required"):
+            asyncio.run(yfinance_analyzer._start_real_time_streaming(["AAPL"], ["price"]))
+
+    def test_live_orchestrator_no_mock_positions(self, live_orchestrator):
+        """Test that live orchestrator raises NotImplementedError for position data."""
+        result = asyncio.run(live_orchestrator._get_current_positions())
+        
+        # Should return a dict with error indicating NotImplementedError was caught
+        assert isinstance(result, dict)
+        assert 'error' in result
+        assert "Real trading platform integration required" in result['error']
 
 
 if __name__ == "__main__":

@@ -1,0 +1,30 @@
+# [LABEL:CONFIG:24_6_service] [LABEL:FRAMEWORK:systemd] [LABEL:INFRA:vps]
+# [LABEL:AUTHOR:system] [LABEL:UPDATED:2025-11-19] [LABEL:REVIEWED:pending]
+#
+# Purpose: Systemd service configuration for 24/6 workflow orchestrator
+# Dependencies: systemd, python3.11, discord.py
+# Related: setup/deploy-vultr.sh, tools/24_6_workflow_orchestrator.py
+#
+[Unit]
+Description=ABC Application 24/6 Continuous Workflow Orchestrator
+After=network.target abc-application.service
+Wants=abc-application.service
+
+[Service]
+Type=simple
+User=abc-user
+WorkingDirectory=/opt/abc-application
+Environment=PATH=/opt/abc-application/venv/bin
+Environment=PYTHONPATH=/opt/abc-application/src
+ExecStart=/opt/abc-application/venv/bin/python tools/24_6_workflow_orchestrator.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+# Allow up to 5 restarts within 10 minutes
+StartLimitInterval=600
+StartLimitBurst=5
+
+[Install]
+WantedBy=multi-user.target</content>
+<parameter name="filePath">c:\Users\nvick\ABC-Application\setup\abc-24-6-orchestrator.service

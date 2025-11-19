@@ -6,7 +6,7 @@
 # ABC Application System Architecture
 
 ## Purpose
-Comprehensive system architecture documentation for the 22-agent collaborative AI portfolio management system, covering macro-to-micro analysis framework, agent orchestration, and technical implementation.
+Comprehensive system architecture documentation for the 7-agent collaborative AI portfolio management system, covering macro-to-micro analysis framework, agent orchestration, and technical implementation.
 
 ## Related Files
 - Code: `src/main.py`, `src/utils/a2a_protocol.py`, `src/agents/*.py`
@@ -22,7 +22,7 @@ Comprehensive system architecture documentation for the 22-agent collaborative A
 
 ABC Application is a sophisticated multi-agent AI system for quantitative portfolio management, combining Grok-powered reasoning with Interactive Brokers (IBKR) for professional-grade trading execution. The system operates on a macro-to-micro analysis hierarchy, enabling systematic market scanning combined with deep fundamental analysis.
 
-### **Core Innovation: AI Reasoning Through 22-Agent Collaboration**
+### **Core Innovation: AI Reasoning Through 7-Agent Collaboration**
 
 # ABC Application System Architecturearchitecture.md
 
@@ -30,15 +30,15 @@ ABC Application is a sophisticated multi-agent AI system for quantitative portfo
 
 ABC Application is a sophisticated multi-agent AI system for quantitative portfolio management, combining Grok-powered reasoning with Interactive Brokers (IBKR) for professional-grade trading execution. The system operates on a macro-to-micro analysis hierarchy, enabling systematic market scanning combined with deep fundamental analysis.
 
-## Core Architecture PrinciplesThe ABC Application system's fundamental breakthrough is its **22-agent collaborative reasoning architecture**. This creates a sophisticated AI reasoning environment where specialized agents debate, deliberate, and reach consensus on investment decisions - mimicking institutional investment committees but with AI precision, speed, and scalability.
+## Core Architecture PrinciplesThe ABC Application system's fundamental breakthrough is its **7-agent collaborative reasoning architecture**. This creates a sophisticated AI reasoning environment where specialized agents debate, deliberate, and reach consensus on investment decisions - mimicking institutional investment committees but with AI precision, speed, and scalability.
 
 
 
-### Agent-Based Design**Why 22 Agents for Reasoning?** Each agent represents a domain of financial expertise working in orchestrated reasoning loops:
+### Agent-Based Design**Why 7 Agents for Reasoning?** Each agent represents a domain of financial expertise working in orchestrated reasoning loops:
 
-- **22 Specialized Agents**: Each agent represents a domain of financial expertise- **Data Agents (11)**: Multi-source data validation and sentiment analysis
+- **7 Specialized Agents**: Each agent represents a domain of financial expertise- **Data Agent (1)**: Multi-source data validation and sentiment analysis
 
-- **Collaborative Intelligence**: Agents debate and consensus-build through structured deliberation- **Strategy Agents (3)**: Options, flow, and ML strategy generation with debate
+- **Collaborative Intelligence**: Agents debate and consensus-build through structured deliberation- **Strategy Agent (1)**: Options, flow, and ML strategy generation with debate
 
 - **Autonomous Operation**: Agents make decisions using LLM reasoning and tool interactions- **Risk Agent (1)**: Probability-of-profit evaluations and risk assessments  
 
@@ -50,7 +50,7 @@ ABC Application is a sophisticated multi-agent AI system for quantitative portfo
 
 - **Macro Phase**: Systematic scanning of 39+ sectors/assets for opportunity identification- **Macro Agent (1)**: Sector scanning and market regime analysis
 
-- **Micro Phase**: Deep analysis of selected opportunities using full data pipeline- **Supporting Agents (3)**: Memory, coordination, and health monitoring
+- **Micro Phase**: Deep analysis of selected opportunities using full data pipeline
 
 - **Hierarchical Intelligence**: Combines broad market perspective with detailed security analysis
 
@@ -63,10 +63,10 @@ The collaborative reasoning process operates in two distinct iterations, each bu
 **Macro Foundation: Market Regime Assessment & Opportunity Identification**
 The MacroAgent establishes the strategic foundation before any detailed analysis begins, scanning 39+ sectors/assets and identifying top opportunities for focused analysis.
 
-**Iteration 1: Comprehensive Multi-Agent Deliberation (All 22 Agents)**
+**Iteration 1: Comprehensive Multi-Agent Deliberation (All 7 Agents)**
 All agents, including analyzers, participate in the complete 7-phase process to ensure maximum information gathering, diverse perspectives, and thorough analysis on the MacroAgent's prioritized opportunities.
 
-**Iteration 2: Executive-Level Strategic Oversight (Main 8 Agents Only)**
+**Iteration 2: Executive-Level Strategic Oversight (All 7 Agents)**
 Following the comprehensive deliberation, the main agents conduct a focused strategic review, applying executive-level judgment and risk sensitivity.
 
 #### **Reflection Agent's Supreme Oversight Authority**
@@ -75,7 +75,7 @@ The ReflectionAgent serves as the system's final arbiter with unilateral authori
 - **Additional Iteration Trigger**: Can mandate one final comprehensive review if "canary in the coal mine" indicators emerge
 - **Data Resurrection**: Can require reconsideration of any previously discussed data point or concern
 
-**For detailed explanation of the 22-agent collaborative reasoning architecture, see:** `docs/ai-reasoning-agent-collaboration.md`
+**For detailed explanation of the 7-agent collaborative reasoning architecture, see:** `docs/ai-reasoning-agent-collaboration.md`
 
 2. **StrategyAgent** - Trade strategy generation and optimization
 
@@ -208,35 +208,22 @@ Memory Systems (Continuous Learning)* Reflection Management: Embedded throughout
 
 ## Discord Integration
 
-### Human-Agent Interaction
-The system integrates with Discord to enable real-time human participation in agent reasoning processes:
+### Unified A2A Orchestration
+The system integrates with Discord through a single orchestrator bot that manages all agent communication internally:
 
-#### Discord Bot Architecture
-- **Multi-Agent Bots**: Each main agent (Macro, Data, Strategy, Reflection, Execution) runs as a separate Discord bot instance
-- **Specialized Commands**: Agent-specific commands for analysis, status checks, and collaboration
-- **Real-time Participation**: Humans can join debates, ask questions, and provide input during reasoning processes
-
-#### Available Discord Bots
-- **Macro Analyst Bot** (`!m`): Economic analysis and market regime assessment
-- **Data Collector Bot** (`!d`): Market data fetching and analysis requests
-- **Strategy Advisor Bot** (`!s`): Strategy proposal generation and optimization
-- **Reflection Agent Bot** (`!ref`): System oversight, audits, and final validation
-- **Trade Executor Bot** (`!exec`): Trade execution and order management
+#### Unified Orchestrator Bot
+- **Single Bot Architecture**: One Discord bot instance manages all 7 agents via A2A protocol
+- **Workflow Control**: Start, pause, resume, and stop iterative reasoning processes
+- **Human Interventions**: Real-time human input during active workflows
+- **Status Monitoring**: Live workflow progress and agent health reporting
 
 #### Key Discord Features
-- **Agent Debates**: Multi-agent discussions with human participation
-- **Status Monitoring**: Real-time agent health and activity monitoring
-- **Collaborative Polls**: Discord-native voting for decision-making
-- **Human Input Forwarding**: Human insights shared with all agents
-- **Emergency Controls**: Administrative commands for system management
+- **Workflow Commands**: `!start_workflow`, `!pause_workflow`, `!resume_workflow`, `!stop_workflow`
+- **Human Participation**: Questions and interventions during reasoning processes
+- **Analysis Requests**: Direct analysis requests routed to appropriate agents
+- **Real-time Updates**: Workflow progress and agent responses in Discord channels
 
-#### Discord Commands Overview
-- **Universal Commands**: `!status`, `!memory`, `!analyze`, `!debate`
-- **Agent-Specific Commands**: `!economy` (Macro), `!fetch` (Data), `!propose` (Strategy), etc.
-- **Collaboration Commands**: `!join_debate`, `!broadcast`, `!create_poll`
-- **Administrative Commands**: `!system_health`, `!emergency_stop`
-
-### Integration Benefits
+#### Integration Benefits
 - **Real-time Oversight**: Human experts can monitor and influence agent reasoning
 - **Educational Value**: Transparent decision processes for learning and validation
 - **Intervention Capability**: Ability to pause, question, or redirect agent activities

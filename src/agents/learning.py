@@ -883,6 +883,8 @@ FOUNDATION LEARNING ANALYSIS:
             llm_question = """
 Based on the foundation learning analysis above, what system-wide directives should be generated?
 
+IMPORTANT: This is for LIVE TRADING with CURRENT MARKET DATA. All analysis and recommendations must be based on real-time market conditions, not historical simulations. Do not include any disclaimers about data being historical, illustrative, or not live.
+
 Consider:
 1. Risk management adjustments based on SD variance and convergence metrics
 2. Position sizing optimizations for stability vs. returns
@@ -891,7 +893,7 @@ Consider:
 5. Safety mechanism adjustments based on fade weight
 6. Long-term learning trajectory and adaptation needs
 
-Provide specific directive recommendations with values and detailed rationale.
+Provide specific directive recommendations with values and detailed rationale for live trading execution.
 """
 
             try:
@@ -1371,6 +1373,8 @@ Provide specific directive recommendations with values and detailed rationale.
             # Create prompt for real-time analysis
             prompt = f"""
             Analyze the following real-time trading data and provide continuous learning insights:
+
+            IMPORTANT: This is for LIVE TRADING with CURRENT MARKET DATA. All analysis and recommendations must be based on real-time market conditions, not historical simulations. Do not include any disclaimers about data being historical, illustrative, or not live.
 
             Current Features: {features}
             Model Updates: {model_updates}
@@ -3352,7 +3356,8 @@ Provide specific directive recommendations with values and detailed rationale.
         """
         try:
             # Generate synthetic market data for testing
-            dates = pd.date_range(start='2023-01-01', end='2023-12-31', freq='D')
+            current_year = datetime.now().year
+            dates = pd.date_range(start=f'{current_year}-01-01', end=f'{current_year}-12-31', freq='D')
             np.random.seed(42)  # For reproducible results
 
             # Generate realistic price series

@@ -618,12 +618,14 @@ class AdvancedMemoryManager:
         """Initialize all available memory backends."""
         backends = {}
 
-        # Always available JSON backend (fallback)
+        # Always available JSON backend (fallback) - initialize first
         try:
             backends["json"] = JSONBackend()
             logger.info("JSON backend initialized successfully")
         except Exception as e:
             logger.error(f"Failed to initialize JSON backend: {e}")
+            # JSON backend is critical, if it fails we have bigger problems
+            raise RuntimeError(f"Critical failure: JSON backend could not be initialized: {e}")
 
         # Redis backend (fast, but requires Redis server)
         if REDIS_AVAILABLE:
@@ -633,7 +635,8 @@ class AdvancedMemoryManager:
                 backends["redis"] = RedisBackend(host=redis_host, port=redis_port)
                 logger.info("Redis backend initialized successfully")
             except Exception as e:
-                logger.warning(f"Redis backend not available: {e}")
+                logger.warning(f"Redis backend not available (expected if Redis not running): {e}")
+                # Don't add to backends if it fails
 
         # Vector backend (semantic search, persistent)
         if CHROMA_AVAILABLE and EMBEDDINGS_AVAILABLE:
@@ -643,6 +646,7 @@ class AdvancedMemoryManager:
                 logger.info("Vector backend initialized successfully")
             except Exception as e:
                 logger.warning(f"Vector backend not available: {e}")
+                # Don't add to backends if it fails
 
         # Mem0 backend (AI-powered memory, requires API key)
         if MEM0_AVAILABLE:
@@ -655,10 +659,13 @@ class AdvancedMemoryManager:
                     logger.info("Mem0 API key not found, skipping Mem0 backend")
             except Exception as e:
                 logger.warning(f"Mem0 backend not available: {e}")
+                # Don't add to backends if it fails
 
+        # Ensure we have at least the JSON backend
         if not backends:
-            raise RuntimeError("No memory backends available - at least JSON backend should be available")
+            raise RuntimeError("No memory backends available - JSON backend should always be available")
 
+        logger.info(f"Initialized {len(backends)} memory backends: {list(backends.keys())}")
         return backends
 
     async def _try_backends_operation(self, operation: str, *args, **kwargs) -> Any:
@@ -1055,70 +1062,6 @@ class AdvancedMemoryManager:
         except Exception as e:
             logger.error(f"Failed to repair memory consistency for {key}: {e}")
             return False
-
-    async def retrieve_memory(self, key: str, memory_type: str = None) -> Optional[Any]:
-        """
-        Retrieve memory by key, optionally filtering by type.
-
-        Args:
-            key: Key to retrieve
-            memory_type: Optional type filter
-
-        Returns:
-            Memory data if found and matches type filter, None otherwise
-        """
-        try:
-            if key in self.memory_store:
-                entry = self.memory_store[key]
-                if memory_type is None or entry.get('memory_type') == memory_type:
-                    return entry['data']
-            return None
-        except Exception as e:
-            logger.error(f"Failed to retrieve memory: {e}")
-            return None
-
-    async def search_memories(self, query: str, memory_type: str = None, limit: int = 10) -> List[Dict[str, Any]]:
-        """
-        Search memories by query string.
-
-        Args:
-            query: Search query
-            memory_type: Optional type filter
-            limit: Maximum results to return
-
-        Returns:
-            List of matching memory entries
-        """
-        try:
-            results = []
-            query_lower = query.lower()
-
-            for key, entry in self.memory_store.items():
-                # Type filter
-                if memory_type and entry.get('memory_type') != memory_type:
-                    continue
-
-                # Simple text search in data and metadata
-                data_str = str(entry.get('data', '')).lower()
-                metadata_str = str(entry.get('metadata', {})).lower()
-
-                if query_lower in data_str or query_lower in metadata_str:
-                    results.append({
-                        'key': key,
-                        'data': entry['data'],
-                        'memory_type': entry.get('memory_type'),
-                        'metadata': entry.get('metadata'),
-                        'timestamp': entry.get('timestamp'),
-                        'relevance': 0.8  # Basic relevance score
-                    })
-
-                    if len(results) >= limit:
-                        break
-
-            return results
-        except Exception as e:
-            logger.error(f"Failed to search memories: {e}")
-            return []
 
 # Singleton instance
 _memory_manager_instance = None

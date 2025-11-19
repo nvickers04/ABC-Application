@@ -27,22 +27,23 @@ class RedisCacheManager:
     Provides TTL-based expiration, size limits, and automatic cleanup.
     """
 
-    def __init__(self, host: str = 'localhost', port: int = 6379, db: int = 0,
+    def __init__(self, host: str = None, port: int = None, db: int = 0,
                  password: Optional[str] = None, max_memory_mb: int = 512,
                  default_ttl_seconds: int = 3600):
         """
         Initialize Redis cache manager.
 
         Args:
-            host: Redis server host
-            port: Redis server port
+            host: Redis server host (defaults to localhost or REDIS_HOST env var)
+            port: Redis server port (defaults to 6379 or REDIS_PORT env var)
             db: Redis database number
             password: Redis password (if required)
             max_memory_mb: Maximum memory usage in MB
             default_ttl_seconds: Default TTL for cache entries
         """
-        self.host = host
-        self.port = port
+        # Use environment variables if available, otherwise defaults
+        self.host = host or os.getenv('REDIS_HOST', 'localhost')
+        self.port = port or int(os.getenv('REDIS_PORT', '6379'))
         self.db = db
         self.password = password or os.getenv('REDIS_PASSWORD')
         self.max_memory_mb = max_memory_mb

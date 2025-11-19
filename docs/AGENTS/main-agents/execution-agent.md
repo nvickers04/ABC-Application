@@ -32,13 +32,19 @@ The ExecutionAgent serves as the **execution validator and position architect** 
 - **Trailing Stop Management**: Dynamic stop-loss adjustment to lock in profits
 - **Exit Optimization**: Coordinated position unwinding based on trend exhaustion signals
 
-## Advanced Market Impact Models
+### Advanced Market Impact Models
 
 ### Multi-Factor Impact Analysis
 - **Volume-Based Impact**: Models price movement based on order size relative to average daily volume
 - **Liquidity Depth Analysis**: Assesses bid/ask stack depth and order book resilience
 - **Volatility-Adjusted Impact**: Incorporates market volatility in impact predictions
-- **Time-of-Day Effects**: Accounts for varying liquidity throughout trading sessions
+- **Time-of-Day Effects**: Accounts for varying liquidity throughout trading sessions, with special attention to market open and close periods
+
+### Market Open/Close Execution Strategies
+- **Opening Auction Participation**: Strategic participation in opening auctions to achieve optimal entry prices
+- **Gap Trading Execution**: Specialized algorithms for trading through opening price gaps with minimal slippage
+- **Closing Auction Optimization**: End-of-day execution strategies to capture closing price advantages
+- **Intraday vs. Open/Close Timing**: Dynamic execution timing based on market session phase and volatility patterns
 
 ### Predictive Impact Modeling
 - **Machine Learning Models**: Trained on historical execution data to predict price impact
@@ -51,6 +57,26 @@ The ExecutionAgent serves as the **execution validator and position architect** 
 - **Venue Diversification**: Executing across multiple trading venues to distribute impact
 - **Algorithmic Execution**: Using sophisticated algorithms to minimize detectable patterns
 - **Timing Optimization**: Executing during periods of maximum liquidity
+
+### Market Session Execution Optimization
+
+#### Opening Execution Strategies
+- **Pre-Market Positioning**: Strategic order placement before market open to influence opening price
+- **Opening Auction Participation**: Optimize for opening auction mechanisms and price discovery
+- **Gap Execution Algorithms**: Specialized algorithms for trading through opening gaps with controlled slippage
+- **Opening Volatility Management**: Dynamic execution sizing based on expected opening volatility
+
+#### Closing Execution Strategies
+- **Closing Auction Optimization**: Strategic participation in closing auctions for optimal exit prices
+- **End-of-Day Liquidity**: Utilize increased liquidity in final trading minutes
+- **VWAP Closing**: Volume-weighted execution aligned with closing price formation
+- **Position Squaring**: Coordinated position management to avoid overnight risk
+
+#### Intraday Timing Optimization
+- **Liquidity Curve Analysis**: Execute during peak liquidity periods while avoiding open/close volatility
+- **Volatility-Adjusted Sizing**: Reduce order sizes during high-volatility open and close periods
+- **Flow-Based Timing**: Align executions with institutional order flow patterns
+- **Market Impact Windows**: Identify optimal execution windows based on real-time market conditions
 
 ## Pyramiding Implementation
 

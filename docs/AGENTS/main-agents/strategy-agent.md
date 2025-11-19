@@ -20,12 +20,31 @@ The StrategyAgent serves as the **strategy architect** in the collaborative reas
 - **ML-Driven Predictions**: Data-driven forecasting and pattern recognition
 - **Dynamic Pyramiding**: Intelligent position scaling with trend confirmation and profit targets
 - **Real-Time Strategy Adaptation**: Live strategy modification based on market feedback
+- **Market Open/Close Strategies**: Specialized approaches for opening gaps, closing auctions, and end-of-day positioning
 
-### Collaborative Development
+### Market Session Strategies
 - **Integrated Strategy Formation**: Strategy development begins immediately with data collection, not as a separate phase
 - **Comprehensive Debate Participation**: All analyzers contribute to multi-agent deliberation with complete information access
 - **Risk Integration**: Risk considerations built into strategy design from the earliest stages
 - **Execution Feasibility**: Execution constraints considered throughout strategy development
+
+#### Opening Strategies
+- **Gap Trading**: Strategies to capitalize on overnight news and earnings gaps
+- **Opening Range Breakouts**: Position for breakouts from the first 30-60 minutes of trading
+- **Pre-Market Momentum**: Strategies based on pre-market order flow and price action
+- **Opening Auction Positioning**: Strategies optimized for opening price auction dynamics
+
+#### Closing Strategies
+- **End-of-Day Positioning**: Strategies for institutional positioning and window dressing
+- **Closing Auction Alpha**: Capture price advantages from closing auction mechanisms
+- **Intraday Reversal**: Strategies for mean-reversion or continuation into market close
+- **Overnight Risk Management**: Position sizing and hedging for overnight gap risk
+
+#### Session Timing Optimization
+- **Volatility Harvesting**: Position for increased volatility at open and close
+- **Liquidity Timing**: Execute during optimal liquidity periods within sessions
+- **Impact Minimization**: Time executions to reduce market impact during volatile periods
+- **Flow-Based Timing**: Align with institutional order flow patterns throughout sessions
 
 ## Architecture
 

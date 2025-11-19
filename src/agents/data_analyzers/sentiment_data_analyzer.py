@@ -169,6 +169,26 @@ class SentimentDataAnalyzer(BaseAgent):
                     "timestamp": datetime.now().isoformat()
                 })
 
+                # Store quality assessment for cross-verification
+                quality_assessment = {
+                    "analyzer": "sentiment",
+                    "symbol": symbol,
+                    "sentiment_score": sentiment_data.get('composite_sentiment', {}).get('score', 0.5),
+                    "sentiment_label": sentiment_data.get('composite_sentiment', {}).get('label', 'neutral'),
+                    "confidence": sentiment_data.get('composite_sentiment', {}).get('confidence', 0.5),
+                    "sources_used": sentiment_data.get('composite_sentiment', {}).get('sources_contributed', 0),
+                    "consistency_score": sentiment_data.get('consistency_analysis', {}).get('consistency_score', 0.5),
+                    "market_impact": sentiment_data.get('market_impact', {}).get('overall_impact', 'neutral'),
+                    "anomalies_detected": len(sentiment_data.get('anomalies', [])),
+                    "timestamp": datetime.now().isoformat(),
+                    "llm_insights": {
+                        "narrative": sentiment_data.get('sentiment_narrative', ''),
+                        "market_prediction": sentiment_data.get('market_prediction', {}),
+                        "consistency": sentiment_data.get('consistency_analysis', {}).get('consistency', 'unknown')
+                    }
+                }
+                await self.store_shared_memory("data_quality_assessments", f"sentiment_{symbol}", quality_assessment)
+
             logger.info(f"SentimentDataAnalyzer completed analysis: {len(sentiment_data.get('sources', {}))} sources processed")
             return {
                 "sentiment_score": sentiment_data.get('composite_sentiment', {}).get('score', 0.5),
@@ -400,40 +420,7 @@ class SentimentDataAnalyzer(BaseAgent):
         }
 
         try:
-            # Put/Call ratio (simplified - would need options data)
-            market_sentiment['indicators']['put_call_ratio'] = {
-                'value': 0.8,  # Mock value
-                'sentiment': 'neutral',  # PCR < 0.7 is bullish, > 1.0 is bearish
-                'description': 'Put/Call ratio from options data'
-            }
-
-            # VIX level (fear gauge)
-            market_sentiment['indicators']['vix_level'] = {
-                'value': 18.5,  # Mock value
-                'sentiment': 'neutral',  # VIX > 30 is high fear, < 15 is complacency
-                'description': 'VIX volatility index'
-            }
-
-            # High-low index (breadth)
-            market_sentiment['indicators']['advance_decline'] = {
-                'value': 1.2,  # Mock value
-                'sentiment': 'bullish',  # > 1.0 is bullish breadth
-                'description': 'Advance-decline line ratio'
-            }
-
-            # Calculate aggregate market sentiment
-            indicator_scores = []
-            for indicator, data in market_sentiment['indicators'].items():
-                if data['sentiment'] == 'bullish':
-                    score = 0.7
-                elif data['sentiment'] == 'bearish':
-                    score = 0.3
-                else:
-                    score = 0.5
-                indicator_scores.append(score)
-
-            market_sentiment['aggregate_score'] = np.mean(indicator_scores) if indicator_scores else 0.5
-            market_sentiment['confidence'] = 0.6  # Market indicators are generally reliable
+            raise NotImplementedError("Market sentiment analysis requires real API integration - no mock data allowed")
 
         except Exception as e:
             logger.error(f"Market sentiment analysis failed: {e}")
