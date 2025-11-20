@@ -23,44 +23,10 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
-# Try to import TensorFlow for advanced ML capabilities
-try:
-    import warnings
-    import logging
-    from contextlib import redirect_stderr
-    import io
-
-    # Suppress Python warnings
-    warnings.filterwarnings('ignore', category=UserWarning, module='tensorflow')
-    warnings.filterwarnings('ignore', category=UserWarning, module='tensorflow_probability')
-    warnings.filterwarnings('ignore', category=UserWarning, module='tf_keras')
-    warnings.filterwarnings('ignore', category=DeprecationWarning)
-
-    # Disable TensorFlow and related logging before import
-    logging.getLogger('tensorflow').setLevel(logging.ERROR)
-    logging.getLogger('tensorflow_probability').setLevel(logging.ERROR)
-    logging.getLogger('absl').setLevel(logging.ERROR)
-
-    # Try to suppress absl logging which TensorFlow uses
-    try:
-        import absl.logging
-        absl.logging.set_verbosity(absl.logging.ERROR)
-    except ImportError:
-        pass
-
-    # Capture stderr to suppress TensorFlow warnings during import
-    stderr_capture = io.StringIO()
-    with redirect_stderr(stderr_capture):
-        import tensorflow as tf
-        # After importing TensorFlow, also set its internal logger
-        tf.get_logger().setLevel(logging.ERROR)
-
-    TENSORFLOW_AVAILABLE = True
-    logger.info("TensorFlow available for advanced machine learning")
-except ImportError as e:
-    logger.warning(f"TensorFlow not available: {e}. Using numpy fallback for ML operations.")
-    TENSORFLOW_AVAILABLE = False
-    tf = None
+# TensorFlow import disabled to prevent startup issues
+logger.warning("TensorFlow import disabled to prevent startup issues. Using numpy fallback for ML operations.")
+TENSORFLOW_AVAILABLE = False
+tf = None
 
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.preprocessing import StandardScaler
@@ -107,7 +73,7 @@ class LearningAgent(BaseAgent):
     """
     def __init__(self, a2a_protocol=None):
         config_paths = {'risk': 'config/risk-constraints.yaml', 'profit': 'config/profitability-targets.yaml'}  # Relative to root.
-        prompt_paths = {'base': 'base_prompt.txt', 'role': 'docs/AGENTS/main-agents/learning-agent.md'}  # Relative to root.
+        prompt_paths = {'base': 'config/base_prompt.txt', 'role': 'docs/AGENTS/main-agents/learning-agent.md'}  # Relative to root.
         super().__init__(role='learning', config_paths=config_paths, prompt_paths=prompt_paths, a2a_protocol=a2a_protocol)
         
         # Import role-specific tools

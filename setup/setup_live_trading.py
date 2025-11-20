@@ -27,7 +27,7 @@ def check_tws_status():
     try:
         # Run the diagnostic script
         result = subprocess.run([
-            sys.executable, "scripts/diagnose_ibkr.py"
+            sys.executable, "integration-tests/diagnose_api.py"
         ], capture_output=True, text=True, cwd=os.getcwd())
 
         print(result.stdout)
@@ -275,5 +275,4 @@ def main():
         print("\n⚠️ Some components need attention. Please fix issues and re-run.")
 
 if __name__ == "__main__":
-    main()</content>
-<parameter name="filePath">c:\Users\nvick\ABC-Application\setup_live_trading.py
+    main()

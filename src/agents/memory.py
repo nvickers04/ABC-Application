@@ -35,7 +35,7 @@ class MemoryAgent(BaseAgent):
 
     def __init__(self):
         config_paths = {'risk': 'config/risk-constraints.yaml', 'profit': 'config/profitability-targets.yaml'}  # Relative to root.
-        prompt_paths = {'base': 'base_prompt.txt', 'role': 'agents/memory-management.md'}  # Relative to root.
+        prompt_paths = {'base': 'config/base_prompt.txt', 'role': 'agents/memory-management.md'}  # Relative to root.
         super().__init__(role='memory', config_paths=config_paths, prompt_paths=prompt_paths)
 
         # Initialize memory management components

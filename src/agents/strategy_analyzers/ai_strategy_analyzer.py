@@ -54,7 +54,7 @@ class AIStrategyAnalyzer(BaseAgent):
 
     def __init__(self):
         config_paths = {'risk': 'config/risk-constraints.yaml'}  # Relative to root.
-        prompt_paths = {'base': 'base_prompt.txt', 'role': 'agents/strategy-agent-prompt.md'}  # Relative to root.
+        prompt_paths = {'base': 'config/base_prompt.txt', 'role': 'docs/AGENTS/main-agents/strategy-agent.md'}  # Relative to root.
         tools = []  # AIStrategyAnalyzer uses internal methods instead of tools
         super().__init__(role='ai_strategy', config_paths=config_paths, prompt_paths=prompt_paths, tools=tools)
 
@@ -1449,7 +1449,7 @@ class AIStrategyAnalyzer(BaseAgent):
 
     def __init__(self):
         config_paths = {'risk': 'config/risk-constraints.yaml'}  # Relative to root.
-        prompt_paths = {'base': 'base_prompt.txt', 'role': 'agents/strategy-agent-complete.md'}  # Relative to root.
+        prompt_paths = {'base': 'config/base_prompt.txt', 'role': 'docs/AGENTS/main-agents/strategy-agent.md'}  # Relative to root.
         # Initialize AI refinement tool
         ai_refine_tool = self._create_ai_refine_tool()
         tools = [ai_refine_tool]
@@ -1498,19 +1498,7 @@ class AIStrategyAnalyzer(BaseAgent):
 
         except Exception as e:
             logger.warning(f"ML analysis failed for {symbol}: {e}")
-            return self._create_fallback_ml_signals()
-
-    def _create_fallback_ml_signals(self) -> Dict[str, Any]:
-        """Create fallback ML signals when real data unavailable."""
-        return {
-            'trend_prediction': 0.0,
-            'volatility_forecast': 0.25,
-            'momentum_score': 0.0,
-            'sharpe_estimate': 1.0,
-            'confidence': 0.3,
-            'data_points': 0,
-            'fallback': True
-        }
+            raise Exception(f"ML analysis requires real-time market data integration: {e}")
 
     def _create_ai_refine_tool(self):
         """Create AI refinement tool for strategy analysis."""
@@ -2352,3 +2340,24 @@ class AIStrategyAnalyzer(BaseAgent):
             # Clear local memory (data now lives in base agent)
             self.subagent_memory.clear()
             self.research_session_id = None
+
+    def _perform_ai_analysis(self, symbol: str, timeframe: str, features: List[str]) -> Dict[str, Any]:
+        """
+        Perform AI analysis for the given symbol and timeframe.
+        This method was missing and causing errors in the workflow enhancement.
+        """
+        try:
+            # Use the existing _perform_ml_analysis method which handles real data
+            return self._perform_ml_analysis(symbol, timeframe, features)
+        except Exception as e:
+            logger.warning(f"AI analysis failed for {symbol}: {e}")
+            # Return fallback analysis
+            return {
+                'trend_prediction': 0.0,
+                'volatility_forecast': 0.25,
+                'momentum_score': 0.0,
+                'sharpe_estimate': 1.0,
+                'confidence': 0.3,
+                'data_points': 0,
+                'error': str(e)
+            }

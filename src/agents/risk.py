@@ -82,7 +82,7 @@ class RiskAgent(BaseAgent):
     """
     def __init__(self, a2a_protocol=None):
         config_paths = {'risk': 'config/risk-constraints.yaml', 'profit': 'config/profitability-targets.yaml'}  # Relative to root.
-        prompt_paths = {'base': 'base_prompt.txt', 'role': 'docs/AGENTS/main-agents/risk-agent.md'}
+        prompt_paths = {'base': 'config/base_prompt.txt', 'role': 'docs/AGENTS/main-agents/risk-agent.md'}
         super().__init__(role='risk', config_paths=config_paths, prompt_paths=prompt_paths, a2a_protocol=a2a_protocol)
         
         # Ensure configs are loaded.

@@ -1,0 +1,33 @@
+{
+  "namespace": "shared:fundamental_data:XLV",
+  "safe_namespace": "shared_fundamental_data_XLV",
+  "timestamp": "2025-11-20T09:22:37.964652",
+  "version": "1.0",
+  "data": {
+    "data": {
+      "fundamental_data": {
+        "metadata": "{'consolidation_timestamp': '2025-11-20T09:22:25.322813', 'sources_used': \"['company_overview', 'analyst_estimates', 'financial_statements', 'institutional_ownership', 'dividend_history', 'sec_edgar_filings']\", 'analysis_focus': \"['valuation_metrics', 'growth_metrics', 'profitability_metrics', 'financial_health', 'risk_assessment', 'competitive_position']\"}",
+        "valuation_df": "{'type': 'DataFrame', 'columns': ['pe_ratio', 'pb_ratio', 'ps_ratio', 'ev_ebitda', 'peg_ratio', 'forward_pe', 'beta'], 'shape': (1, 7), 'data': [{'pe_ratio': None, 'pb_ratio': None, 'ps_ratio': None, 'ev_ebitda': None, 'peg_ratio': None, 'forward_pe': None, 'beta': None}], 'summary': '       pe_ratio pb_ratio ps_ratio ev_ebitda peg_ratio forward_pe beta\\ncount         0        0        0         0         0          0    0\\nunique        0        0        0         0         0          0    0\\ntop         NaN      NaN      NaN       NaN       NaN        NaN  NaN\\nfreq        NaN      NaN      NaN       NaN       NaN        NaN  NaN'}",
+        "financial_health_df": "{'type': 'DataFrame', 'columns': ['total_assets', 'total_liabilities', 'total_equity', 'current_assets', 'current_liabilities', 'debt_to_equity', 'current_ratio', 'quick_ratio'], 'shape': (1, 8), 'data': [{'total_assets': None, 'total_liabilities': None, 'total_equity': None, 'current_assets': None, 'current_liabilities': None, 'debt_to_equity': None, 'current_ratio': None, 'quick_ratio': None}], 'summary': '       total_assets total_liabilities total_equity  ... debt_to_equity current_ratio quick_ratio\\ncount             0                 0            0  ...              0             0           0\\nunique            0                 0            0  ...              0             0           0\\ntop             NaN               NaN          NaN  ...            NaN           NaN         NaN\\nfreq            NaN               NaN          NaN  ...            NaN           NaN         NaN\\n\\n[4 rows x 8 columns]'}"
+      },
+      "llm_analysis": {
+        "overall_assessment": "The broader market remains volatile amid inflationary pressures and geopolitical tensions, but strong corporate earnings in tech and consumer sectors provide a supportive backdrop for selective investments.",
+        "company_analysis": "{'SYMBOL1': \"{'fundamental_score': 85, 'valuation_assessment': 'fairly valued', 'key_strengths': ['Robust balance sheet with significant cash reserves', 'Consistent revenue growth driven by market leadership in consumer electronics'], 'key_weaknesses': ['High dependence on iPhone sales cycle', 'Elevated supply chain vulnerabilities due to global sourcing'], 'recommendation': 'hold', 'price_target': 150.0, 'key_risks': ['Intensifying competition from Android ecosystem', 'Potential regulatory scrutiny on antitrust issues'], 'catalysts': ['Upcoming product launches like new iPhone models', 'Expansion into emerging markets such as India and Southeast Asia']}\"}",
+        "sector_insights": "The technology sector shows resilient growth with improving profitability metrics, though valuation multiples are stretched compared to historical averages; focus on companies with strong moats and diversified revenue streams.",
+        "market_context": "In the current high-interest-rate environment, fundamentals emphasize liquidity and low leverage, favoring companies like SYMBOL1 with solid financial health over speculative growth plays."
+      },
+      "timestamp": "2025-11-20T09:22:37.943017"
+    },
+    "timestamp": "2025-11-20T09:22:37.962653",
+    "memory_type": "shared",
+    "metadata": {
+      "shared_by": "fundamental_data",
+      "namespace": "fundamental_data",
+      "shared_at": "2025-11-20T09:22:37.961653",
+      "access_level": "shared",
+      "original_data_type": "dict"
+    },
+    "user": null,
+    "size": 3443
+  }
+}

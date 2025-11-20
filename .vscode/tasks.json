@@ -1,0 +1,42 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "IBKR Premarket Preparation (Simulated)",
+			"type": "shell",
+			"command": "python",
+			"args": ["premarket_prep_simulated.py"],
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared",
+				"showReuseMessage": true,
+				"clear": false
+			},
+			"problemMatcher": [],
+			"detail": "Run IBKR premarket preparation routine (simulated - no TWS required)"
+		},
+		{
+			"label": "IBKR Premarket Preparation (Live)",
+			"type": "shell",
+			"command": "python",
+			"args": ["premarket_prep.py"],
+			"group": "build",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared",
+				"showReuseMessage": true,
+				"clear": false
+			},
+			"problemMatcher": [],
+			"detail": "Run IBKR premarket preparation routine (requires live TWS/Gateway connection)"
+		}
+	]
+}

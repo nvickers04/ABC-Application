@@ -1,0 +1,33 @@
+{
+  "namespace": "shared:subagent_research:ai_research_20251120_122925_strategy_proposal",
+  "safe_namespace": "shared_subagent_research_ai_research_20251120_122925_strategy_proposal",
+  "timestamp": "2025-11-20T12:29:26.616910",
+  "version": "1.0",
+  "data": {
+    "data": {
+      "strategy_type": "predictive_trend",
+      "symbol": "SPY",
+      "confidence_level": "moderate_model_confidence",
+      "risk_profile": "moderate",
+      "position_sizing": "balanced_positioning",
+      "entry_signals": "{'primary_signal': 'predictive_signal', 'secondary_signals': ['trend_alignment', 'momentum_support'], 'technical_filters': ['sma_crossover', 'support_resistance'], 'momentum_filters': ['weak_momentum_filter']}",
+      "exit_signals": "{'profit_targets': ['target_projection', 'resistance_touch'], 'stop_losses': ['prediction_failure', 'support_break'], 'time_exits': ['max_holding_period', 'signal_timeout'], 'signal_reversals': ['signal_weakening', 'contrarian_setup']}",
+      "risk_management": "{'max_position_size': 0.08042154037325265, 'stop_loss_percentage': 0.06957845962674736, 'trailing_stop': True, 'max_holding_period': '30_days', 'risk_reward_ratio': 2.0, 'portfolio_heat_limit': 0.4, 'correlation_limits': {'max_correlation': 0.7, 'hedge_required': False}}",
+      "performance_expectation": "{'expected_annual_return': 0.12544171092452383, 'expected_win_rate': 0.5435807473396034, 'expected_max_drawdown': 0.12, 'sharpe_ratio_expectation': 0.8362780728301589, 'confidence_adjustment': 1.0, 'signal_strength_score': 0.22713012138359834}",
+      "llm_insights": "AI analysis for SPY: Trend=0.01, Volatility=0.20, Momentum=-0.03. Strategy recommendation: predictive_trend",
+      "fallback_mode": true,
+      "timestamp": "2025-11-20T12:29:26.602288"
+    },
+    "timestamp": "2025-11-20T12:29:26.613397",
+    "memory_type": "shared",
+    "metadata": {
+      "shared_by": "ai_strategy_sub",
+      "namespace": "subagent_research",
+      "shared_at": "2025-11-20T12:29:26.613397",
+      "access_level": "shared",
+      "original_data_type": "dict"
+    },
+    "user": null,
+    "size": 1420
+  }
+}

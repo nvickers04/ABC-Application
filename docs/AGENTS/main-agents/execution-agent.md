@@ -7,10 +7,10 @@ The ExecutionAgent serves as the **execution validator and position architect** 
 ## Core Responsibilities
 
 ### **Framework Integration**
-- **Early Feasibility Assessment**: Participates in Iteration 1 to validate strategy practicality during development
+- **Early Feasibility Assessment**: Participates in comprehensive deliberation to validate strategy practicality during development
 - **Comprehensive Execution Debate**: Contributes to multi-agent deliberation on timing, liquidity, and market impact
 - **Pyramiding Strategy Debate**: Collaborates with StrategyAgent and RiskAgent to determine optimal pyramiding parameters and triggers
-- **Iteration 2 Final Validation**: Provides executive-level execution scrutiny and final implementation planning
+- **Strategic Validation**: Provides strategic-level execution scrutiny and final implementation planning
 - **Supreme Review Input**: Contributes execution analysis to ReflectionAgent's final scenario evaluation
 
 ### Advanced Position Management

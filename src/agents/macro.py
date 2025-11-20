@@ -134,7 +134,7 @@ class MacroAgent(BaseAgent):
 
     def __init__(self, a2a_protocol=None):
         config_paths = {'risk': 'config/risk-constraints.yaml', 'profit': 'config/profitability-targets.yaml'}
-        prompt_paths = {'base': 'base_prompt.txt', 'role': 'docs/AGENTS/main-agents/macro-agent.md'}
+        prompt_paths = {'base': 'config/base_prompt.txt', 'role': 'docs/AGENTS/main-agents/macro-agent.md'}
         tools = []  # Temporarily disabled - need to convert to BaseTool objects
 
         super().__init__(role='macro', config_paths=config_paths, prompt_paths=prompt_paths, tools=tools, a2a_protocol=a2a_protocol)

@@ -52,6 +52,8 @@ def audit_poll_tool(question: str, agents_to_poll: list = None) -> Dict[str, Any
                 results[agent] = {
                     "error": f"Failed to poll agent {agent}: {str(e)}"
                 }
+                # Require real agent coordination - no fallback votes
+                raise Exception(f"Agent polling requires real-time collaborative agent coordination: {e}")
 
         # Aggregate results
         votes = {}
@@ -100,54 +102,6 @@ def audit_poll_tool(question: str, agents_to_poll: list = None) -> Dict[str, Any
 
     except Exception as e:
         return {"error": f"Agent poll failed: {str(e)}"}
-
-
-def _get_fallback_vote(agent: str, question: str) -> str:
-    """
-    Generate a fallback vote for an agent when actual agent is not available.
-    Args:
-        agent: Agent name
-        question: Question being asked
-    Returns:
-        str: Simulated vote
-    """
-    # Simple rule-based voting simulation
-    question_lower = question.lower()
-
-    if "risk" in agent.lower():
-        if any(word in question_lower for word in ["risk", "volatility", "drawdown", "loss"]):
-            return "conservative"
-        elif any(word in question_lower for word in ["growth", "return", "profit"]):
-            return "moderate"
-        else:
-            return "neutral"
-
-    elif "strategy" in agent.lower():
-        if any(word in question_lower for word in ["trend", "momentum", "technical"]):
-            return "aggressive"
-        elif any(word in question_lower for word in ["value", "fundamental", "long-term"]):
-            return "conservative"
-        else:
-            return "balanced"
-
-    elif "data" in agent.lower():
-        if any(word in question_lower for word in ["data", "analysis", "statistics"]):
-            return "proceed"
-        else:
-            return "need_more_data"
-
-    elif "execution" in agent.lower():
-        if any(word in question_lower for word in ["execute", "trade", "implement"]):
-            return "execute"
-        else:
-            return "wait"
-
-    elif "reflection" in agent.lower():
-        return "reflect"
-
-    else:
-        # Random vote for unknown agents
-        return random.choice(["yes", "no", "maybe", "need_more_info"])
 
 
 def agent_coordination_tool(task: str, required_agents: list, priority: str = "normal") -> Dict[str, Any]:

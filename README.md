@@ -4,9 +4,9 @@
 ABC-Application is a multi-agent AI system for quantitative portfolio management, integrating Grok agents (via xAI API) with Interactive Brokers (IBKR) for real-time data ingestion, analysis, and trade execution. The system operates on a macro-to-micro hierarchy: high-level market scanning informs strategy proposals, risk assessments, and precise executions. Key goals: Achieve 10-20% monthly returns with <5% max drawdown through probability-of-profit (POP) evaluations, stochastic batching, and reflection loops for continuous learning.
 
 ### **Core Innovation: AI Reasoning Through Agent Collaboration**
-The fundamental breakthrough of ABC-Application is its **22-agent collaborative reasoning architecture with two-iteration framework and supreme oversight**. Rather than relying on a single AI model for decision-making, the system creates a sophisticated debate and deliberation environment where specialized AI agents collaboratively reason through complex investment decisions. This multi-agent approach leverages collective intelligence to produce more robust, well-reasoned investment strategies.
+The fundamental breakthrough of ABC-Application is its **22-agent collaborative reasoning architecture with single iteration framework and supreme oversight**. Rather than relying on a single AI model for decision-making, the system creates a sophisticated debate and deliberation environment where specialized AI agents collaboratively reason through complex investment decisions. This multi-agent approach leverages collective intelligence to produce more robust, well-reasoned investment strategies.
 
-**Two-Iteration Framework**: The MacroAgent first establishes market context and identifies top opportunities, then the system conducts comprehensive multi-agent deliberation (all 22 agents including subagents) followed by executive-level strategic oversight (main 8 agents only), ensuring both analytical depth and strategic judgment.
+**Single Iteration Framework**: The MacroAgent first establishes market context and identifies top opportunities, then all 22 agents conduct comprehensive deliberation in one efficient iteration.
 
 **Supreme Oversight**: The ReflectionAgent serves as the system's final arbiter with veto authority and the power to trigger additional iterations based on crisis indicators, preventing catastrophic decisions.
 
@@ -21,12 +21,11 @@ The fundamental breakthrough of ABC-Application is its **22-agent collaborative 
 
 For comprehensive documentation of the ABC-Application system, see the [`docs/`](./docs/) directory:
 
-- **[System Overview](./docs/README.md)**: Complete documentation navigation and quick start guide
-- **[Architecture](./docs/ARCHITECTURE.md)**: System design, components, and data flow
+- **[System Overview](./docs/architecture.md)**: Complete system design and data flows
 - **[Agent Inventory](./docs/AGENTS/index.md)**: All 22 agents with capabilities and coordination
 - **[Frameworks](./docs/FRAMEWORKS/)**: Macro-micro analysis, LangChain integration, A2A protocols
-- **[Implementation](./docs/IMPLEMENTATION/)**: Setup, configuration, testing, and deployment
-- **[Reference](./docs/REFERENCE/)**: API monitoring, health checks, and changelog
+- **[Implementation](./docs/IMPLEMENTATION/)**: Setup, configuration, testing, and deployment guides
+- **[Reference](./docs/REFERENCE/)**: API monitoring, health checks, and operational docs
 
 ## Key Features
 - **Multi-Agent Architecture**: Specialized agents for data collection, strategy development, risk management, execution, learning, and reflection.
@@ -100,11 +99,15 @@ For comprehensive documentation of the ABC-Application system, see the [`docs/`]
 - **[Production Checklist](./docs/production_readiness_checklist.md)**: Deployment and security requirements
 
 ## Current Status
-- **Implemented**: Full agent framework with LLM integration, collaborative memory systems, and enhanced strategy subagents. IBKR integration with LangChain tools for unified trading interface. IBKR historical data provider for professional-grade backtesting. API health monitoring system with automated checks, circuit breaker integration, and real-time dashboard. Modular tools architecture with specialized modules for better code organization and maintainability. Comprehensive error handling with input validation, circuit breakers, and graceful degradation. **MarketDataApp premium data source fully activated** with LLM-powered exploration of institutional-grade market data.
+- **Implemented**: Full agent framework with LLM integration, collaborative memory systems, and enhanced strategy subagents. IBKR integration with LangChain tools for unified trading interface. IBKR historical data provider for professional-grade backtesting. API health monitoring system with automated checks, circuit breaker integration, and real-time dashboard. Modular tools architecture with specialized modules for better maintainability and code organization. Comprehensive error handling with input validation, circuit breakers, and graceful degradation. **MarketDataApp premium data source fully activated** with LLM-powered exploration of institutional-grade market data. **Live workflow orchestrator operational** with agent response collection and Discord integration.
 - **Testing**: Comprehensive test suite for subagents, memory systems, bridge integration, API health monitoring, and historical data providers. System robustness validated through comprehensive audit and fixes.
 - **Integration**: A2A protocols, shared memory coordinator, base agent inheritance, unified IBKR trading interface, automated API health monitoring, professional historical data feeds, and modular utility architecture.
 
-## Recent Improvements (v2.1)
+## Recent Improvements (v2.2)
+- **Live Workflow Orchestrator**: Fixed agent command prefix stripping issue, enabling proper agent responses in debate/consensus/learning phases
+- **Single Iteration Workflow**: Optimized workflow to single comprehensive iteration for faster decision-making
+- **Agent Response Collection**: Workflow now successfully collects responses from all agents instead of showing 0 responses
+- **Discord Integration**: Live orchestrator running with real-time workflow control and human intervention capabilities
 - **MarketDataApp Activation**: Fully activated premium institutional data source with 7 data endpoints (quotes, trades, orderbook, options, darkpool, microstructure, flow) and LLM-powered intelligent exploration capabilities.
 - **Code Modularization**: Split monolithic 296KB `tools.py` file into 7 specialized modules for better maintainability
 - **System Robustness**: Implemented comprehensive error handling, circuit breakers, and graceful degradation

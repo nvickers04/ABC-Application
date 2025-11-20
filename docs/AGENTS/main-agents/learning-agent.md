@@ -1,15 +1,15 @@
 # LearningAgent - Continuous Model Refinement and System Management
 
 ## Overview
-The LearningAgent serves as the **system's memory and adaptation engine** throughout the collaborative reasoning framework, participating in both iterations to provide historical context, pattern recognition, and continuous improvement. It captures insights from all agents across the entire reasoning process to enhance future decision-making and system performance.
+The LearningAgent serves as the **system's memory and adaptation engine** throughout the collaborative reasoning framework, participating in the comprehensive reasoning process to provide historical context, pattern recognition, and continuous improvement. It captures insights from all agents across the entire reasoning process to enhance future decision-making and system performance.
 
 ## Key Responsibilities
 
 ### **Framework Integration**
-- **Historical Context Provider**: Supplies pattern recognition and precedent analysis throughout both iterations
-- **Iteration 1 Learning**: Captures insights from comprehensive multi-agent deliberation for immediate system improvement
-- **Iteration 2 Deep Analysis**: Provides enhanced historical context during executive-level strategic review
-- **Cross-Iteration Learning**: Maintains learning continuity and accumulates insights across the entire reasoning process
+- **Historical Context Provider**: Supplies pattern recognition and precedent analysis throughout the comprehensive reasoning process
+- **Comprehensive Deliberation Learning**: Captures insights from comprehensive multi-agent deliberation for immediate system improvement
+- **Strategic Review Enhancement**: Provides enhanced historical context during strategic review
+- **Continuous Learning**: Maintains learning continuity and accumulates insights across the entire reasoning process
 
 ### Continuous Management
 - **Real-Time Learning**: Continuous model updates during market hours with insights from all agents

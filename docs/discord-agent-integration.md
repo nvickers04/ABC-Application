@@ -2,14 +2,14 @@
 
 ## Overview
 
-The Discord Agent Integration System creates a collaborative environment where your sophisticated unified A2A orchestrator can interact with human users through Discord. This system enables real-time human oversight and participation in the 7-agent collaborative reasoning workflow.
+The Discord Agent Integration System creates a collaborative environment where your sophisticated unified A2A orchestrator can interact with human users through Discord. This system enables real-time human oversight and participation in the 8-agent collaborative reasoning workflow.
 
 ## Key Features
 
 ### 🤖 **Unified Agent Orchestration**
-- **Single Discord Bot**: One orchestrator bot manages all 7 agents internally via A2A protocol
+- **Single Discord Bot**: One orchestrator bot manages all 8 agents internally via A2A protocol
 - **Agent Autonomy Preserved**: All existing agent interactions remain unchanged through A2A communication
-- **Macro foundation → comprehensive iteration → executive iteration process intact**
+- **Macro foundation → comprehensive deliberation → supreme oversight process intact**
 - **ReflectionAgent veto authority and crisis detection fully functional**
 
 ### 👥 **Human Participation Added**
@@ -110,7 +110,7 @@ Shows agent health, current workflow phase, and recent activity.
 
 ### Unified A2A Orchestration
 1. **Single Discord Bot**: Orchestrator connects to Discord and manages all agent communication
-2. **Internal Agent Coordination**: All 7 agents communicate via A2A protocol within the orchestrator
+2. **Internal Agent Coordination**: All 8 agents communicate via A2A protocol within the orchestrator
 3. **Human Input Processing**: Messages forwarded to appropriate agents through A2A channels
 4. **Response Aggregation**: Agent responses collected and presented in Discord
 
@@ -123,8 +123,8 @@ Shows agent health, current workflow phase, and recent activity.
 ## Integration with Existing System
 
 The Discord system is designed as a **communication interface** that:
-- ✅ Preserves all 7-agent collaborative reasoning processes
-- ✅ Maintains macro foundation and two-iteration framework
+- ✅ Preserves all 8-agent collaborative reasoning processes
+- ✅ Maintains macro foundation and comprehensive reasoning framework
 - ✅ Keeps ReflectionAgent veto authority intact
 - ✅ Allows human observation without disrupting agent autonomy
 - ✅ Enables human guidance and intervention capabilities

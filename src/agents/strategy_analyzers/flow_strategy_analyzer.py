@@ -49,7 +49,7 @@ class FlowStrategyAnalyzer(BaseAgent):
 
     def __init__(self):
         config_paths = {'risk': 'config/risk-constraints.yaml'}  # Relative to root.
-        prompt_paths = {'base': 'base_prompt.txt', 'role': 'agents/strategy-agent-prompt.md'}  # Relative to root.
+        prompt_paths = {'base': 'config/base_prompt.txt', 'role': 'docs/AGENTS/main-agents/strategy-agent.md'}  # Relative to root.
         tools = []  # FlowStrategyAnalyzer uses internal methods instead of tools
         super().__init__(role='flow_strategy', config_paths=config_paths, prompt_paths=prompt_paths, tools=tools)
 
@@ -581,8 +581,8 @@ class FlowStrategyAnalyzer(BaseAgent):
             hist = ticker.history(period=period, interval=interval)
             
             if hist.empty or len(hist) < 10:
-                # Fallback to synthetic data if real data unavailable
-                return self._generate_fallback_order_flow(symbol, timeframe)
+                # Require real market data integration
+                raise Exception("Order flow analysis requires real-time market data integration")
             
             # Derive order flow patterns from historical data
             order_flow_data = self._derive_order_flow_from_historical(hist, symbol, timeframe)
@@ -594,110 +594,8 @@ class FlowStrategyAnalyzer(BaseAgent):
             
         except Exception as e:
             logger.warning(f"Failed to fetch real order flow data for {symbol}: {e}")
-            # Fallback to synthetic data
-            return self._generate_fallback_order_flow(symbol, timeframe)
-    
-    def _generate_fallback_order_flow(self, symbol: str, timeframe: str) -> Dict[str, Any]:
-        """Generate fallback order flow data based on real market patterns."""
-        try:
-            import yfinance as yf
-
-            # Get real current price and recent data
-            ticker = yf.Ticker(symbol)
-            current_price = ticker.info.get('currentPrice', ticker.info.get('regularMarketPrice'))
-
-            if current_price is None:
-                hist = ticker.history(period='1d')
-                if not hist.empty:
-                    current_price = hist['Close'].iloc[-1]
-                else:
-                    current_price = 100  # Fallback
-
-            # Get recent trading data to base order flow on
-            hist = ticker.history(period='5d', interval='1h')
-            if not hist.empty and len(hist) > 10:
-                # Use real price movements to create realistic order book
-                recent_prices = hist['Close'].values[-20:]  # Last 20 hours
-                price_volatility = np.std(recent_prices) / np.mean(recent_prices)
-                avg_volume = hist['Volume'].mean()
-
-                # Create bid/ask spread based on real volatility
-                spread_pct = max(price_volatility * 0.5, 0.001)  # At least 0.1% spread
-
-                # Generate order book levels based on real market data
-                bid_prices = []
-                ask_prices = []
-                bid_sizes = []
-                ask_sizes = []
-
-                for i in range(10):  # 10 price levels
-                    bid_price = current_price * (1 - spread_pct * (i + 1) / 10)
-                    ask_price = current_price * (1 + spread_pct * (i + 1) / 10)
-
-                    # Size based on real average volume
-                    bid_size = max(avg_volume * 0.01 * (11 - i) / 10, 100)  # Larger sizes closer to mid
-                    ask_size = max(avg_volume * 0.01 * (11 - i) / 10, 100)
-
-                    bid_prices.append(bid_price)
-                    ask_prices.append(ask_price)
-                    bid_sizes.append(int(bid_size))
-                    ask_sizes.append(int(ask_size))
-
-                # Generate trade data based on real volume patterns
-                num_trades = min(int(avg_volume / 1000), 50)  # Reasonable number of trades
-                trade_prices = []
-                trade_sizes = []
-                trade_directions = []
-
-                for _ in range(num_trades):
-                    # Trades cluster around recent prices
-                    price_offset = np.random.normal(0, price_volatility * current_price * 0.1)
-                    trade_price = current_price + price_offset
-                    trade_size = max(int(np.random.exponential(avg_volume * 0.001)), 10)
-                    direction = 'buy' if price_offset > 0 else 'sell'
-
-                    trade_prices.append(trade_price)
-                    trade_sizes.append(trade_size)
-                    trade_directions.append(direction)
-
-                return {
-                    'bids': {'prices': bid_prices, 'sizes': bid_sizes},
-                    'asks': {'prices': ask_prices, 'sizes': ask_sizes},
-                    'trades': {
-                        'prices': trade_prices,
-                        'sizes': trade_sizes,
-                        'directions': trade_directions,
-                        'timestamps': [datetime.now() - timedelta(minutes=i*5) for i in range(num_trades)]
-                    }
-                }
-            else:
-                # Minimal fallback if no data available
-                return self._create_minimal_order_flow(current_price)
-
-        except Exception as e:
-            logger.warning(f"Error generating fallback order flow for {symbol}: {e}")
-            return self._create_minimal_order_flow(100)
-
-    def _create_minimal_order_flow(self, current_price: float) -> Dict[str, Any]:
-        """Create minimal order flow structure when data is unavailable."""
-        return {
-            'bids': {
-                'prices': [current_price * 0.995, current_price * 0.99],
-                'sizes': [1000, 800]
-            },
-            'asks': {
-                'prices': [current_price * 1.005, current_price * 1.01],
-                'sizes': [1000, 800]
-            },
-            'trades': {
-                'prices': [current_price],
-                'sizes': [500],
-                'directions': ['buy'],
-                'timestamps': [datetime.now()]
-            }
-        }
-    
-    def _derive_order_flow_from_historical(self, hist: pd.DataFrame, symbol: str, timeframe: str) -> Dict[str, Any]:
+            # Require real market data integration
+            raise Exception(f"Order flow analysis requires real-time market data integration: {e}")
         """Derive order flow patterns from historical OHLCV data."""
         try:
             # Use OHLCV data to estimate order flow patterns
@@ -742,7 +640,7 @@ class FlowStrategyAnalyzer(BaseAgent):
             
         except Exception as e:
             logger.error(f"Failed to derive order flow from historical data: {e}")
-            return self._generate_fallback_order_flow(symbol, timeframe)
+            raise Exception(f"Order flow analysis requires real-time market data integration: {e}")
 
     def _analyze_order_book_dynamics(self, order_flow_data: Dict[str, Any]) -> Dict[str, Any]:
         """Analyze order book dynamics."""
@@ -1918,7 +1816,7 @@ class FlowStrategyAnalyzer(BaseAgent):
 
     def __init__(self):
         config_paths = {'risk': 'config/risk-constraints.yaml'}  # Relative to root.
-        prompt_paths = {'base': 'base_prompt.txt', 'role': 'agents/strategy-agent-prompt.md'}  # Relative to root.
+        prompt_paths = {'base': 'config/base_prompt.txt', 'role': 'agents/strategy-agent-prompt.md'}  # Relative to root.
         tools = []  # Will add flow analysis tools
         super().__init__(role='flow_strategy', config_paths=config_paths, prompt_paths=prompt_paths, tools=tools)
 

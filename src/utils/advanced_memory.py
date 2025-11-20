@@ -648,8 +648,9 @@ class AdvancedMemoryManager:
                 logger.warning(f"Vector backend not available: {e}")
                 # Don't add to backends if it fails
 
-        # Mem0 backend (AI-powered memory, requires API key)
-        if MEM0_AVAILABLE:
+        # Mem0 backend (AI-powered memory, requires API key) - DISABLED due to model issues
+        # TODO: Re-enable when Mem0 fixes gpt-4o-mini model access
+        if False and MEM0_AVAILABLE:  # Temporarily disabled
             try:
                 mem0_key = os.getenv("MEM0_API_KEY")
                 if mem0_key:

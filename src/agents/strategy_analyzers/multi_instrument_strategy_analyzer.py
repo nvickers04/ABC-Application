@@ -178,8 +178,8 @@ class MultiInstrumentStrategyAnalyzer(BaseAgent):
                     continue
 
             if len(data) < 2:
-                logger.warning("Insufficient data for correlation analysis, using fallback")
-                return self._create_fallback_correlations(symbols)
+                logger.warning("Insufficient data for correlation analysis - requires real market data integration")
+                raise Exception("Correlation analysis requires real-time market data integration")
 
             # Calculate real correlation matrix
             price_df = pd.DataFrame(data)
@@ -204,45 +204,7 @@ class MultiInstrumentStrategyAnalyzer(BaseAgent):
 
         except Exception as e:
             logger.warning(f"Error in correlation analysis: {e}")
-            return self._create_fallback_correlations(symbols)
-
-    def _create_fallback_correlations(self, symbols: List[str]) -> Dict[str, Any]:
-        """Create fallback correlation matrix when real data is unavailable."""
-        n_symbols = len(symbols)
-
-        # Create a reasonable correlation structure based on typical market relationships
-        correlation_matrix = np.eye(n_symbols)  # Start with identity matrix
-
-        # Add some realistic correlations between different asset classes
-        for i in range(n_symbols):
-            for j in range(i+1, n_symbols):
-                symbol_i = symbols[i].upper()
-                symbol_j = symbols[j].upper()
-
-                # Tech stocks tend to be correlated
-                if ('AAPL' in symbol_i or 'MSFT' in symbol_i or 'GOOGL' in symbol_i) and \
-                   ('AAPL' in symbol_j or 'MSFT' in symbol_j or 'GOOGL' in symbol_j):
-                    corr = np.random.uniform(0.6, 0.9)
-                # Financial stocks
-                elif ('JPM' in symbol_i or 'BAC' in symbol_i) and \
-                     ('JPM' in symbol_j or 'BAC' in symbol_j):
-                    corr = np.random.uniform(0.7, 0.95)
-                # General market correlation
-                else:
-                    corr = np.random.uniform(0.1, 0.6)
-
-                correlation_matrix[i, j] = corr
-                correlation_matrix[j, i] = corr
-
-        avg_correlation = np.mean(correlation_matrix[np.triu_indices(n_symbols, k=1)])
-
-        return {
-            'correlation_matrix': correlation_matrix.tolist(),
-            'avg_correlation': float(avg_correlation),
-            'symbols_analyzed': symbols,
-            'data_points': 0,
-            'fallback': True
-        }
+            raise Exception(f"Correlation analysis requires real-time market data integration: {e}")
     
     def _test_cointegration(self, series1: List[float], series2: List[float]) -> Dict[str, Any]:
         """Test for cointegration between two series."""
@@ -330,7 +292,7 @@ class MultiInstrumentStrategyAnalyzer(BaseAgent):
 
     def __init__(self):
         config_paths = {'risk': 'config/risk-constraints.yaml', 'profit': 'config/profitability-targets.yaml'}
-        prompt_paths = {'base': 'base_prompt.txt', 'role': 'agents/strategy-agent-complete.md'}
+        prompt_paths = {'base': 'config/base_prompt.txt', 'role': 'docs/AGENTS/main-agents/strategy-agent.md'}
         # Initialize multi-instrument analysis tools
         correlation_tool = self._create_correlation_analysis_tool()
         cointegration_tool = self._create_cointegration_test_tool()

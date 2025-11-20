@@ -1,0 +1,27 @@
+{
+  "agent_role": "macro",
+  "timestamp": "2025-11-20T15:03:13.638184",
+  "version": "1.0",
+  "data": {
+    "data": {
+      "timestamp": "2025-11-20T15:03:13.611593",
+      "type": "general",
+      "result": {
+        "agent_role": "macro",
+        "analysis_type": "general",
+        "timestamp": "2025-11-20T15:03:13.611593",
+        "llm_analysis": "{\n  \"agent\": \"MacroAgent\",\n  \"selected_sectors\": [\n    {\"ticker\": \"XLK\", \"name\": \"Technology\", \"score\": 2.85},\n    {\"ticker\": \"XLE\", \"name\": \"Energy\", \"score\": 2.42},\n    {\"ticker\": \"BTC-USD\", \"name\": \"Bitcoin\", \"score\": 2.18},\n    {\"ticker\": \"CL=F\", \"name\": \"Crude Oil Futures\", \"score\": 1.95},\n    {\"ticker\": \"VIX\", \"name\": \"CBOE Volatility Index\", \"score\": 1.72}\n  ],\n  \"allocation_weights\": {\n    \"Technology\": 0.25,\n    \"Energy\": 0.20,\n    \"Bitcoin\": 0.20,\n    \"Crude Oil Futures\": 0.20,\n    \"CBOE Volatility Index\": 0.15\n  },\n  \"market_regime\": \"bull_moderate_with_elevated_volatility\",\n  \"macro_intelligence\": \"Current market regime assessment: Moderate bull market driven by tech sector momentum and energy rebound amid geopolitical tensions, but with elevated short-term volatility (VIX at ~18, up 15% WoW). Macro trends include persistent inflation (CPI ~3.2%), Fed rate pause expectations, and commodity strength from supply disruptions. Volatility metrics: 30-day realized vol across S&P 500 at 12.5% (above 10-year avg of 10%), put/call ratio at 0.85 (neutral-bullish skew), VIX term structure in contango (VIX1M/VIX ~1.05, signaling mean-reversion potential), gamma exposure net positive at +$2.5B (dealer hedging supports upside). Broader regime favors rotation into cyclicals (energy/commodities) over defensives, with crypto decoupling positively on ETF inflows. Risk environment: Moderate volatility cluster risk from earnings season; baseline drawdown cap at 4% aligns with goals. Sector opportunities prioritize high-beta assets for vol capture. Cross-validation: Institutional flows show $15B into energy ETFs (e.g., XLE), CFTC data confirms net long in crude/oil futures. Technicals: SPY RSI 62 (bullish, not overbought), momentum accelerating in XLK (+8% 1mo vs. SPY). Fundamentals: Tech earnings beat expectations (AI tailwinds), energy supported by OPEC cuts. Sentiment: AAII bull/bear spread +25% (optimistic). Alignment with goals: Targets 12-18% monthly ROI via vol strategies, <5% drawdown via hedged positions. Volatility-based trade proposals (PoP assessments based on vol regime: mean-reverting moderate vol):\\n1. **XLK Straddle (ATM, 30D exp)**: Buy call/put on XLK at $220 strike; PoP 55% (earnings vol crush expected post-tech reports). Setup: Tech momentum + vol spike; risk 2% portfolio.\\n2. **XLE Bull Call Spread (OTM, 45D exp)**: Buy $90 call/sell $95 call; PoP 62% (energy rotation on supply tightness). Directional bet on crude rebound; aligns with institutional longs.\\n3. **BTC-USD Iron Condor (neutral, 60D exp)**: Sell $60k/$70k strangle, buy wings; PoP 68% (crypto vol mean-reversion post-halving hype). Hedge against drawdown.\\n4. **CL=F (Crude) Calendar Spread (short-term vol play, 20D exp)**: Sell near-term put spread/buy longer-term; PoP 58% (geopolitical vol premium decay). Fundamental: OPEC support.\\n5. **SPY VIX Call (directional vol bet, 15D exp)**: Buy VIX $20 call; PoP 52% (if vol spikes on macro data). Sentiment hedge for portfolio; cap exposure at 1%.\\nThese proposals integrate with selected assets, considering no current positions (assumed empty portfolio) and risk constraints (max 3% per trade, total vol budget 10%). Recommend proceeding to micro-analysis for execution details.\"\n}",
+        "data_summary": "{'data_keys': ['query', 'analysis_type'], 'data_types': {'query': 'str', 'analysis_type': 'str'}, 'has_numeric_data': False, 'has_text_data': True, 'has_list_data': False, 'data_size_estimate': '300 bytes'}",
+        "confidence_level": "medium"
+      }
+    },
+    "timestamp": "2025-11-20T15:03:13.611674",
+    "memory_type": "long_term",
+    "metadata": {
+      "agent_role": "macro",
+      "agent_type": "ai_portfolio_manager"
+    },
+    "user": "macro",
+    "size": 3718
+  }
+}

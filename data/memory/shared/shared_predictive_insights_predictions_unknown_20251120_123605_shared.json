@@ -1,0 +1,33 @@
+{
+  "namespace": "shared:predictive_insights:predictions_unknown_20251120_123605",
+  "safe_namespace": "shared_predictive_insights_predictions_unknown_20251120_123605",
+  "timestamp": "2025-11-20T12:36:05.216141",
+  "version": "1.0",
+  "data": {
+    "data": {
+      "symbol": "unknown",
+      "predictions": {
+        "direction": "neutral",
+        "confidence": "0.0",
+        "timeframe": "unknown"
+      },
+      "patterns": {
+        "trend": "unknown",
+        "strength": "0.0"
+      },
+      "source_agent": "ml_strategy_sub",
+      "timestamp": "2025-11-20T12:36:05.205344"
+    },
+    "timestamp": "2025-11-20T12:36:05.205344",
+    "memory_type": "shared",
+    "metadata": {
+      "shared_by": "ai_strategy_sub",
+      "namespace": "predictive_insights",
+      "shared_at": "2025-11-20T12:36:05.205344",
+      "access_level": "shared",
+      "original_data_type": "dict"
+    },
+    "user": null,
+    "size": 234
+  }
+}

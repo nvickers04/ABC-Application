@@ -1,19 +1,19 @@
 # Memory Management Framework
 
 ## Overview
-The Memory Management Framework serves as the **system's collective knowledge repository** throughout the collaborative reasoning framework, capturing and providing context from both iterations of the reasoning process. It enables cross-agent learning and maintains institutional memory of collaborative decision-making patterns.
+The Memory Management Framework serves as the **system's collective knowledge repository** throughout the collaborative reasoning framework, capturing and providing context from the comprehensive reasoning process. It enables cross-agent learning and maintains institutional memory of collaborative decision-making patterns.
 
 ## MemoryAgent - Knowledge Management and Retrieval
 
 ### Overview
-The MemoryAgent serves as the **system's collective knowledge repository** throughout the collaborative reasoning framework, capturing and providing context from both iterations of the reasoning process. It enables cross-agent learning and maintains institutional memory of collaborative decision-making patterns.
+The MemoryAgent serves as the **system's collective knowledge repository** throughout the collaborative reasoning framework, capturing and providing context from the comprehensive reasoning process. It enables cross-agent learning and maintains institutional memory of collaborative decision-making patterns.
 
 ### Key Responsibilities
 
 #### Framework Integration
-- **Context Preservation**: Maintains historical context and collaborative insights across both iterations
-- **Iteration 1 Memory**: Captures comprehensive multi-agent deliberation patterns and outcomes
-- **Iteration 2 Synthesis**: Provides executive-level historical context during strategic review
+- **Context Preservation**: Maintains historical context and collaborative insights across the reasoning process
+- **Comprehensive Deliberation Memory**: Captures comprehensive multi-agent deliberation patterns and outcomes
+- **Strategic Review Synthesis**: Provides executive-level historical context during strategic review
 - **Supreme Oversight Support**: Supplies relevant precedents for ReflectionAgent's crisis detection and veto decisions
 
 #### Memory Coordination
@@ -139,7 +139,7 @@ class ContextPreservation:
         self.knowledge_evolution = {}
 
     def preserve_iteration_context(self, iteration_data):
-        """Preserve context from each reasoning iteration"""
+        """Preserve context from the comprehensive reasoning process"""
         context_snapshot = {
             'timestamp': time.time(),
             'iteration': iteration_data['iteration_number'],

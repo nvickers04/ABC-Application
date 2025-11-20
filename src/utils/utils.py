@@ -35,7 +35,7 @@ def load_yaml(file_path: str) -> dict:
         logger.error(f"YAML parse error in {file_path}: {e}. Using safe defaults.")
         return {'constraints': {'max_drawdown': 0.05, 'pop_floor': 0.60}}
 
-def load_prompt_template(role: str, base_path: str = '../base_prompt.txt', role_path: str = None) -> str:
+def load_prompt_template(role: str, base_path: str = '../config/base_prompt.txt', role_path: str = None) -> str:
     """
     Loads and formats a prompt template for an agent.
     Args:
@@ -82,5 +82,5 @@ if __name__ == "__main__":
     print("Loaded Risk Constraints:", risk_data)
     
     # Test prompt load
-    risk_prompt = load_prompt_template('risk', base_path='../base_prompt.txt', role_path='../agents/risk-agent-complete.md')
+    risk_prompt = load_prompt_template('risk', base_path='../config/base_prompt.txt', role_path='../agents/risk-agent-complete.md')
     print("Formatted Risk Prompt Snippet:", risk_prompt[:200] + "...")  # Truncated for brevity.

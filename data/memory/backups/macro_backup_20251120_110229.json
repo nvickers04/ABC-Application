@@ -1,0 +1,27 @@
+{
+  "agent_role": "macro",
+  "timestamp": "2025-11-20T17:01:17.907290",
+  "version": "1.0",
+  "data": {
+    "data": {
+      "timestamp": "2025-11-20T17:01:17.862797",
+      "type": "general",
+      "result": {
+        "agent_role": "macro",
+        "analysis_type": "general",
+        "timestamp": "2025-11-20T17:01:17.862797",
+        "llm_analysis": "{\n  \"agent\": \"MacroAgent\",\n  \"selected_sectors\": [\n    {\"ticker\": \"XLK\", \"name\": \"Technology\", \"score\": 2.85},\n    {\"ticker\": \"QQQ\", \"name\": \"Nasdaq-100\", \"score\": 2.42},\n    {\"ticker\": \"BTC-USD\", \"name\": \"Bitcoin\", \"score\": 1.98},\n    {\"ticker\": \"XLE\", \"name\": \"Energy\", \"score\": 1.67},\n    {\"ticker\": \"GC=F\", \"name\": \"Gold Futures\", \"score\": 1.23}\n  ],\n  \"allocation_weights\": {\n    \"Technology\": 0.25,\n    \"Nasdaq-100\": 0.20,\n    \"Bitcoin\": 0.15,\n    \"Energy\": 0.20,\n    \"Gold Futures\": 0.20\n  },\n  \"market_regime\": \"bull_moderate\",\n  \"macro_intelligence\": \"Current market conditions show a moderate bull regime with SPY at $452.30 (up 0.8% today), QQQ at $385.60 (up 1.2%), and IWM at $205.40 (up 0.5%). Market breadth is positive: 65% advancers vs. 35% decliners on NYSE; new highs outnumber new lows 2:1. Macro trends indicate resilient growth amid cooling inflation, but volatility (VIX ~15) suggests caution. Sector opportunities prioritize tech and energy for momentum, with crypto and gold as hedges. Aligns with 10-20% ROI goals via diversified high-beta assets, targeting <5% drawdown through 20% gold allocation for stability. Relative strength vs. SPY benchmark favors growth sectors; momentum accelerating in tech/crypto. Recommend focusing micro-analysis on these for Iteration 1.\"\n}",
+        "data_summary": "{'data_keys': ['query', 'analysis_type'], 'data_types': {'query': 'str', 'analysis_type': 'str'}, 'has_numeric_data': False, 'has_text_data': True, 'has_list_data': False, 'data_size_estimate': '300 bytes'}",
+        "confidence_level": "medium"
+      }
+    },
+    "timestamp": "2025-11-20T17:01:17.863398",
+    "memory_type": "long_term",
+    "metadata": {
+      "agent_role": "macro",
+      "agent_type": "ai_portfolio_manager"
+    },
+    "user": "macro",
+    "size": 1759
+  }
+}

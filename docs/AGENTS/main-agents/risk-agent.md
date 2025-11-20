@@ -2,14 +2,14 @@
 
 ## Overview
 
-The RiskAgent serves as the **risk guardian** throughout the collaborative reasoning framework, participating in both iterations to ensure comprehensive risk assessment and management. It integrates risk considerations from the earliest stages of analysis through final execution, providing probabilistic oversight and preventing catastrophic decisions.
+The RiskAgent serves as the **risk guardian** throughout the collaborative reasoning framework, participating in the comprehensive reasoning process to ensure comprehensive risk assessment and management. It integrates risk considerations from the earliest stages of analysis through final execution, providing probabilistic oversight and preventing catastrophic decisions.
 
 ## Core Responsibilities
 
 ### **Framework Integration**
 - **Macro Risk Foundation**: Receives MacroAgent's baseline risk parameters and market volatility context
-- **Iteration 1 Risk Integration**: Participates in comprehensive multi-agent deliberation with full risk assessment capabilities
-- **Iteration 2 Executive Oversight**: Provides elevated risk scrutiny during strategic review
+- **Comprehensive Risk Integration**: Participates in comprehensive multi-agent deliberation with full risk assessment capabilities
+- **Strategic Risk Oversight**: Provides elevated risk scrutiny during strategic review
 - **Supreme Validation**: Contributes to ReflectionAgent's final risk scenario analysis
 
 ### Risk Assessment

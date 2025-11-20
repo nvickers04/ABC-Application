@@ -311,9 +311,9 @@ class BaseAgent(abc.ABC):
 
             # Check specific API health for operation-specific requirements
             if operation_name == 'llm_reasoning':
-                # Require at least one LLM API to be healthy
+                # Require at least one LLM API to be healthy, degraded, or unknown (not yet checked)
                 grok_status = health_monitor.get_api_status('grok_api')
-                if grok_status and grok_status.get('status') in ['healthy', 'degraded']:
+                if grok_status and grok_status.get('status') in ['healthy', 'degraded', 'unknown']:
                     return True
                 logger.warning("No healthy LLM APIs available for reasoning operation")
                 return False
@@ -514,7 +514,7 @@ class BaseAgent(abc.ABC):
         Args:
             role (str): Agent role (e.g., 'risk').
             config_paths (Dict): Paths to YAMLs (e.g., {'risk': 'config/risk-constraints.yaml'}—relative to project root).
-            prompt_paths (Dict): Paths to prompts (e.g., {'base': 'base_prompt.txt', 'role': 'risk-agent-prompt.md'}—relative to root).
+            prompt_paths (Dict): Paths to prompts (e.g., {'base': 'config/base_prompt.txt', 'role': 'risk-agent-prompt.md'}—relative to root).
             tools (List[BaseTool]): List of Langchain tools for the agent.
             a2a_protocol (Any): A2A protocol instance for inter-agent communication.
         Reasoning: Loads fresh for each init (e.g., constraints for discipline); integrates Langchain tools for tool calling.

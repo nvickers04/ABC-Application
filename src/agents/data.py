@@ -67,7 +67,7 @@ class DataAgent(BaseAgent):
     
     def __init__(self, historical_mode: bool = False, historical_date: Optional[str] = None, a2a_protocol: Any = None):
         config_paths = {'risk': 'config/risk-constraints.yaml', 'profit': 'config/profitability-targets.yaml'}  # Relative to root.
-        prompt_paths = {'base': 'base_prompt.txt', 'role': 'docs/AGENTS/main-agents/data-agent.md'}  # Relative to root.
+        prompt_paths = {'base': 'config/base_prompt.txt', 'role': 'docs/AGENTS/main-agents/data-agent.md'}  # Relative to root.
         tools: List[Any] = []  # DataAgent uses subagents instead of tools
         super().__init__(role='data', config_paths=config_paths, prompt_paths=prompt_paths, tools=tools, a2a_protocol=a2a_protocol)
         

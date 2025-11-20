@@ -6,7 +6,7 @@
 # ABC Application System Architecture
 
 ## Purpose
-Comprehensive system architecture documentation for the 7-agent collaborative AI portfolio management system, covering macro-to-micro analysis framework, agent orchestration, and technical implementation.
+Comprehensive system architecture documentation for the 8-agent collaborative AI portfolio management system, covering macro-to-micro analysis framework, agent orchestration, and technical implementation.
 
 ## Related Files
 - Code: `src/main.py`, `src/utils/a2a_protocol.py`, `src/agents/*.py`
@@ -22,7 +22,7 @@ Comprehensive system architecture documentation for the 7-agent collaborative AI
 
 ABC Application is a sophisticated multi-agent AI system for quantitative portfolio management, combining Grok-powered reasoning with Interactive Brokers (IBKR) for professional-grade trading execution. The system operates on a macro-to-micro analysis hierarchy, enabling systematic market scanning combined with deep fundamental analysis.
 
-### **Core Innovation: AI Reasoning Through 7-Agent Collaboration**
+### **Core Innovation: AI Reasoning Through 8-Agent Collaboration**
 
 # ABC Application System Architecturearchitecture.md
 
@@ -30,11 +30,11 @@ ABC Application is a sophisticated multi-agent AI system for quantitative portfo
 
 ABC Application is a sophisticated multi-agent AI system for quantitative portfolio management, combining Grok-powered reasoning with Interactive Brokers (IBKR) for professional-grade trading execution. The system operates on a macro-to-micro analysis hierarchy, enabling systematic market scanning combined with deep fundamental analysis.
 
-## Core Architecture PrinciplesThe ABC Application system's fundamental breakthrough is its **7-agent collaborative reasoning architecture**. This creates a sophisticated AI reasoning environment where specialized agents debate, deliberate, and reach consensus on investment decisions - mimicking institutional investment committees but with AI precision, speed, and scalability.
+## Core Architecture PrinciplesThe ABC Application system's fundamental breakthrough is its **8-agent collaborative reasoning architecture**. This creates a sophisticated AI reasoning environment where specialized agents debate, deliberate, and reach consensus on investment decisions - mimicking institutional investment committees but with AI precision, speed, and scalability.
 
 
 
-### Agent-Based Design**Why 7 Agents for Reasoning?** Each agent represents a domain of financial expertise working in orchestrated reasoning loops:
+### Agent-Based Design**Why 8 Agents for Reasoning?** Each agent represents a domain of financial expertise working in orchestrated reasoning loops:
 
 - **7 Specialized Agents**: Each agent represents a domain of financial expertise- **Data Agent (1)**: Multi-source data validation and sentiment analysis
 
@@ -56,18 +56,15 @@ ABC Application is a sophisticated multi-agent AI system for quantitative portfo
 
 **Collaborative Reasoning Process:**
 
-#### **Two-Iteration Framework: Comprehensive → Executive Level**
+**Single Iteration Framework: Comprehensive Analysis**
 
-The collaborative reasoning process operates in two distinct iterations, each building upon the previous with increasing levels of strategic oversight and risk sensitivity.
+The collaborative reasoning process operates in a single comprehensive iteration that combines macro foundation with full agent deliberation for efficient decision-making.
 
 **Macro Foundation: Market Regime Assessment & Opportunity Identification**
 The MacroAgent establishes the strategic foundation before any detailed analysis begins, scanning 39+ sectors/assets and identifying top opportunities for focused analysis.
 
-**Iteration 1: Comprehensive Multi-Agent Deliberation (All 7 Agents)**
-All agents, including analyzers, participate in the complete 7-phase process to ensure maximum information gathering, diverse perspectives, and thorough analysis on the MacroAgent's prioritized opportunities.
-
-**Iteration 2: Executive-Level Strategic Oversight (All 7 Agents)**
-Following the comprehensive deliberation, the main agents conduct a focused strategic review, applying executive-level judgment and risk sensitivity.
+**Comprehensive Multi-Agent Deliberation (All 8 Agents)**
+All agents participate in the complete workflow phases to ensure maximum information gathering, diverse perspectives, and thorough analysis on the MacroAgent's prioritized opportunities.
 
 #### **Reflection Agent's Supreme Oversight Authority**
 The ReflectionAgent serves as the system's final arbiter with unilateral authority to ensure decision quality and risk management:
@@ -75,7 +72,7 @@ The ReflectionAgent serves as the system's final arbiter with unilateral authori
 - **Additional Iteration Trigger**: Can mandate one final comprehensive review if "canary in the coal mine" indicators emerge
 - **Data Resurrection**: Can require reconsideration of any previously discussed data point or concern
 
-**For detailed explanation of the 7-agent collaborative reasoning architecture, see:** `docs/ai-reasoning-agent-collaboration.md`
+**For detailed explanation of the 8-agent collaborative reasoning architecture, see:** `docs/ai-reasoning-agent-collaboration.md`
 
 2. **StrategyAgent** - Trade strategy generation and optimization
 
@@ -212,7 +209,7 @@ Memory Systems (Continuous Learning)* Reflection Management: Embedded throughout
 The system integrates with Discord through a single orchestrator bot that manages all agent communication internally:
 
 #### Unified Orchestrator Bot
-- **Single Bot Architecture**: One Discord bot instance manages all 7 agents via A2A protocol
+- **Single Bot Architecture**: One Discord bot instance manages all 8 agents via A2A protocol
 - **Workflow Control**: Start, pause, resume, and stop iterative reasoning processes
 - **Human Interventions**: Real-time human input during active workflows
 - **Status Monitoring**: Live workflow progress and agent health reporting

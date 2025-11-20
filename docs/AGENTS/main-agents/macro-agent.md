@@ -2,7 +2,7 @@
 
 ## Overview
 
-The MacroAgent serves as the **foundational cornerstone** of the collaborative reasoning framework, establishing market context and prioritizing investment opportunities before any detailed analysis begins. It performs high-level market analysis and asset class selection, implementing the "macro foundation" phase that guides all subsequent agent activities in the two-iteration framework.
+The MacroAgent serves as the **foundational cornerstone** of the collaborative reasoning framework, establishing market context and prioritizing investment opportunities before any detailed analysis begins. It performs high-level market analysis and asset class selection, implementing the "macro foundation" phase that guides all subsequent agent activities in the comprehensive reasoning process.
 
 ## Core Responsibilities
 
@@ -20,9 +20,9 @@ The MacroAgent serves as the **foundational cornerstone** of the collaborative r
 - **IBKR Compatibility**: Automatic filtering for Interactive Brokers trading platform compatibility
 
 ### Framework Integration
-- **Iteration 1 Foundation**: Provides the prioritized opportunity set for comprehensive multi-agent deliberation
+- **Comprehensive Deliberation Foundation**: Provides the prioritized opportunity set for comprehensive multi-agent deliberation
 - **Context for All Agents**: Supplies market regime context that influences data collection, strategy development, and risk assessment
-- **Executive Oversight Input**: Contributes to Iteration 2 strategic review with updated market context
+- **Strategic Review Input**: Contributes to strategic review with updated market context
 
 ## Key Capabilities
 

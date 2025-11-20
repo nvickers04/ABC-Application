@@ -60,6 +60,7 @@ class LiveWorkflowOrchestrator:
         # Discord components
         self.client = None
         self.channel = None  # General channel for summaries
+        self.alerts_channel = None  # Dedicated channel for trade alerts
         self.agent_channels = {}  # Map agent types to their channels
         
         # Direct agent integration
@@ -74,6 +75,11 @@ class LiveWorkflowOrchestrator:
         self.responses_collected = []
         self.human_interventions = []
         self.workflow_log = []
+        
+        # Monitoring state
+        self.monitoring_active = False
+        self.monitoring_log = []
+        self.monitoring_responses = []
         
         # Phase timing configuration
         self.phase_delays = {
@@ -174,6 +180,9 @@ class LiveWorkflowOrchestrator:
             print("⚠️ Agent classes not available - running in Discord-only mode")
             return
             
+        print("🤖 Starting agent initialization (this may take 20-30 seconds)...")
+        start_time = time.time()
+            
         try:
             # Initialize each agent with A2A protocol
             agent_classes = {
@@ -192,6 +201,7 @@ class LiveWorkflowOrchestrator:
                     continue
                     
                 try:
+                    print(f"🔧 Initializing {agent_key} agent...")
                     agent_instance = agent_class(a2a_protocol=self.a2a_protocol)
                     
                     # Initialize LLM asynchronously
@@ -206,6 +216,9 @@ class LiveWorkflowOrchestrator:
         except Exception as e:
             print(f"⚠️ Agent initialization failed: {e}")
             # Continue without direct agents - Discord-only mode
+            
+        end_time = time.time()
+        print(f"🎯 Agent initialization completed in {end_time - start_time:.1f} seconds")
         self._initialize_agents()
 
     def get_command_channel(self, command: str) -> Optional[discord.TextChannel]:
@@ -235,6 +248,102 @@ class LiveWorkflowOrchestrator:
             return self.agent_channels[agent_type]
         else:
             return self.channel
+
+    async def send_trade_alert(self, alert_message: str, alert_type: str = "trade"):
+        """Send a trade alert to the dedicated alerts channel"""
+        if not self.alerts_channel:
+            print(f"⚠️ Alerts channel not available, sending to general channel")
+            if self.channel:
+                await self.channel.send(f"🚨 **TRADE ALERT** 🚨\n{alert_message}")
+            return
+
+        try:
+            # Format alert with appropriate emoji based on type
+            emoji_map = {
+                "trade": "🚨",
+                "execution": "✅",
+                "risk": "⚠️",
+                "error": "❌",
+                "success": "🎯"
+            }
+            emoji = emoji_map.get(alert_type, "🚨")
+            
+            formatted_alert = f"{emoji} **TRADE ALERT** {emoji}\n{alert_message}"
+            await self.alerts_channel.send(formatted_alert)
+            print(f"✅ Trade alert sent to alerts channel: {alert_type}")
+        except Exception as e:
+            print(f"⚠️ Failed to send trade alert: {e}")
+            # Fallback to general channel
+            if self.channel:
+                await self.channel.send(f"🚨 **TRADE ALERT** 🚨\n{alert_message}")
+
+    def is_trade_related_message(self, message: str) -> bool:
+        """Determine if a message contains trade-related content that should go to alerts"""
+        trade_keywords = [
+            'trade proposal', 'trade execution', 'buy signal', 'sell signal',
+            'entry point', 'exit point', 'position sizing', 'stop loss',
+            'take profit', 'order placed', 'order filled', 'trade alert',
+            'execution validation', 'trade recommendation'
+        ]
+        
+        message_lower = message.lower()
+        return any(keyword in message_lower for keyword in trade_keywords)
+
+    def _extract_trade_alert_info(self, response_data: Dict[str, Any]) -> Optional[str]:
+        """Extract key trade information from agent response for alerts"""
+        try:
+            agent_name = response_data.get('agent', 'Unknown')
+            response = response_data.get('response', {})
+            
+            alert_parts = []
+            
+            if isinstance(response, dict):
+                # Look for trade proposals in structured responses
+                if 'trade_proposals' in response:
+                    proposals = response['trade_proposals']
+                    if isinstance(proposals, list) and proposals:
+                        alert_parts.append(f"**{agent_name.title()} Agent** generated {len(proposals)} trade proposal(s):")
+                        for i, proposal in enumerate(proposals[:3], 1):  # Limit to 3 proposals
+                            if isinstance(proposal, dict):
+                                instrument = proposal.get('instrument', 'Unknown')
+                                action = proposal.get('action', 'Unknown')
+                                confidence = proposal.get('confidence', 'Unknown')
+                                alert_parts.append(f"• {action.upper()} {instrument} (Confidence: {confidence})")
+                
+                # Look for execution validation
+                elif 'execution_plan' in response:
+                    plan = response['execution_plan']
+                    if isinstance(plan, dict):
+                        instrument = plan.get('instrument', 'Unknown')
+                        quantity = plan.get('quantity', 'Unknown')
+                        alert_parts.append(f"**{agent_name.title()} Agent** validated execution:")
+                        alert_parts.append(f"• Instrument: {instrument}")
+                        alert_parts.append(f"• Quantity: {quantity}")
+                
+                # Look for risk assessment
+                elif 'risk_assessment' in response:
+                    assessment = response['risk_assessment']
+                    if isinstance(assessment, dict):
+                        risk_level = assessment.get('overall_risk', 'Unknown')
+                        alert_parts.append(f"**{agent_name.title()} Agent** risk assessment:")
+                        alert_parts.append(f"• Risk Level: {risk_level.upper()}")
+            
+            else:
+                # For string responses, extract key trade info
+                response_str = str(response)
+                if 'trade proposal' in response_str.lower():
+                    alert_parts.append(f"**{agent_name.title()} Agent** has trade proposals ready for review")
+                elif 'execution' in response_str.lower():
+                    alert_parts.append(f"**{agent_name.title()} Agent** provided execution guidance")
+            
+            if alert_parts:
+                return "\n".join(alert_parts)
+            else:
+                return None
+                
+        except Exception as e:
+            print(f"⚠️ Error extracting trade alert info: {e}")
+            return None
 
     async def check_agent_health(self) -> Dict[str, Any]:
         """Check health status of all agents using BaseAgent methods"""
@@ -297,23 +406,31 @@ class LiveWorkflowOrchestrator:
             if 'debate' in command.lower():
                 return await self._handle_debate_command(agent, command, data)
             
+            # Strip agent prefix for generic analysis
+            stripped_command = command
+            prefixes = ["!d ", "!m ", "!s ", "!ref ", "!exec ", "!l "]
+            for prefix in prefixes:
+                if stripped_command.startswith(prefix):
+                    stripped_command = stripped_command[len(prefix):]
+                    break
+            
             # Parse command for direct agent method calls
-            if command.startswith('!analyze') or command.startswith('analyze'):
+            if stripped_command.startswith('!analyze') or stripped_command.startswith('analyze'):
                 # Extract analysis query
-                query = command.replace('!analyze', '').replace('analyze', '').strip()
+                query = stripped_command.replace('!analyze', '').replace('analyze', '').strip()
                 if data:
                     query += f" {data}"
                     
                 result = await agent.analyze(query)
                 return result
                 
-            elif command.startswith('!status') or command.startswith('status'):
+            elif stripped_command.startswith('!status') or stripped_command.startswith('status'):
                 result = await agent.get_status()
                 return result
                 
             else:
                 # For other commands, use generic analyze method
-                result = await agent.analyze(command)
+                result = await agent.analyze(stripped_command)
                 return result
                 
         except Exception as e:
@@ -810,6 +927,21 @@ class LiveWorkflowOrchestrator:
             else:
                 await channel.send(detailed)
 
+        # Check for trade-related content and send alerts
+        for response_data in responses:
+            response = response_data['response']
+            if isinstance(response, dict):
+                # Check structured responses for trade content
+                response_text = str(response)
+            else:
+                response_text = str(response)
+            
+            if self.is_trade_related_message(response_text):
+                # Extract key trade information for alert
+                alert_content = self._extract_trade_alert_info(response_data)
+                if alert_content:
+                    await self.send_trade_alert(alert_content, "trade")
+
         await channel.send(f"✅ **Command {command_index} processing complete**")
 
     def _format_response_value(self, key: str, value: Any) -> str:
@@ -959,8 +1091,12 @@ class LiveWorkflowOrchestrator:
 
             'strategy_development': [
                 "!s analyze Based on macro regime and sector data, develop 5 specific trading strategies with entry/exit criteria. Each strategy must include: instrument selection, position sizing, entry triggers, profit targets, stop losses, and Probability of Profit (PoP) calculations. Consider current portfolio positions and ensure proposals maintain proper diversification and risk limits.",
+                "!m analyze Provide macro perspective on proposed strategies - how do they align with current economic regime and market cycle? Validate that strategies are appropriate for current macro conditions.",
+                "!d analyze Validate strategy proposals with current market data - check technical levels, volume patterns, and institutional activity. Ensure entry/exit criteria are supported by current market structure.",
                 "!s analyze Incorporate technical analysis: support/resistance levels, trend channels, momentum divergence signals. Generate 5 specific trade proposals with technical entry/exit points, risk/reward ratios, and PoP estimates based on historical success rates. Account for existing position sizes and avoid over-concentration in similar assets.",
                 "!s analyze Design risk management overlays: position sizing, stop losses, hedging strategies using options/futures. Propose 5 complete trade structures with defined risk parameters and PoP calculations considering win rate and risk/reward profiles. Ensure total portfolio risk remains within acceptable limits.",
+                "!m analyze Assess how proposed strategies fit within broader portfolio allocation - sector balance, duration positioning, and risk parity considerations.",
+                "!d analyze Cross-validate strategy timing with market microstructure - order flow, liquidity conditions, and execution feasibility.",
                 "!s analyze Consider market timing: optimal entry points, holding periods, exit triggers based on technicals. Develop 5 timing-based trade proposals with specific entry windows, holding periods, and PoP assessments. Factor in current market exposure and rebalancing needs.",
                 "!s analyze Evaluate strategy robustness across different market scenarios (bull/bear/sideways). Generate 5 scenario-specific trade proposals with conditional execution criteria and PoP calculations for each scenario. Consider how proposals perform relative to current portfolio composition."
             ],
@@ -972,26 +1108,33 @@ class LiveWorkflowOrchestrator:
 
             'risk_assessment': [
                 "!ref analyze Calculate Value at Risk (VaR) for each proposed trade using historical simulation and parametric methods. Rank trades by risk-adjusted return potential and refine Probability of Profit (PoP) calculations. Consider how new trades affect total portfolio VaR and correlation with existing positions.",
+                "!d analyze Provide current market data context for risk assessment - volatility levels, liquidity conditions, and correlation matrices for proposed instruments.",
                 "!ref analyze Assess tail risk: Black Swan scenarios, correlation breakdowns, liquidity crunch possibilities. Identify which trade proposals are most vulnerable to extreme events and adjust PoP estimates downward accordingly. Evaluate impact on current portfolio resilience.",
+                "!m analyze Evaluate macroeconomic risk factors - interest rate changes, currency impacts, geopolitical risks that could affect proposed trades.",
                 "!ref analyze Evaluate strategy drawdown potential and maximum loss scenarios under stress conditions. Propose risk mitigation strategies for high-risk trades and recalibrate PoP calculations based on stress testing results. Assess combined drawdown risk with existing positions.",
+                "!d analyze Validate risk metrics with current market data - check volatility surfaces, option pricing, and institutional positioning that affects risk calculations.",
                 "!ref analyze Consider systemic risks: Fed policy changes, geopolitical events, economic data surprises. Generate contingency trade proposals for different risk scenarios with updated PoP assessments. Review current portfolio exposure to these risks.",
                 "!ref analyze Generate risk-adjusted return metrics and Sharpe/Sortino ratios for strategy comparison. Recommend trade sizing based on risk tolerance and finalize PoP calculations. Ensure proposals align with current portfolio risk profile."
             ],
 
             'consensus': [
                 "!ref analyze Synthesize all agent inputs: Which trade proposals pass risk/reward hurdles? What are the trade-offs between different proposals? Consider portfolio impact, diversification benefits, and refine Probability of Profit (PoP) calculations based on consensus confidence.",
+                "!m analyze Provide macro-level consensus on trade proposals - which align best with current economic regime and long-term market outlook?",
+                "!d analyze Validate consensus with current market data - which proposals have the strongest technical and fundamental support?",
                 "!ref analyze Evaluate strategy consensus: Where do all agents agree on trade proposals? Where are there material disagreements on specific trades? Assess alignment with current position strategy and adjust PoP estimates based on consensus levels.",
                 "!ref analyze Consider implementation feasibility: Capital requirements, slippage costs, execution complexity for each proposed trade. Evaluate funding needs relative to current cash balance and factor feasibility into final PoP calculations.",
-                "!ref analyze Assess market capacity: Can proposed trades be scaled without moving markets or exhausting liquidity? Consider position size limits relative to average daily volume and adjust PoP estimates for scalability concerns.",
+                "!d analyze Assess market capacity: Can proposed trades be scaled without moving markets or exhausting liquidity? Consider position size limits relative to average daily volume and adjust PoP estimates for scalability concerns.",
+                "!m analyze Evaluate portfolio-level implications of consensus trades - sector allocation changes, risk profile shifts, and macroeconomic positioning.",
                 "!ref analyze Generate final trade proposal rankings with confidence levels and implementation priorities. Ensure selected trades complement current portfolio without excessive risk concentration, with final PoP assessments."
             ],
 
             'execution_validation': [
-                "!exec analyze Model transaction costs: Commissions, spreads, market impact for proposed position sizes. Calculate total execution costs for each trade proposal. Consider tax implications for current holdings.",
-                "!exec analyze Assess execution logistics: Trading hours, venue selection, algorithmic execution requirements. Validate execution feasibility for each proposed trade. Check for position size limits and margin requirements.",
-                "!exec analyze Evaluate position management: Rebalancing triggers, scaling in/out protocols, exit strategies. Develop detailed execution plans for each trade proposal. Consider rebalancing impact on current portfolio.",
-                "!exec analyze Consider tax implications and wash sale rules for strategy implementation. Optimize trade structure for tax efficiency. Review current position cost basis and holding periods.",
-                "!exec analyze Generate detailed execution playbook with step-by-step implementation guide for top-ranked trade proposals. Include position sizing relative to current portfolio value and risk limits."
+                "!exec analyze CONDITIONAL EXECUTION: Review supreme_oversight decision - if EXECUTE approved, model transaction costs, spreads, and market impact for proposed position sizes. If RESTART or HOLD, skip execution analysis.",
+                "!exec analyze CONDITIONAL EXECUTION: If executing, assess execution logistics, trading hours, venue selection, and algorithmic requirements. Validate execution feasibility and check position limits. If not executing, analyze what would need to change for future execution.",
+                "!exec analyze CONDITIONAL EXECUTION: If executing, evaluate position management, rebalancing triggers, and exit strategies. If restarting workflow, identify required re-analysis areas. If holding, specify monitoring triggers.",
+                "!exec analyze CONDITIONAL EXECUTION: If executing, consider tax implications and optimize trade structure. If not executing, document execution constraints for future reference.",
+                "!exec analyze CONDITIONAL EXECUTION: Generate execution playbook only if trades approved. Include position sizing and risk parameters. If not executing, provide restart criteria for next workflow cycle.",
+                "!exec execute CONDITIONAL EXECUTION: Execute trades ONLY if supreme_oversight approved execution. Execute top approved trades through IBKR with full logging. If restart/hold decision, log decision and prepare for next cycle."
             ],
 
             'learning': [
@@ -1002,22 +1145,54 @@ class LiveWorkflowOrchestrator:
                 "!l analyze Generate trade improvement recommendations for future workflow iterations based on current proposal outcomes. Suggest portfolio rebalancing strategies based on historical performance."
             ],
 
-            'executive_review': [
-                "!ref analyze ITERATION 2: Review Iteration 1 trade proposals and identify gaps, assumptions, or alternative perspectives that were missed. Consider portfolio fit, position implications, and refine Probability of Profit (PoP) calculations with additional insights.",
-                "!ref analyze ITERATION 2: Reassess risks using Iteration 1 findings - are there hidden risks or overconfidence in the initial trade proposals? Evaluate combined portfolio risk and adjust PoP estimates based on deeper risk analysis.",
-                "!s analyze ITERATION 2: Develop enhanced trade proposals building on Iteration 1 - consider counter-trend approaches, timing refinements, or position sizing adjustments. Ensure proposals work with current holdings and include updated PoP calculations.",
-                "!ref analyze ITERATION 2: Challenge Iteration 1 consensus - what dissenting views or devil's advocate positions should be considered for trade proposals? Review position concentration risks and recalibrate PoP estimates.",
-                "!exec analyze ITERATION 2: Evaluate execution feasibility of Iteration 1 trade proposals under various market conditions and liquidity scenarios. Consider current portfolio liquidity and position sizes, factoring execution risks into PoP calculations.",
-                "!l analyze ITERATION 2: Apply historical lessons to Iteration 1 trade proposals - what similar market conditions produced different trade outcomes? Learn from current position performance and update PoP estimates with historical context.",
-                "!m analyze ITERATION 2: Consider macroeconomic regime changes - how would Iteration 1 trade proposals perform if the regime shifts? Assess portfolio resilience to regime changes and adjust PoP calculations for regime risk."
+            'supreme_oversight': [
+                "!ref analyze EXECUTION DECISION: Review all workflow analysis and premarket developments - should we EXECUTE consensus trades, RESTART workflow cycle, or HOLD positions? Consider market conditions, news events, and risk assessment. Make definitive recommendation with reasoning.",
+                "!ref analyze EXECUTION DECISION: If EXECUTING - provide final position sizes, entry timing, and risk parameters for approved trades. If RESTARTING - identify what aspects need re-analysis. If HOLDING - specify monitoring triggers.",
+                "!ref analyze EXECUTION DECISION: Final execution authority - approve trade execution, mandate workflow restart, or implement holding pattern. Include specific execution instructions or restart parameters based on current market context."
             ],
 
-            'supreme_oversight': [
-                "!ref analyze SUPREME OVERSIGHT: Compare Iteration 1 vs Iteration 2 trade proposal analyses - which insights are most robust and actionable? Consider portfolio integration, risk management, and consolidate Probability of Profit (PoP) calculations across both iterations.",
-                "!ref analyze SUPREME OVERSIGHT: Synthesize both iterations into final trade recommendations - what is the strongest consensus position? Ensure recommendations align with current portfolio strategy and provide final PoP assessments.",
-                "!ref analyze SUPREME OVERSIGHT: Crisis detection across both iterations - identify any black swan risks or critical assumptions in trade proposals. Assess portfolio vulnerability to identified risks and adjust final PoP estimates.",
-                "!ref analyze SUPREME OVERSIGHT: Final veto authority - approve/reject trade proposals or mandate additional analysis based on both iterations. Consider overall portfolio health, risk limits, and PoP confidence levels.",
-                "!ref analyze SUPREME OVERSIGHT: Implementation prioritization - rank trade proposals by conviction level considering both iteration insights. Provide final position sizing recommendations relative to current portfolio and PoP-based confidence scores."
+            # MARKET OPEN EXECUTION WORKFLOW - Fast-track execution leveraging premarket analysis
+            'market_open_quick_check': [
+                "!d analyze MARKET OPEN CHECK: Pull current market data - SPY, QQQ, VIX, Treasury yields. Compare to premarket analysis expectations. Identify any significant deviations requiring execution delay.",
+                "!d analyze MARKET OPEN CHECK: Check order book depth and liquidity for approved trade symbols. Assess if market conditions support planned execution sizes without excessive slippage.",
+                "!ref analyze MARKET OPEN CHECK: Review premarket news and overnight developments. Determine if any breaking news invalidates approved trade thesis. Quick risk reassessment.",
+                "!exec analyze MARKET OPEN CHECK: Validate execution logistics - IBKR connectivity, margin availability, position limits. Confirm all technical requirements for immediate execution."
+            ],
+
+            'market_open_execution': [
+                "!exec execute MARKET OPEN EXECUTION: Execute approved trades immediately using premarket analysis parameters. Execute top 3 priority trades with market orders, full position sizes as approved.",
+                "!exec execute MARKET OPEN EXECUTION: Log all execution details - entry prices, timestamps, order IDs. Update portfolio positions and calculate realized P&L.",
+                "!exec execute MARKET OPEN EXECUTION: Set initial stop losses and profit targets based on premarket risk parameters. Configure automated risk management.",
+                "!exec execute MARKET OPEN EXECUTION: Send execution alerts and initiate trade monitoring workflow. Transition from analysis mode to active position management."
+            ],
+
+            # TRADE MONITORING WORKFLOW - Ongoing position management after execution
+            'trade_monitoring_setup': [
+                "!exec analyze MONITORING SETUP: Establish monitoring parameters for executed positions - entry prices, stop levels, profit targets, holding periods.",
+                "!exec analyze MONITORING SETUP: Configure automated alerts - price triggers, volume spikes, news sentiment changes, technical level breaches.",
+                "!exec analyze MONITORING SETUP: Set up position scaling rules - partial profit taking, stop loss tightening, position size adjustments based on performance.",
+                "!exec analyze MONITORING SETUP: Initialize risk monitoring - portfolio VaR, correlation changes, drawdown limits, margin utilization tracking."
+            ],
+
+            'trade_monitoring_active': [
+                "!exec analyze ACTIVE MONITORING: Track position performance in real-time - P&L, unrealized gains/losses, risk metrics, market exposure.",
+                "!exec analyze ACTIVE MONITORING: Monitor market conditions - volatility changes, sector rotations, macroeconomic developments affecting positions.",
+                "!exec analyze ACTIVE MONITORING: Evaluate exit opportunities - profit targets hit, stop losses triggered, time-based exits, fundamental changes.",
+                "!exec analyze ACTIVE MONITORING: Assess portfolio impact - overall risk profile, diversification, correlation changes, rebalancing needs."
+            ],
+
+            'trade_monitoring_decisions': [
+                "!exec analyze MONITORING DECISIONS: Evaluate position adjustments - scale out profits, tighten stops, add to winners, cut losers.",
+                "!exec analyze MONITORING DECISIONS: Consider new opportunities - related trades, hedging strategies, portfolio rebalancing trades.",
+                "!exec analyze MONITORING DECISIONS: Risk management actions - reduce position sizes, add protective options, implement trailing stops.",
+                "!exec analyze MONITORING DECISIONS: Exit decisions - full position closes, partial exits, time-based liquidations, fundamental-driven exits."
+            ],
+
+            'trade_monitoring_execution': [
+                "!exec execute MONITORING EXECUTION: Execute approved position adjustments - scale outs, stop tightening, protective additions.",
+                "!exec execute MONITORING EXECUTION: Execute new trades identified during monitoring - hedges, rebalancing, opportunity captures.",
+                "!exec execute MONITORING EXECUTION: Execute exit orders - profit taking, stop loss execution, time-based closures.",
+                "!exec execute MONITORING EXECUTION: Update portfolio records and risk metrics after all executions. Log comprehensive trade history."
             ]
         }
 
@@ -1045,11 +1220,38 @@ class LiveWorkflowOrchestrator:
                 guild = self.client.get_guild(guild_id)
                 if guild:
                     # Set up general channel for summaries
-                    for ch in guild.text_channels:
-                        if ch.name in ['general', 'workflow', 'analysis', 'trading']:
-                            self.channel = ch
-                            print(f"📝 General summaries in: #{ch.name}")
-                            break
+                    general_channel_id = os.getenv('DISCORD_GENERAL_CHANNEL_ID')
+                    if general_channel_id:
+                        try:
+                            self.channel = guild.get_channel(int(general_channel_id))
+                            if self.channel:
+                                print(f"📝 General channel configured: #{self.channel.name}")
+                            else:
+                                print(f"⚠️ General channel ID {general_channel_id} not found, using fallback")
+                        except ValueError:
+                            print(f"⚠️ Invalid general channel ID: {general_channel_id}")
+                    
+                    if not self.channel:
+                        # Fallback to finding by name
+                        for ch in guild.text_channels:
+                            if ch.name in ['general', 'workflow', 'analysis', 'trading']:
+                                self.channel = ch
+                                print(f"📝 General channel (fallback): #{ch.name}")
+                                break
+
+                    # Set up alerts channel for trade notifications
+                    alerts_channel_id = os.getenv('DISCORD_ALERTS_CHANNEL_ID')
+                    if alerts_channel_id:
+                        try:
+                            self.alerts_channel = guild.get_channel(int(alerts_channel_id))
+                            if self.alerts_channel:
+                                print(f"🚨 Alerts channel configured: #{self.alerts_channel.name}")
+                            else:
+                                print(f"⚠️ Alerts channel ID {alerts_channel_id} not found")
+                        except ValueError:
+                            print(f"⚠️ Invalid alerts channel ID: {alerts_channel_id}")
+                    else:
+                        print("⚠️ DISCORD_ALERTS_CHANNEL_ID not set, trade alerts will go to general channel")
 
                     if not self.channel and guild.text_channels:
                         self.channel = guild.text_channels[0]
@@ -1068,7 +1270,11 @@ class LiveWorkflowOrchestrator:
 
                     # Announce orchestrator presence
                     if self.channel:
-                        await self.channel.send("🎯 **Live Workflow Orchestrator Online**\n🤖 Ready to begin iterative reasoning workflow with unified agent coordination. Type `!start_workflow` to begin, or ask questions at any time!")
+                        channel_status = "✅ Channel separation active" if self.alerts_channel else "⚠️ Alerts channel not configured"
+                        await self.channel.send("🎯 **Live Workflow Orchestrator Online**\n🤖 Ready to begin iterative reasoning workflow with unified agent coordination. Type `!start_workflow` to begin analysis, `!start_market_open_execution` for fast execution, or `!start_trade_monitoring` for position monitoring!")
+                        await self.channel.send(f"📢 **Channel Configuration:** {channel_status}")
+                        if self.alerts_channel:
+                            await self.channel.send(f"🚨 Trade alerts will be sent to: #{self.alerts_channel.name}")
 
         @self.client.event
         async def on_message(message):
@@ -1086,6 +1292,14 @@ class LiveWorkflowOrchestrator:
                 await self.start_workflow()
                 return
 
+            if content == "!start_market_open_execution" and not self.workflow_active:
+                await self.start_market_open_execution_workflow()
+                return
+
+            if content == "!start_trade_monitoring" and not getattr(self, 'monitoring_active', False):
+                await self.start_trade_monitoring_workflow()
+                return
+
             if content == "!pause_workflow" and self.workflow_active:
                 await self.pause_workflow()
                 return
@@ -1096,6 +1310,10 @@ class LiveWorkflowOrchestrator:
 
             if content == "!stop_workflow":
                 await self.stop_workflow()
+                return
+
+            if content == "!stop_monitoring" and getattr(self, 'monitoring_active', False):
+                await self.complete_monitoring_workflow()
                 return
 
             if content == "!workflow_status":
@@ -1213,42 +1431,182 @@ class LiveWorkflowOrchestrator:
         self.human_interventions = []
 
         await channel.send("🚀 **STARTING SEQUENTIAL ITERATIVE REASONING WORKFLOW**")
-        await channel.send("📊 This will run through 2 sequential iterations where each builds upon the previous")
+        await channel.send("📊 Complete analysis of market conditions, strategies, and risks for immediate trading decisions")
         await channel.send("💡 You can ask questions or intervene at any time!")
 
         # Phase 0: Macro Foundation (Data Collection + Analysis)
         await self.execute_phase_with_agents('macro_foundation_data_collection', "🏛️ PHASE 0a: DATA COLLECTION")
         await self.execute_phase_with_agents('macro_foundation_analysis', "🏛️ PHASE 0b: MACRO ANALYSIS")
 
-        # Iteration 1: Comprehensive Deliberation
-        await channel.send("\n🔄 **ITERATION 1: INITIAL COMPREHENSIVE ANALYSIS**")
-        await channel.send("📊 First complete analysis of market conditions, strategies, and risks")
+        # Single Iteration: Comprehensive Deliberation
+        await channel.send("\n🔄 **SINGLE ITERATION: COMPREHENSIVE ANALYSIS**")
+        await channel.send("📊 Complete analysis of market conditions, strategies, and risks for immediate trading decisions")
 
-        phases_1 = [
+        phases = [
             ('intelligence_gathering', "📊 Phase 1: Intelligence Gathering"),
             ('strategy_development', "🎯 Phase 2: Strategy Development"),
             ('debate', "⚔️ Phase 3: Multi-Agent Debate"),
             ('risk_assessment', "⚠️ Phase 4: Risk Assessment & Refinement"),
             ('consensus', "🤝 Phase 5: Consensus Building"),
-            ('execution_validation', "✅ Phase 6: Execution Validation"),
-            ('learning', "🧠 Phase 7: Learning Integration")
+            ('supreme_oversight', "🎯 Phase 6: Final Execution Decision"),
+            ('execution_validation', "✅ Phase 7: Execution Validation"),
+            ('learning', "🧠 Phase 8: Learning Integration")
         ]
 
-        for phase_key, phase_title in phases_1:
+        for phase_key, phase_title in phases:
             await self.execute_phase_with_agents(phase_key, phase_title)
 
-        # Iteration 2: Enhanced Analysis Building on Iteration 1
-        await channel.send("\n🔄 **ITERATION 2: ENHANCED ANALYSIS (Building on Iteration 1)**")
-        await channel.send("📊 Second iteration that challenges, refines, and enhances Iteration 1 findings")
-        await self.execute_phase_with_agents('executive_review', "🎯 Iteration 2: Enhanced Strategic Review")
-
-        # Supreme Oversight: Synthesis of Both Iterations
-        await channel.send("\n👑 **SUPREME OVERSIGHT: FINAL SYNTHESIS**")
-        await channel.send("📊 Supreme synthesis comparing and combining insights from both iterations")
-        await self.execute_phase_with_agents('supreme_oversight', "🎯 Supreme Oversight: Final Decision")
+        # Complete workflow with final decision
+        await channel.send("\n🎯 **WORKFLOW COMPLETE**")
+        await channel.send("📊 Analysis complete - decision made in supreme_oversight phase")
 
         # Complete workflow
         await self.complete_workflow()
+
+    async def start_market_open_execution_workflow(self):
+        """Start the market open execution workflow - fast-track execution leveraging premarket analysis"""
+        if not self.channel:
+            print("❌ No channel available for workflow")
+            return
+
+        channel = cast(discord.TextChannel, self.channel)
+
+        if self.workflow_active:
+            await channel.send("⚠️ Workflow already active! Complete current workflow first.")
+            return
+
+        # Check agent health before starting
+        health_status = await self.check_agent_health()
+        if health_status['overall_health'] == 'critical':
+            await channel.send("🚨 **CRITICAL: System health prevents workflow start**")
+            return
+
+        await channel.send("🏁 **MARKET OPEN EXECUTION WORKFLOW STARTED**")
+        await channel.send("⚡ Fast-track execution leveraging premarket analysis")
+        await channel.send("💡 This workflow executes pre-approved trades at market open")
+
+        # Create collaborative session for execution coordination
+        session_created = await self.create_collaborative_session("Market Open Execution")
+        if session_created:
+            await channel.send("🎯 **Execution Session Active** - Coordinated trade execution")
+
+        self.workflow_active = True
+        self.current_phase = "market_open_execution"
+        self.workflow_log = []
+        self.responses_collected = []
+        self.human_interventions = []
+
+        # Quick market check phase
+        await self.execute_phase_with_agents('market_open_quick_check', "🔍 MARKET OPEN QUICK CHECK")
+
+        # Execution phase
+        await self.execute_phase_with_agents('market_open_execution', "💹 MARKET OPEN EXECUTION")
+
+        # Complete and transition to monitoring
+        await channel.send("✅ **MARKET OPEN EXECUTION COMPLETE**")
+        await channel.send("🔄 **AUTO-TRANSITIONING TO TRADE MONITORING**")
+
+        # Automatically start trade monitoring
+        await self.start_trade_monitoring_workflow()
+
+    async def start_trade_monitoring_workflow(self):
+        """Start the trade monitoring workflow for active positions"""
+        if not self.channel:
+            print("❌ No channel available for monitoring")
+            return
+
+        channel = cast(discord.TextChannel, self.channel)
+
+        # Don't check workflow_active here - monitoring can run alongside other activities
+        # But ensure we don't have conflicting workflows
+
+        await channel.send("👁️ **TRADE MONITORING WORKFLOW ACTIVATED**")
+        await channel.send("📊 Continuous monitoring of executed positions")
+        await channel.send("⚡ Real-time risk management and exit opportunities")
+
+        # Create monitoring session
+        session_created = await self.create_collaborative_session("Active Trade Monitoring")
+        if session_created:
+            await channel.send("🎯 **Monitoring Session Active** - Continuous position oversight")
+
+        self.monitoring_active = True
+        self.current_phase = "trade_monitoring"
+        self.monitoring_log = []
+        self.monitoring_responses = []
+
+        # Setup monitoring parameters
+        await self.execute_phase_with_agents('trade_monitoring_setup', "⚙️ MONITORING SETUP")
+
+        # Start continuous monitoring loop
+        await channel.send("🔄 **STARTING CONTINUOUS MONITORING LOOP**")
+        await channel.send("📡 Monitoring will run continuously until positions are closed")
+
+        # Run monitoring phases in a loop
+        monitoring_cycle = 0
+        while self.monitoring_active:
+            monitoring_cycle += 1
+            await channel.send(f"\n📊 **MONITORING CYCLE {monitoring_cycle}**")
+
+            # Active monitoring phase
+            await self.execute_phase_with_agents('trade_monitoring_active', f"👁️ ACTIVE MONITORING - Cycle {monitoring_cycle}")
+
+            # Decision phase
+            await self.execute_phase_with_agents('trade_monitoring_decisions', f"🎯 MONITORING DECISIONS - Cycle {monitoring_cycle}")
+
+            # Check if we need to execute any adjustments
+            await self.execute_phase_with_agents('trade_monitoring_execution', f"⚡ MONITORING EXECUTION - Cycle {monitoring_cycle}")
+
+            # Check if all positions are closed
+            if await self._check_positions_closed():
+                await channel.send("✅ **ALL POSITIONS CLOSED - MONITORING COMPLETE**")
+                self.monitoring_active = False
+                break
+
+            # Wait before next monitoring cycle (e.g., 5 minutes)
+            await channel.send("⏳ Waiting 5 minutes before next monitoring cycle...")
+            await asyncio.sleep(300)  # 5 minutes
+
+        await self.complete_monitoring_workflow()
+
+    async def _check_positions_closed(self) -> bool:
+        """Check if all monitored positions have been closed"""
+        try:
+            # Get current positions from IBKR
+            from integrations.ibkr_connector import get_ibkr_connector
+            ibkr_connector = get_ibkr_connector()
+
+            positions = await ibkr_connector.get_positions()
+            active_positions = [p for p in positions if p.get('position', 0) != 0]
+
+            return len(active_positions) == 0
+        except Exception as e:
+            print(f"Error checking positions: {e}")
+            return False
+
+    async def complete_monitoring_workflow(self):
+        """Complete the monitoring workflow"""
+        if not self.channel:
+            return
+
+        channel = cast(discord.TextChannel, self.channel)
+        self.monitoring_active = False
+        self.current_phase = "monitoring_completed"
+
+        await channel.send("🎉 **TRADE MONITORING COMPLETED**")
+
+        # Save monitoring results
+        monitoring_results = {
+            'completed_at': datetime.now().astimezone().isoformat(),
+            'monitoring_cycles': len(self.monitoring_log) if hasattr(self, 'monitoring_log') else 0,
+            'monitoring_responses': self.monitoring_responses if hasattr(self, 'monitoring_responses') else [],
+            'final_positions': await self._get_current_positions()
+        }
+
+        with open('data/trade_monitoring_results.json', 'w') as f:
+            json.dump(monitoring_results, f, indent=2, default=str)
+
+        await channel.send("💾 Monitoring results saved to `data/trade_monitoring_results.json`")
+        await channel.send("🔄 Ready for next analysis workflow! Type `!start_workflow` to begin.")
 
     async def execute_phase(self, phase_key: str, phase_title: str):
         """Execute a single phase of the workflow"""
@@ -1390,7 +1748,7 @@ class LiveWorkflowOrchestrator:
         await channel.send("📊 **Final Summary:**")
         await channel.send(f"• Agent Interactions: {len(self.responses_collected)} A2A communications")
         await channel.send(f"• Human Interventions: {len(self.human_interventions)}")
-        await channel.send(f"• Phases Completed: All 11 phases")
+        await channel.send(f"• Phases Completed: 9 phases (1 iteration)")
         await channel.send(f"• Agent Health: {final_health['overall_health'].title()} ({len(final_health['healthy_agents'])}/{final_health['total_agents']} healthy)")
         await channel.send(f"• Architecture: Unified A2A coordination (no separate Discord bots)")
         
@@ -1408,7 +1766,7 @@ class LiveWorkflowOrchestrator:
 
         # Save comprehensive results
         results = {
-            'completed_at': datetime.now().isoformat(),
+            'completed_at': datetime.now().astimezone().isoformat(),
             'total_responses': len(self.responses_collected),
             'human_interventions': len(self.human_interventions),
             'responses': self.responses_collected,
@@ -1417,7 +1775,7 @@ class LiveWorkflowOrchestrator:
             'agent_health': final_health,
             'collaborative_session_id': self.collaborative_session_id,
             'direct_agent_integration': bool(self.agent_instances),
-            'phases_completed': 11
+            'phases_completed': 9
         }
 
         with open('data/live_workflow_results.json', 'w') as f:
@@ -1428,6 +1786,19 @@ class LiveWorkflowOrchestrator:
 
     async def run_orchestrator(self):
         """Run the live workflow orchestrator"""
+        print("🎯 Starting Live Workflow Orchestrator...")
+        print("📋 Commands available in Discord:")
+        print("  !start_workflow              - Begin full analysis workflow")
+        print("  !start_market_open_execution - Fast-track execution at market open")
+        print("  !start_trade_monitoring      - Start position monitoring workflow")
+        print("  !pause_workflow              - Pause current workflow")
+        print("  !resume_workflow             - Resume paused workflow")
+        print("  !stop_workflow               - Stop current workflow")
+        print("  !stop_monitoring             - Stop monitoring workflow")
+        print("  !workflow_status             - Get current status")
+        print("💡 You can ask questions or intervene at any time!")
+        print()
+        
         while True:  # Keep trying to reconnect
             try:
                 print("🔧 Initializing Discord client...")
@@ -1463,11 +1834,14 @@ async def main():
     """Run the live workflow orchestrator"""
     print("🎯 Starting Live Workflow Orchestrator...")
     print("📋 Commands available in Discord:")
-    print("  !start_workflow  - Begin the iterative reasoning process")
-    print("  !pause_workflow  - Pause the current workflow")
-    print("  !resume_workflow - Resume a paused workflow")
-    print("  !stop_workflow   - Stop the current workflow")
-    print("  !workflow_status - Get current status")
+    print("  !start_workflow              - Begin full analysis workflow")
+    print("  !start_market_open_execution - Fast-track execution at market open")
+    print("  !start_trade_monitoring      - Start position monitoring workflow")
+    print("  !pause_workflow              - Pause current workflow")
+    print("  !resume_workflow             - Resume paused workflow")
+    print("  !stop_workflow               - Stop current workflow")
+    print("  !stop_monitoring             - Stop monitoring workflow")
+    print("  !workflow_status             - Get current status")
     print("💡 You can ask questions or intervene at any time!")
 
     orchestrator = LiveWorkflowOrchestrator()

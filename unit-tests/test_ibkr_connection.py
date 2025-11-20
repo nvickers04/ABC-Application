@@ -5,6 +5,12 @@ Run this after configuring TWS API settings
 """
 
 import asyncio
+import sys
+import os
+
+# Add project root to path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from integrations.nautilus_ibkr_bridge import get_nautilus_ibkr_bridge
 
 async def test_connection():
@@ -24,36 +30,65 @@ async def test_connection():
     print(f"2. Connection Status: {status['ibkr_connected']}")
 
     if status['ibkr_connected']:
-        print("3. Testing live market data...")
+        print("3. Testing market data...")
         try:
+            # Test market data first (most reliable)
             data = await bridge.get_market_data('SPY')
             if data:
-                print("   ✅ SPY data retrieved from IBKR")
-                print(f"   Price: ${data.get('close', 'N/A'):.2f}")
+                print("   ✅ Market data retrieved")
+                price = data.get('close', data.get('price', 'N/A'))
+                source = data.get('source', 'unknown')
+                print(f"   SPY: ${price} (source: {source})")
             else:
-                print("   ❌ No data received")
+                print("   ❌ No market data received")
         except Exception as e:
             print(f"   ❌ Error: {e}")
 
-        print("4. Testing account summary...")
+        print("4. Testing positions...")
+        try:
+            positions = await bridge.get_positions()
+            print(f"   ✅ Positions retrieved: {len(positions)} positions")
+            if positions:
+                for pos in positions[:2]:  # Show first 2
+                    symbol = pos.get('symbol', 'Unknown')
+                    qty = pos.get('position', 0)
+                    print(f"      {symbol}: {qty} shares")
+        except Exception as e:
+            print(f"   ❌ Error: {e}")
+
+        print("5. Testing account summary...")
         try:
             account = await bridge.get_account_summary()
-            if account:
+            if account and 'error' not in account:
                 print("   ✅ Account data retrieved")
-                cash = account.get('TotalCashValue', 'N/A')
+                cash = account.get('TotalCashValue', account.get('cash_balance', 'N/A'))
                 print(f"   Cash: ${cash}")
             else:
                 print("   ❌ No account data")
+                error_msg = account.get('error', 'Unknown') if account else 'No response'
+                print(f"   Error: {error_msg}")
         except Exception as e:
             print(f"   ❌ Error: {e}")
-    else:
-        print("3. IBKR not connected - check TWS configuration")
-        print("   Using yfinance fallback for market data...")
 
-        data = await bridge.get_market_data('SPY')
-        if data:
-            print("   ✅ Fallback data working")
-            print(f"   SPY Price: ${data.get('close', 'N/A'):.2f}")
+    else:
+        print("3. IBKR not connected - using yfinance fallback")
+        try:
+            data = await bridge.get_market_data('SPY')
+            if data:
+                print("   ✅ Fallback data working")
+                price = data.get('close', data.get('price', 'N/A'))
+                print(f"   SPY Price: ${price}")
+            else:
+                print("   ❌ Fallback failed")
+        except Exception as e:
+            print(f"   ❌ Fallback error: {e}")
+
+    # Always disconnect
+    try:
+        await bridge.disconnect()
+        print("🔌 Disconnected from IBKR")
+    except Exception as e:
+        print(f"⚠️  Disconnect error: {e}")
 
     print("\n🎯 Test completed!")
 

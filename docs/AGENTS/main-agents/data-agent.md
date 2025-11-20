@@ -2,15 +2,15 @@
 
 ## Overview
 
-The DataAgent serves as the **intelligence engine** of the collaborative reasoning framework, coordinating 10 specialized data analyzers to provide comprehensive market intelligence throughout both iterations of the reasoning process. It transforms the MacroAgent's prioritized opportunities into deep, actionable market insights that inform all subsequent agent deliberations.
+The DataAgent serves as the **intelligence engine** of the collaborative reasoning framework, coordinating 10 specialized data analyzers to provide comprehensive market intelligence throughout the comprehensive reasoning process. It transforms the MacroAgent's prioritized opportunities into deep, actionable market insights that inform all subsequent agent deliberations.
 
 ## Core Responsibilities
 
 ### **Framework Integration**
 - **Macro Context Processing**: Receives MacroAgent's prioritized opportunity set and market regime context
-- **Iteration 1 Leadership**: Coordinates all 10 data analyzers for comprehensive intelligence gathering on selected assets
-- **Iteration 2 Synthesis**: Provides executive-level data synthesis for strategic oversight
-- **Cross-Iteration Intelligence**: Maintains data continuity and context throughout the entire reasoning process
+- **Comprehensive Intelligence Leadership**: Coordinates all 10 data analyzers for comprehensive intelligence gathering on selected assets
+- **Strategic Synthesis**: Provides strategic-level data synthesis for oversight
+- **Continuous Intelligence**: Maintains data continuity and context throughout the entire reasoning process
 
 ### Data Aggregation
 - **Focused Analysis**: Deep-dive intelligence on MacroAgent's top 5 prioritized assets
@@ -25,9 +25,9 @@ The DataAgent serves as the **intelligence engine** of the collaborative reasoni
 - **Predictive Insights**: Forward-looking market predictions based on comprehensive data analysis
 
 ### Collaborative Intelligence
-- **A2A Data Sharing**: Structured data exchange with all other agents across both iterations
-- **Comprehensive Debate**: All 10 analyzers participate in Iteration 1 multi-agent deliberation
-- **Executive Synthesis**: Provides consolidated intelligence for Iteration 2 strategic review
+- **A2A Data Sharing**: Structured data exchange with all other agents throughout the reasoning process
+- **Comprehensive Debate**: All 10 analyzers participate in comprehensive multi-agent deliberation
+- **Strategic Synthesis**: Provides consolidated intelligence for strategic review
 - **Context Provision**: Supplies market intelligence that informs strategy development and risk assessment
 
 ## Architecture

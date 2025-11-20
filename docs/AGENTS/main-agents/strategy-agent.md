@@ -2,15 +2,15 @@
 
 ## Overview
 
-The StrategyAgent serves as the **strategy architect** in the collaborative reasoning framework, coordinating 4 specialized strategy analyzers to develop sophisticated trade setups through integrated deliberation. It participates actively in both iterations, transforming DataAgent intelligence into actionable strategies while collaborating with all other agents throughout the reasoning process.
+The StrategyAgent serves as the **strategy architect** in the collaborative reasoning framework, coordinating 4 specialized strategy analyzers to develop sophisticated trade setups through integrated deliberation. It participates actively in the comprehensive reasoning process, transforming DataAgent intelligence into actionable strategies while collaborating with all other agents throughout the reasoning process.
 
 ## Core Responsibilities
 
 ### **Framework Integration**
 - **Macro Context Utilization**: Receives MacroAgent's market regime context and prioritized opportunities
-- **Iteration 1 Collaboration**: All 4 analyzers participate in comprehensive multi-agent strategy development with full data access
-- **Iteration 2 Leadership**: Leads executive-level strategic synthesis and refinement
-- **Cross-Agent Integration**: Incorporates insights from Data, Risk, Execution, and other agents throughout both iterations
+- **Comprehensive Deliberation**: All 4 analyzers participate in comprehensive multi-agent strategy development with full data access
+- **Strategic Leadership**: Leads strategic synthesis and refinement
+- **Cross-Agent Integration**: Incorporates insights from Data, Risk, Execution, and other agents throughout the reasoning process
 
 ### Strategy Generation
 - **Focused Opportunity Analysis**: Develop strategies specifically for MacroAgent's top 5 prioritized assets

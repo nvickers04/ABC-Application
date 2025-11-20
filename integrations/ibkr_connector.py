@@ -283,66 +283,55 @@ class IBKRConnector:
                 if not self.connected:
                     return {'error': 'Not connected to IBKR'}
 
-            # Use threading with new event loop for IBKR operations
-            import threading
-            import asyncio as asyncio_module
-
-            account_result = {'summary': None, 'positions': None, 'error': None}
-
-            def get_account_in_thread():
-                loop = asyncio_module.new_event_loop()
-                asyncio_module.set_event_loop(loop)
-
-                try:
-                    # Get account summary and positions synchronously
-                    summary = loop.run_until_complete(self.ib.reqAccountSummaryAsync())
-                    positions = loop.run_until_complete(self.ib.reqPositionsAsync())
-
-                    account_result['summary'] = summary
-                    account_result['positions'] = positions
-
-                except Exception as e:
-                    account_result['error'] = str(e)
-                finally:
-                    loop.close()
-
-            # Run account retrieval in thread
-            account_thread = threading.Thread(target=get_account_in_thread)
-            account_thread.start()
-            account_thread.join(timeout=10)  # 10 second timeout
-
-            if account_result['error']:
-                logger.error(f"Error in account thread: {account_result['error']}")
-                # Try to reconnect on error
-                self.connected = False
-                return {'error': account_result['error']}
-
-            summary = account_result['summary']
-            positions = account_result['positions']
-
-            # Get cash balance
-            cash_balance = 0.0
-            for item in summary:
-                if item.tag == 'TotalCashBalance':
-                    cash_balance = float(item.value)
+            # Get real account summary data using proper async handling
+            account_values = await self._run_in_executor(self.ib.accountValues)
 
             account_info = {
                 'account_id': self.account_id,
-                'cash_balance': cash_balance,
                 'currency': self.account_currency,
-                'positions': [
-                    {
-                        'symbol': pos.contract.symbol,
-                        'position': pos.position,
-                        'avg_cost': pos.avgCost,
-                        'market_value': pos.marketValue
-                    } for pos in positions
-                ],
-                'total_positions': len(positions),
-                'timestamp': datetime.now(timezone.utc).isoformat()
+                'positions': [],  # Will get from positions call
+                'total_positions': 0,
+                'timestamp': datetime.now(timezone.utc).isoformat(),
+                'real_data': True  # Flag to indicate this is real data
             }
 
-            logger.info(f"Account summary retrieved: ${cash_balance:.2f} cash, {len(positions)} positions")
+            # Parse account values
+            for value in account_values:
+                tag = value.tag
+                val = value.value
+
+                if tag == 'NetLiquidation':
+                    account_info['NetLiquidation'] = float(val)
+                    account_info['total_value'] = float(val)
+                elif tag == 'TotalCashValue':
+                    account_info['TotalCashValue'] = float(val)
+                    account_info['cash_balance'] = float(val)
+                elif tag == 'BuyingPower':
+                    account_info['BuyingPower'] = float(val)
+                    account_info['buying_power'] = float(val)
+                elif tag == 'AvailableFunds':
+                    account_info['AvailableFunds'] = float(val)
+                    account_info['available_funds'] = float(val)
+                elif tag == 'EquityWithLoanValue':
+                    account_info['EquityWithLoanValue'] = float(val)
+                elif tag == 'InitMarginReq':
+                    account_info['InitMarginReq'] = float(val)
+                elif tag == 'MaintMarginReq':
+                    account_info['MaintMarginReq'] = float(val)
+                elif tag == 'DayTradesRemaining':
+                    account_info['DayTradesRemaining'] = int(float(val))
+                    account_info['day_trades_remaining'] = int(float(val))
+
+            # Set defaults if not found
+            if 'cash_balance' not in account_info:
+                account_info['cash_balance'] = 0.0
+                account_info['TotalCashValue'] = 0.0
+            if 'total_value' not in account_info:
+                account_info['total_value'] = account_info['cash_balance']
+                account_info['NetLiquidation'] = account_info['cash_balance']
+
+            logger.info(f"Account summary retrieved: ${account_info['cash_balance']:,.2f} cash, "
+                       f"${account_info['total_value']:,.2f} total value")
             return account_info
 
         except Exception as e:
@@ -388,38 +377,11 @@ class IBKRConnector:
             if order_type == 'LMT' and price:
                 order.lmtPrice = price
 
-            # Place order using threading with new event loop
-            import threading
-            import asyncio as asyncio_module
-            import time
-
-            order_result = {'trade': None, 'error': None}
-
-            def place_order_in_thread():
-                loop = asyncio_module.new_event_loop()
-                asyncio_module.set_event_loop(loop)
-
-                try:
-                    trade = loop.run_until_complete(self.ib.placeOrderAsync(contract, order))
-                    order_result['trade'] = trade
-                except Exception as e:
-                    order_result['error'] = str(e)
-                finally:
-                    loop.close()
-
-            # Run order placement in thread
-            order_thread = threading.Thread(target=place_order_in_thread)
-            order_thread.start()
-            order_thread.join(timeout=10)  # 10 second timeout
-
-            if order_result['error']:
-                logger.error(f"Error in order thread: {order_result['error']}")
-                return {'error': order_result['error'], 'symbol': symbol, 'quantity': quantity, 'action': action}
-
-            trade = order_result['trade']
+            # Place order using synchronous IBKR method
+            trade = self.ib.placeOrder(contract, order)
 
             # Wait a bit for order to process
-            time.sleep(1)
+            await asyncio.sleep(1)
 
             order_result = {
                 'success': True,
@@ -457,46 +419,28 @@ class IBKRConnector:
                 if not self.connected:
                     return []
 
-            # Use threading with new event loop for IBKR operations
-            import threading
-            import asyncio as asyncio_module
-
-            positions_result = {'positions': None, 'error': None}
-
-            def get_positions_in_thread():
-                loop = asyncio_module.new_event_loop()
-                asyncio_module.set_event_loop(loop)
-
-                try:
-                    positions = loop.run_until_complete(self.ib.reqPositionsAsync())
-                    positions_result['positions'] = positions
-                except Exception as e:
-                    positions_result['error'] = str(e)
-                finally:
-                    loop.close()
-
-            # Run positions retrieval in thread
-            positions_thread = threading.Thread(target=get_positions_in_thread)
-            positions_thread.start()
-            positions_thread.join(timeout=10)  # 10 second timeout
-
-            if positions_result['error']:
-                logger.error(f"Error in positions thread: {positions_result['error']}")
-                return []
-
-            positions = positions_result['positions']
+            # Get real positions data using proper async handling
+            positions = await self._run_in_executor(self.ib.positions)
 
             position_list = []
-            for pos in positions:
-                position_list.append({
-                    'symbol': pos.contract.symbol,
-                    'position': pos.position,
-                    'avg_cost': pos.avgCost,
-                    'market_value': pos.marketValue,
-                    'unrealized_pnl': pos.unrealizedPNL,
-                    'realized_pnl': pos.realizedPNL
-                })
+            for position in positions:
+                if position.position != 0:  # Only include non-zero positions
+                    position_dict = {
+                        'account': position.account,
+                        'symbol': position.contract.symbol,
+                        'secType': position.contract.secType,
+                        'currency': position.contract.currency,
+                        'position': position.position,
+                        'avgCost': position.avgCost,
+                        'marketPrice': getattr(position, 'marketPrice', 0),
+                        'marketValue': getattr(position, 'marketValue', 0),
+                        'unrealizedPNL': getattr(position, 'unrealizedPNL', 0),
+                        'realizedPNL': getattr(position, 'realizedPNL', 0),
+                        'timestamp': datetime.now(timezone.utc).isoformat()
+                    }
+                    position_list.append(position_dict)
 
+            logger.info(f"Retrieved {len(position_list)} positions from IBKR")
             return position_list
 
         except Exception as e:

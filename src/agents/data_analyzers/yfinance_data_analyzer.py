@@ -17,6 +17,7 @@ import numpy as np
 import asyncio
 from datetime import datetime
 from dataclasses import dataclass, field
+import time
 from src.utils.redis_cache import get_redis_cache_manager, cache_get, cache_set
 
 # Import performance optimizations
@@ -59,13 +60,23 @@ class YfinanceDataAnalyzer(BaseAgent):
     """
     def __init__(self):
         config_paths = {'risk': 'config/risk-constraints.yaml'}  # Relative to root.
-        prompt_paths = {'base': 'base_prompt.txt', 'role': 'docs/AGENTS/main-agents/data-agent.md'}  # Relative to root.
+        prompt_paths = {'base': 'config/base_prompt.txt', 'role': 'docs/AGENTS/main-agents/data-agent.md'}  # Relative to root.
         tools = []  # MarketDataSub uses internal methods instead of tools
         super().__init__(role='market_data', config_paths=config_paths, prompt_paths=prompt_paths, tools=tools)
 
         # Initialize Redis cache manager
         self.redis_cache = get_redis_cache_manager()
         self.cache_ttl = 300  # 5 minutes TTL for market data
+
+        # Initialize optimized components if available
+        if OPTIMIZATIONS_AVAILABLE:
+            self.async_client = AsyncYFianceClient()
+            self.optimized_cache = OptimizedRedisCache(self.redis_cache) if self.redis_cache else None
+            self.circuit_breaker = CircuitBreaker(failure_threshold=3, recovery_timeout=30)
+        else:
+            self.async_client = None
+            self.optimized_cache = None
+            self.circuit_breaker = None
 
         # Initialize collaborative memory
         self.memory = MarketDataMemory()
@@ -127,15 +138,58 @@ class YfinanceDataAnalyzer(BaseAgent):
 
     def _is_cache_valid(self, cache_key):
         """Check if Redis cache entry exists and is valid."""
-        return cache_get('market_data', cache_key) is not None
+        if self.optimized_cache:
+            # Use optimized cache for async checking
+            import asyncio
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # If we're in an async context, we can't use await here
+                    # Fall back to basic cache check
+                    return cache_get('market_data', cache_key) is not None
+                else:
+                    # We can run async check
+                    return loop.run_until_complete(self.optimized_cache.get('market_data', cache_key)) is not None
+            except:
+                return cache_get('market_data', cache_key) is not None
+        else:
+            return cache_get('market_data', cache_key) is not None
 
     def _get_cached_data(self, cache_key):
         """Get cached market data from Redis."""
-        return cache_get('market_data', cache_key)
+        if self.optimized_cache:
+            import asyncio
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # If we're in an async context, we can't use await here
+                    # Fall back to basic cache get
+                    return cache_get('market_data', cache_key)
+                else:
+                    # We can run async get
+                    return loop.run_until_complete(self.optimized_cache.get('market_data', cache_key))
+            except:
+                return cache_get('market_data', cache_key)
+        else:
+            return cache_get('market_data', cache_key)
 
     def _cache_data(self, cache_key, data):
         """Cache market data in Redis with TTL."""
-        cache_set('market_data', cache_key, data, self.cache_ttl)
+        if self.optimized_cache:
+            import asyncio
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # If we're in an async context, we can't use await here
+                    # Fall back to basic cache set
+                    cache_set('market_data', cache_key, data, self.cache_ttl)
+                else:
+                    # We can run async set
+                    loop.run_until_complete(self.optimized_cache.set('market_data', cache_key, data, ttl=self.cache_ttl))
+            except:
+                cache_set('market_data', cache_key, data, self.cache_ttl)
+        else:
+            cache_set('market_data', cache_key, data, self.cache_ttl)
 
     def reflect(self, adjustments: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -162,42 +216,224 @@ class YfinanceDataAnalyzer(BaseAgent):
             if not self.llm:
                 await self.async_initialize_llm()
 
-            # Step 1: Plan data exploration with LLM
-            exploration_plan = await self._plan_data_exploration(symbols, input_data or {})
+            # Use batch processing for multiple symbols if optimizations available
+            if len(symbols) > 1 and OPTIMIZATIONS_AVAILABLE and self.async_client:
+                logger.info(f"Using optimized batch processing for {len(symbols)} symbols")
+                return await self._process_input_optimized(input_data)
+            else:
+                # Single symbol or fallback processing
+                exploration_plan = await self._plan_data_exploration(symbols, input_data or {})
 
-            # Step 2: Execute exploration plan
-            exploration_results = await self._execute_data_exploration(symbols, exploration_plan)
+                # Step 2: Execute exploration plan
+                exploration_results = await self._execute_data_exploration(symbols, exploration_plan)
 
-            # Step 3: Consolidate data into structured format
-            consolidated_data = self._consolidate_market_data(symbols, exploration_results)
+                # Step 3: Consolidate data into structured format
+                consolidated_data = self._consolidate_market_data(symbols, exploration_results)
 
-            # Step 4: Analyze with LLM for insights
-            llm_analysis = await self._analyze_market_data_llm(consolidated_data)
+                # Step 4: Analyze with LLM for insights
+                llm_analysis = await self._analyze_market_data_llm(consolidated_data)
 
-            # Combine results
-            result = {
-                "consolidated_data": consolidated_data,
-                "llm_analysis": llm_analysis,
-                "exploration_plan": exploration_plan,
-                "enhanced": True
-            }
+                # Combine results
+                result = {
+                    "consolidated_data": consolidated_data,
+                    "llm_analysis": llm_analysis,
+                    "exploration_plan": exploration_plan,
+                    "enhanced": True
+                }
 
-            # Store market data in shared memory for strategy agents
-            for symbol in symbols:
-                if symbol in consolidated_data:
-                    await self.store_shared_memory("market_data", symbol, {
-                        "market_data": consolidated_data[symbol],
-                        "llm_analysis": llm_analysis,
-                        "timestamp": datetime.now().isoformat(),
-                        "symbol": symbol
-                    })
+                # Store market data in shared memory for strategy agents
+                for symbol in symbols:
+                    if symbol in consolidated_data:
+                        await self.store_shared_memory("market_data", symbol, {
+                            "market_data": consolidated_data[symbol],
+                            "llm_analysis": llm_analysis,
+                            "timestamp": datetime.now().isoformat(),
+                            "symbol": symbol
+                        })
 
-            logger.info(f"YfinanceDataAnalyzer output: LLM-enhanced market data collected for {symbols}")
-            return result
+                logger.info(f"YfinanceDataAnalyzer output: LLM-enhanced market data collected for {symbols}")
+                return result
 
         except Exception as e:
             logger.error(f"YfinanceDataAnalyzer failed: {e}")
             return {"price_data": {}, "error": str(e), "enhanced": False}
+
+    async def _process_input_optimized(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Optimized version with async operations and batch processing"""
+        start_time = time.time()
+
+        symbols = input_data.get('symbols', ['SPY'])
+        data_types = input_data.get('data_types', ['quotes', 'historical'])
+        time_horizon = input_data.get('time_horizon', '1mo')
+
+        if not symbols:
+            return {"error": "No symbols provided"}
+
+        logger.info(f"Processing {len(symbols)} symbols with optimized analyzer")
+
+        try:
+            # Batch process all symbols concurrently
+            results = await self._batch_process_symbols(symbols, data_types, time_horizon)
+
+            # Consolidate results
+            consolidated = self._consolidate_optimized_results(results, symbols)
+
+            # Add LLM analysis if available
+            if self.llm:
+                exploration_plan = await self._plan_data_exploration(symbols, input_data or {})
+                consolidated["exploration_plan"] = exploration_plan
+                consolidated["llm_analysis"] = await self._analyze_market_data_llm(consolidated.get("consolidated_data", {}))
+
+            processing_time = time.time() - start_time
+            logger.info(f"Optimized processing completed in {processing_time:.2f} seconds")
+
+            return consolidated
+
+        except Exception as e:
+            logger.error(f"Optimized processing failed: {e}")
+            return {"error": str(e)}
+
+    async def _batch_process_symbols(self, symbols: List[str], data_types: List[str], time_horizon: str) -> Dict[str, Dict[str, Any]]:
+        """Batch process multiple symbols concurrently"""
+        tasks = []
+        for symbol in symbols:
+            task = self._process_symbol_optimized(symbol, data_types, time_horizon)
+            tasks.append(task)
+
+        # Execute with concurrency limit to avoid overwhelming APIs
+        semaphore = asyncio.Semaphore(5)  # Max 5 concurrent requests
+
+        async def limited_task(task):
+            async with semaphore:
+                return await task
+
+        results = await asyncio.gather(*[limited_task(task) for task in tasks], return_exceptions=True)
+
+        # Process results
+        symbol_results = {}
+        for i, result in enumerate(results):
+            symbol = symbols[i]
+            if isinstance(result, Exception):
+                symbol_results[symbol] = {"error": str(result)}
+            else:
+                symbol_results[symbol] = result
+
+        return symbol_results
+
+    async def _process_symbol_optimized(self, symbol: str, data_types: List[str], time_horizon: str) -> Dict[str, Any]:
+        """Process a single symbol with caching and async operations"""
+        cache_key = f"symbol_data_{symbol}_{'_'.join(data_types)}_{time_horizon}"
+
+        # Check cache first
+        if self.optimized_cache:
+            cached_result = await self.optimized_cache.get('symbol_data', cache_key)
+            if cached_result:
+                logger.info(f"Cache hit for {symbol}")
+                return cached_result
+
+        # Fetch data asynchronously
+        try:
+            # Parallel fetch of different data types
+            fetch_tasks = []
+
+            if 'quotes' in data_types or 'historical' in data_types:
+                fetch_tasks.append(self.async_client.get_historical_data(symbol, time_horizon))
+
+            if 'quotes' in data_types:
+                fetch_tasks.append(self.async_client.get_ticker_info(symbol))
+
+            # Execute fetches concurrently
+            fetch_results = await asyncio.gather(*fetch_tasks, return_exceptions=True)
+
+            # Process results
+            result = {
+                'symbol': symbol,
+                'data': {},
+                'timestamp': datetime.now().isoformat(),
+                'cached': False
+            }
+
+            for i, fetch_result in enumerate(fetch_results):
+                if isinstance(fetch_result, Exception):
+                    logger.warning(f"Fetch task {i} failed for {symbol}: {fetch_result}")
+                    continue
+
+                if i == 0:  # Historical data
+                    result['data']['historical'] = {
+                        'prices': fetch_result,
+                        'source': 'yfinance_optimized'
+                    }
+                elif i == 1:  # Ticker info
+                    result['data']['quote'] = fetch_result
+
+            # Cache the result
+            if self.optimized_cache:
+                await self.optimized_cache.set('symbol_data', cache_key, result, ttl=self.cache_ttl)
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Failed to process symbol {symbol}: {e}")
+            return {
+                'symbol': symbol,
+                'error': str(e),
+                'timestamp': datetime.now().isoformat()
+            }
+
+    def _consolidate_optimized_results(self, results: Dict[str, Dict[str, Any]], symbols: List[str]) -> Dict[str, Any]:
+        """Consolidate optimized results into final format"""
+        consolidated = {
+            'symbols_processed': symbols,
+            'total_symbols': len(symbols),
+            'successful_fetches': 0,
+            'failed_fetches': 0,
+            'timestamp': datetime.now().isoformat(),
+            'optimization_applied': True
+        }
+
+        symbol_dataframes = {}
+        all_prices = []
+
+        for symbol, result in results.items():
+            if 'error' in result:
+                consolidated['failed_fetches'] += 1
+                continue
+
+            consolidated['successful_fetches'] += 1
+
+            # Convert to DataFrame format for compatibility
+            if 'data' in result and 'historical' in result['data']:
+                prices_dict = result['data']['historical'].get('prices', {})
+                if prices_dict:
+                    try:
+                        df = pd.DataFrame.from_dict(prices_dict, orient='index')
+                        df.index = pd.to_datetime(df.index)
+                        symbol_dataframes[symbol] = {
+                            'historical_df': df,
+                            'quote_data': result['data'].get('quote', {}),
+                            'source': 'optimized_yfinance'
+                        }
+
+                        # Add to master price DataFrame
+                        df_copy = df.copy()
+                        df_copy['symbol'] = symbol
+                        all_prices.append(df_copy)
+                    except Exception as e:
+                        logger.warning(f"Failed to create DataFrame for {symbol}: {e}")
+
+        if all_prices:
+            master_df = pd.concat(all_prices, ignore_index=True)
+            consolidated['master_price_df'] = master_df
+
+        consolidated['symbol_dataframes'] = symbol_dataframes
+        consolidated['success_rate'] = consolidated['successful_fetches'] / len(symbols)
+
+        return consolidated
+
+    async def close(self):
+        """Cleanup resources"""
+        if self.async_client:
+            await self.async_client.close()
 
     async def _plan_data_exploration(self, symbols: List[str], context: Dict[str, Any]) -> Dict[str, Any]:
         """

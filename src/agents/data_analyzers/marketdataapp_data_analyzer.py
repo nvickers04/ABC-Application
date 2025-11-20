@@ -16,6 +16,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 import requests
 import os
+from src.utils.config import get_marketdataapp_api_key
 
 logger = logging.getLogger(__name__)
 
@@ -27,12 +28,12 @@ class MarketDataAppDataAnalyzer(BaseAgent):
     """
     def __init__(self):
         config_paths = {'risk': 'config/risk-constraints.yaml'}  # Relative to root.
-        prompt_paths = {'base': 'base_prompt.txt', 'role': 'docs/AGENTS/main-agents/data-agent.md'}  # Relative to root.
+        prompt_paths = {'base': 'config/base_prompt.txt', 'role': 'docs/AGENTS/main-agents/data-agent.md'}  # Relative to root.
         tools = []  # MarketDataAppDatasub uses internal methods instead of tools
         super().__init__(role='marketdataapp_data', config_paths=config_paths, prompt_paths=prompt_paths, tools=tools)
 
         # Initialize MarketDataApp API
-        self.api_key = os.getenv('MARKETDATAAPP_API_KEY')
+        self.api_key = get_marketdataapp_api_key()
         if not self.api_key:
             logger.warning("MARKETDATAAPP_API_KEY not found in environment variables - real API calls will fail")
         self.base_url = "https://api.marketdata.app/v1"

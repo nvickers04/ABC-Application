@@ -218,6 +218,44 @@ class PyramidingEngine:
             'volatility_adjusted': True
         }
 
+    def calculate_regime_based_stops(self, entry_price: float, current_price: float,
+                                   regime: str, current_trailing_stop: float) -> Dict[str, float]:
+        """
+        Calculate regime-based trailing stops for position management.
+        
+        Args:
+            entry_price: Original entry price
+            current_price: Current market price
+            regime: Market regime ('bull' or 'neutral')
+            current_trailing_stop: Current trailing stop level
+            
+        Returns:
+            Dict with trailing stop parameters
+        """
+        # Regime-based trailing percentages (Learning Agent recommendation LEARN_POSITION_20251111)
+        if regime == 'bull':
+            trail_percentage = 0.10  # 10% trailing stop in bull markets
+        else:  # neutral/bearish
+            trail_percentage = 0.15  # 15% trailing stop in neutral/bearish markets
+        
+        # Calculate new trailing stop level
+        new_trailing_stop = current_price * (1 - trail_percentage)
+        
+        # Only move stop up, never down (unless it's the initial setting)
+        if current_trailing_stop == 0.0:
+            # Initial setting
+            final_trailing_stop = new_trailing_stop
+        else:
+            # Update only if price has moved favorably
+            final_trailing_stop = max(current_trailing_stop, new_trailing_stop)
+        
+        return {
+            'trail_percentage': trail_percentage,
+            'trailing_stop_level': final_trailing_stop,
+            'regime': regime,
+            'current_price': current_price
+        }
+
     def should_add_to_position(self, current_price: float, last_tier_price: float,
                              current_pnl_pct: float, volatility: float) -> bool:
         """

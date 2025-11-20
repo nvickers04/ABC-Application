@@ -66,45 +66,41 @@ Once the orchestrator connects, use these commands in your Discord server:
 - Intervention logging
 - Progress tracking
 
-## 📋 Workflow Phases (Fully Automated)
+## 📋 Workflow Phases (Realistic Timing)
 
 | Phase | Duration | What Happens |
 |-------|----------|--------------|
-| **Macro Foundation** | 15s | Market regime assessment & opportunity identification |
-| **Intelligence Gathering** | 48s | Multi-source data collection & validation |
-| **Strategy Development** | 48s | Collaborative strategy formation |
-| **Multi-Agent Debate** | 25s | Cross-domain challenge & refinement |
-| **Risk Assessment** | 36s | Probabilistic analysis & constraints |
-| **Consensus Building** | 15s | Conflict mediation & agreement |
-| **Execution Validation** | 20s | Practical feasibility checks |
-| **Learning Integration** | 10s | Continuous improvement |
-| **Executive Review** | 60s | Elevated strategic oversight |
-| **Supreme Oversight** | 100s | Final audit & veto authority |
+| **Macro Foundation** | 10 min | Market regime assessment & opportunity identification |
+| **Intelligence Gathering** | 4 min | Multi-source data collection & validation |
+| **Strategy Development** | 5 min | Collaborative strategy formation |
+| **Multi-Agent Debate** | 6 min | Cross-domain challenge & refinement |
+| **Risk Assessment** | 4 min | Probabilistic analysis & constraints |
+| **Consensus Building** | 5 min | Conflict mediation & agreement |
+| **Execution Validation** | 4 min | Practical feasibility checks |
+| **Learning Integration** | 4 min | Continuous improvement |
+| **Executive Review** | 7 min | Elevated strategic oversight |
+| **Supreme Oversight** | 8 min | Final audit & veto authority |
 
-**Total Time: ~50-90 minutes** (depending on responses and interventions)
+**Total Time: ~50-60 minutes** (depending on responses and interventions)
 
 ## 📊 Workflow Structure
 
-### Phase 0: Macro Foundation (5-10 min)
+### Phase 0: Macro Foundation (10 min)
 - **MacroAgent** establishes market regime context
 - Identifies top 5 opportunities for analysis
 - Sets baseline risk parameters
+- **Split into:** Data collection (5 min) + Analysis (5 min)
 
-### Iteration 1: Comprehensive Deliberation (20-30 min)
-7 phases with all agents participating:
-1. **Intelligence Gathering** - Multi-source data collection
-2. **Strategy Development** - Collaborative strategy formation
-3. **Multi-Agent Debate** - Cross-domain challenge and refinement
-4. **Risk Assessment** - Probabilistic analysis and constraints
-5. **Consensus Building** - Conflict mediation and agreement
-6. **Execution Validation** - Practical feasibility checks
-7. **Learning Integration** - Continuous improvement
-
-### Iteration 2: Executive Oversight (15-20 min)
-Executive-level review with elevated risk sensitivity and strategic focus.
-
-### Supreme Oversight (10-15 min)
-**ReflectionAgent** conducts final audit with veto authority and crisis detection.
+### Comprehensive Deliberation (30-35 min)
+8 phases with all agents participating in a single comprehensive reasoning process:
+1. **Intelligence Gathering** (4 min) - Multi-source data collection
+2. **Strategy Development** (5 min) - Collaborative strategy formation
+3. **Multi-Agent Debate** (6 min) - Cross-domain challenge and refinement
+4. **Risk Assessment** (4 min) - Probabilistic analysis and constraints
+5. **Consensus Building** (5 min) - Conflict mediation and agreement
+6. **Execution Validation** (4 min) - Practical feasibility checks
+7. **Learning Integration** (4 min) - Continuous improvement
+8. **Executive Review** (7 min) - Elevated strategic oversight with supreme oversight integration
 
 ## 🛠️ Tools Usage
 
@@ -137,7 +133,7 @@ The system tracks:
 ## 🎯 Best Practices
 
 ### 1. Sequential Execution
-- Wait for agent responses before proceeding
+- Wait for agent responses before proceeding (4-8 minutes per phase)
 - Read all responses carefully
 - Note disagreements and concerns
 
@@ -155,6 +151,12 @@ The system tracks:
 - Teach agents from each workflow: `!l learn [insight]`
 - Build institutional knowledge over time
 - Improve future workflows based on past outcomes
+
+### 5. 24/6 Schedule Optimization
+- **Pre-Market Prep** (6:00 AM ET): Focus on data collection and initial analysis
+- **Market Open Prep** (7:30 AM ET): Complete strategy development and risk assessment
+- **Midday Check** (12:00 PM ET): Quick consensus and execution validation
+- **Market Close** (4:30 PM ET): Full learning integration and next-day preparation
 
 ## 🔧 Customization
 
@@ -230,7 +232,7 @@ A successful workflow completion shows:
 - 🎯 Clear decisions with risk assessments
 - 🧠 Learning insights captured
 - ⚠️ Warnings appropriately addressed
-- ⏱️ Reasonable completion time (50-90 minutes)
+- ⏱️ Reasonable completion time (50-60 minutes)
 
 ## 🔄 Continuous Improvement
 

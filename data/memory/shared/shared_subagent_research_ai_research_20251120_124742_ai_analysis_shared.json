@@ -1,0 +1,27 @@
+{
+  "namespace": "shared:subagent_research:ai_research_20251120_124742_ai_analysis",
+  "safe_namespace": "shared_subagent_research_ai_research_20251120_124742_ai_analysis",
+  "timestamp": "2025-11-20T12:47:45.517994",
+  "version": "1.0",
+  "data": {
+    "data": {
+      "trend_prediction": 0.0070981050391087375,
+      "volatility_forecast": 0.19602206793044477,
+      "momentum_score": -0.03153929177048726,
+      "sharpe_estimate": 0.6993088318169997,
+      "confidence": 0.7,
+      "data_points": 251
+    },
+    "timestamp": "2025-11-20T12:47:45.509114",
+    "memory_type": "shared",
+    "metadata": {
+      "shared_by": "ai_strategy_sub",
+      "namespace": "subagent_research",
+      "shared_at": "2025-11-20T12:47:45.509114",
+      "access_level": "shared",
+      "original_data_type": "dict"
+    },
+    "user": null,
+    "size": 205
+  }
+}

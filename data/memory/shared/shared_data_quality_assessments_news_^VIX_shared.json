@@ -1,0 +1,41 @@
+{
+  "namespace": "shared:data_quality_assessments:news_^VIX",
+  "safe_namespace": "shared_data_quality_assessments_news_^VIX",
+  "timestamp": "2025-11-20T12:50:36.272993",
+  "version": "1.0",
+  "data": {
+    "data": {
+      "analyzer": "news",
+      "symbol": "^VIX",
+      "credibility_score": 0.5,
+      "relevance_score": 0.5,
+      "data_quality_score": 7.5,
+      "article_count": 0,
+      "sources_used": [
+        "alphavantage",
+        "rss_feeds",
+        "currentsapi",
+        "newsapi",
+        "twitter_trends"
+      ],
+      "impact_distribution": {},
+      "timestamp": "2025-11-20T12:50:36.224759",
+      "llm_insights": {
+        "sentiment": "neutral",
+        "key_themes": "['Market stability', 'Earnings focus']",
+        "risk_level": "moderate"
+      }
+    },
+    "timestamp": "2025-11-20T12:50:36.224759",
+    "memory_type": "shared",
+    "metadata": {
+      "shared_by": "news_data",
+      "namespace": "data_quality_assessments",
+      "shared_at": "2025-11-20T12:50:36.224759",
+      "access_level": "shared",
+      "original_data_type": "dict"
+    },
+    "user": null,
+    "size": 418
+  }
+}

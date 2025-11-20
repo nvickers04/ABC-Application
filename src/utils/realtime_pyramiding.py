@@ -30,6 +30,7 @@ class PositionState:
     last_tier_price: float = 0.0
     stop_loss_price: float = 0.0
     take_profit_levels: List[float] = None
+    trailing_stop_level: float = 0.0
 
     def __post_init__(self):
         if self.take_profit_levels is None:
@@ -115,7 +116,8 @@ class RealTimePyramidingMonitor:
             entry_time=datetime.now(),
             last_update=datetime.now(),
             unrealized_pnl=0.0,
-            last_tier_price=entry_price
+            last_tier_price=entry_price,
+            trailing_stop_level=entry_price * 0.9  # Initial trailing stop at 10% below entry
         )
 
         self.positions[symbol] = position

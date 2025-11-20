@@ -1,21 +1,21 @@
 # [LABEL:DOC:framework] [LABEL:DOC:topic:ai_reasoning] [LABEL:DOC:audience:architect]
 # [LABEL:AUTHOR:system] [LABEL:UPDATED:2025-11-17] [LABEL:REVIEWED:pending]
 #
-# Purpose: Comprehensive guide to AI reasoning through 7-agent collaborative architecture
+# Purpose: Comprehensive guide to AI reasoning through 8-agent collaborative architecture
 # Dependencies: Multi-agent system, A2A protocol, specialized agent roles
 # Related: docs/architecture.md, docs/AGENTS/index.md, src/agents/
 #
 # AI Reasoning Through Agent Collaboration: The ABC Application Breakthrough
 
 ## Overview
-The fundamental innovation of ABC Application is its **7-agent collaborative reasoning architecture** - a sophisticated AI system where specialized agents debate, deliberate, and reach consensus on investment decisions. This approach creates institutional-grade decision quality through collective AI intelligence, far surpassing what any single AI model could achieve.
+The fundamental innovation of ABC Application is its **8-agent collaborative reasoning architecture** - a sophisticated AI system where specialized agents debate, deliberate, and reach consensus on investment decisions. This approach creates institutional-grade decision quality through collective AI intelligence, far surpassing what any single AI model could achieve.
 
 ## The Reasoning Revolution
 
 ### Why AI Reasoning Matters
 Traditional AI systems rely on single models for decision-making, limited by individual model capabilities and potential biases. ABC Application introduces **collaborative reasoning** - multiple AI agents working together in structured deliberation, mimicking institutional investment committees but with AI precision, speed, and scalability.
 
-### The 7-Agent Architecture
+### The 8-Agent Architecture
 Each agent represents a specialized domain of financial expertise, working in orchestrated reasoning loops:
 
 #### Core Agents (7)
@@ -31,9 +31,9 @@ Each agent represents a specialized domain of financial expertise, working in or
 
 ## The Collaborative Reasoning Process
 
-### **Two-Iteration Framework: Comprehensive → Executive Level**
+### **Single Iteration Framework: Comprehensive Analysis**
 
-The collaborative reasoning process operates in two distinct iterations, each building upon the previous with increasing levels of strategic oversight and risk sensitivity.
+The collaborative reasoning process operates in a single comprehensive iteration that combines macro foundation with full agent deliberation for efficient decision-making.
 
 #### **Macro Foundation: Market Regime Assessment & Opportunity Identification**
 **The MacroAgent establishes the strategic foundation before any detailed analysis begins:**
@@ -45,8 +45,8 @@ The collaborative reasoning process operates in two distinct iterations, each bu
 
 **Strategic Output**: MacroAgent delivers a focused investment universe and market context that constrains and guides all subsequent analysis, ensuring resources are allocated to the most promising opportunities.
 
-#### **Iteration 1: Comprehensive Multi-Agent Deliberation (All 7 Agents)**
-All agents participate in the complete 7-phase process to ensure maximum information gathering, diverse perspectives, and thorough analysis on the MacroAgent's prioritized opportunities.
+#### **Comprehensive Multi-Agent Deliberation (All 8 Agents)**
+All agents participate in the complete workflow phases to ensure maximum information gathering, diverse perspectives, and thorough analysis on the MacroAgent's prioritized opportunities.
 
 ### Phase 1: Integrated Intelligence Gathering & Analysis
 **All agents collaboratively collect, validate, and analyze market intelligence simultaneously:**
@@ -99,25 +99,12 @@ Execution agent validates practical feasibility with final sanity checks from al
 ### Phase 7: Learning Integration & Continuous Improvement
 Learning agent incorporates outcomes into future reasoning processes, with all agents contributing insights for system-wide adaptation and improvement.
 
-#### **Iteration 2: Executive-Level Strategic Oversight (All 7 Agents)**
-Following the comprehensive deliberation, all agents conduct a focused strategic review, applying executive-level judgment and risk sensitivity.
-
-### Phase 1-7: Executive Strategic Review
-**The main 8 agents (DataAgent, StrategyAgent, RiskAgent, ExecutionAgent, ReflectionAgent, LearningAgent, MemoryAgent, MacroAgent) repeat the 7-phase process with enhanced strategic focus:**
-- **Elevated strategic perspective**: Main agents synthesize analyzer inputs into cohesive strategic narratives
-- **Risk sensitivity amplification**: RiskAgent applies more conservative probability thresholds
-- **Executive judgment**: Agents consider broader market implications and systemic risks
-- **Implementation focus**: ExecutionAgent emphasizes practical constraints and market impact
-- **Historical context**: LearningAgent provides deeper pattern recognition and precedent analysis
-
-**Key Enhancement**: Executive-level agents apply institutional-grade judgment to analyzer recommendations, ensuring strategic coherence and risk management.
-
 #### **Reflection Agent's Supreme Oversight Authority**
 The ReflectionAgent serves as the system's final arbiter with extraordinary authority to ensure decision quality and risk management:
 
 ### **Final Reflection & Scenario Analysis**
-**After both iterations, the ReflectionAgent conducts supreme oversight:**
-- **Comprehensive data audit**: Reviews any data point raised by any agent across both iterations
+**After the comprehensive iteration, the ReflectionAgent conducts supreme oversight:**
+- **Comprehensive data audit**: Reviews any data point raised by any agent during the comprehensive reasoning process
 - **Scenario stress testing**: Evaluates decisions against multiple potential market scenarios
 - **Pattern recognition**: Identifies subtle warning signals that may indicate systemic risks
 - **Logical consistency validation**: Ensures all conclusions follow from established premises
@@ -137,15 +124,14 @@ The ReflectionAgent serves as the system's final arbiter with extraordinary auth
 - Macro regime shift indications
 - Learning agent pattern disruptions
 
-## Why 7 Agents Create Superior Reasoning
+## Why 8 Agents Create Superior Reasoning
 
-### **Two-Tier Intelligence Architecture**
+### **Single-Tier Intelligence Architecture**
 1. **Macro Foundation**: MacroAgent establishes market context and prioritizes opportunities before detailed analysis
-2. **Comprehensive Depth (Iteration 1)**: All 7 agents provide maximum analytical breadth and specialized insights
-3. **Executive Judgment (Iteration 2)**: All agents apply strategic synthesis and risk management
-4. **Supreme Oversight**: ReflectionAgent's veto authority and intervention powers ensure decision quality
-5. **Crisis Detection**: "Canary in the coal mine" monitoring prevents catastrophic decisions
-6. **Adaptive Risk Management**: ReflectionAgent can elevate risk thresholds based on emerging threats
+2. **Comprehensive Depth**: All 8 agents provide maximum analytical breadth and specialized insights
+3. **Supreme Oversight**: ReflectionAgent's veto authority and intervention powers ensure decision quality
+4. **Crisis Detection**: "Canary in the coal mine" monitoring prevents catastrophic decisions
+5. **Adaptive Risk Management**: ReflectionAgent can elevate risk thresholds based on emerging threats
 
 ### Collective Intelligence Benefits
 - **Integrated Information Flow**: No information silos - all agents access complete data simultaneously
@@ -212,7 +198,7 @@ The system's reasoning architecture has been validated through:
 
 ## Conclusion
 
-The refined 7-agent collaborative reasoning architecture with its macro-foundation and two-iteration framework represents a fundamental breakthrough in AI-driven investment systems. By beginning with MacroAgent-driven market regime assessment and opportunity identification, then conducting comprehensive multi-agent deliberation followed by executive-level strategic review, while maintaining the ReflectionAgent's authority to veto decisions and trigger additional iterations based on crisis indicators, the system achieves unparalleled decision quality through truly collective intelligence.
+The refined 8-agent collaborative reasoning architecture with its macro-foundation and single iteration framework represents a fundamental breakthrough in AI-driven investment systems. By beginning with MacroAgent-driven market regime assessment and opportunity identification, then conducting comprehensive multi-agent deliberation in a single efficient iteration, while maintaining the ReflectionAgent's authority to veto decisions and trigger additional iterations based on crisis indicators, the system achieves unparalleled decision quality through truly collective intelligence.
 
 **This sophisticated framework eliminates blind spots through layered validation, prevents catastrophic decisions through supreme oversight, and ensures institutional-grade risk management that surpasses traditional investment processes.**
 

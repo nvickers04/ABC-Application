@@ -303,6 +303,6 @@ async def main():
 
 if __name__ == "__main__":
     # Set environment variable to run continuously for testing
-    os.environ['RUN_CONTINUOUS'] = 'true'  # Uncomment for testing
+    # os.environ['RUN_CONTINUOUS'] = 'true'  # Uncomment for testing
 
     asyncio.run(main())

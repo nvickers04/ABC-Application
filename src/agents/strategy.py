@@ -31,6 +31,7 @@ _backtrader_backtest_tool = None
 _options_greeks_calc_tool = None
 _flow_alpha_calc_tool = None
 _qlib_ml_refine_tool = None
+_adaptive_scheduler = None
 
 def _get_options_analyzer():
     global _options_analyzer
@@ -173,6 +174,17 @@ def _get_qlib_ml_refine_tool():
             _qlib_ml_refine_tool = None
     return _qlib_ml_refine_tool
 
+def _get_adaptive_scheduler(a2a_protocol=None):
+    global _adaptive_scheduler
+    if _adaptive_scheduler is None:
+        try:
+            from src.utils.adaptive_scheduler import AdaptiveScheduler
+            _adaptive_scheduler = AdaptiveScheduler(a2a_protocol=a2a_protocol)
+        except ImportError as e:
+            logger.warning(f"Failed to import AdaptiveScheduler: {e}")
+            _adaptive_scheduler = None
+    return _adaptive_scheduler
+
 logger = logging.getLogger(__name__)
 
 class StrategyAgent(BaseAgent):
@@ -182,7 +194,7 @@ class StrategyAgent(BaseAgent):
     """
     def __init__(self, a2a_protocol=None):
         config_paths = {'risk': 'config/risk-constraints.yaml', 'profit': 'config/profitability-targets.yaml'}  # Relative to root.
-        prompt_paths = {'base': 'base_prompt.txt', 'role': 'docs/AGENTS/main-agents/strategy-agent.md'}  # Relative to root.
+        prompt_paths = {'base': 'config/base_prompt.txt', 'role': 'docs/AGENTS/main-agents/strategy-agent.md'}  # Relative to root.
         super().__init__(role='strategy', config_paths=config_paths, prompt_paths=prompt_paths, a2a_protocol=a2a_protocol)
         
         # Initialize strategy analyzers with lazy loading
@@ -232,6 +244,11 @@ class StrategyAgent(BaseAgent):
         self.realtime_monitor = _get_realtime_pyramiding_monitor(strategy_agent=self)
         if self.realtime_monitor:
             logger.info("RealTimePyramidingMonitor initialized with A2A protocol")
+        
+        # Initialize adaptive scheduler with lazy loading
+        self.adaptive_scheduler = _get_adaptive_scheduler(a2a_protocol=self.a2a_protocol)
+        if self.adaptive_scheduler:
+            logger.info("AdaptiveScheduler initialized")
         
         # Add role-specific tools with lazy loading
         tools_to_add = []
@@ -502,14 +519,19 @@ class StrategyAgent(BaseAgent):
             pyramiding_bonus = proposal.get('pyramiding', {}).get('efficiency_score', 1.0)
             foundation_score = base_score * pyramiding_bonus
 
+            # ===== RISK-ADJUSTED SCORING =====
+            # Weight by Sharpe ratio >1.5 and portfolio correlation <0.3
+            risk_adjusted_score = self._calculate_risk_adjusted_score(proposal, foundation_score)
+
             scored_proposals.append({
                 'type': proposal_type,
                 'proposal': proposal,
-                'foundation_score': foundation_score
+                'foundation_score': foundation_score,
+                'risk_adjusted_score': risk_adjusted_score
             })
 
-        # Sort by foundation score
-        scored_proposals.sort(key=lambda x: x['foundation_score'], reverse=True)
+        # Sort by risk-adjusted score (higher is better)
+        scored_proposals.sort(key=lambda x: x['risk_adjusted_score'], reverse=True)
         top_proposal = scored_proposals[0]
 
         # Use comprehensive LLM reasoning for all strategy decisions (deep analysis and over-analysis)
@@ -562,7 +584,183 @@ Provide a clear recommendation with the selected strategy type and detailed rati
                 logger.warning(f"Strategy Agent LLM reasoning failed, using foundation logic: {e}")
 
         # Use foundation logic (best score)
-        return top_proposal['proposal']
+        selected_proposal = top_proposal['proposal']
+
+        # ===== MULTI-AGENT VETO MECHANISM =====
+        # Require consensus from RiskAgent (drawdown <4%) and ExecutionAgent (slippage <0.5%)
+        veto_result = await self._apply_multi_agent_veto(selected_proposal)
+        if not veto_result['approved']:
+            logger.warning(f"Strategy proposal vetoed: {veto_result['reason']}")
+            # Return a minimal proposal indicating no trade should be made
+            return {
+                'strategy_type': 'vetoed',
+                'roi_estimate': 0.0,
+                'veto_reason': veto_result['reason'],
+                'veto_details': veto_result['details']
+            }
+
+        logger.info(f"Strategy proposal approved by multi-agent veto: {selected_proposal.get('strategy_type', 'unknown')}")
+        return selected_proposal
+
+    async def _apply_multi_agent_veto(self, proposal: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Apply multi-agent veto mechanism requiring consensus from RiskAgent and ExecutionAgent.
+        RiskAgent must approve drawdown projection <4%, ExecutionAgent must approve slippage <0.5%.
+
+        Args:
+            proposal: Strategy proposal to vet
+
+        Returns:
+            Dict with approval status and details
+        """
+        try:
+            logger.info(f"Applying multi-agent veto to proposal: {proposal.get('strategy_type', 'unknown')}")
+
+            # Initialize veto result
+            veto_result = {
+                'approved': True,
+                'reason': 'approved',
+                'details': {
+                    'risk_agent_approval': None,
+                    'execution_agent_approval': None,
+                    'veto_triggered_by': []
+                }
+            }
+
+            # ===== RISK AGENT VETO CHECK =====
+            # Check if RiskAgent approves (drawdown projection <4%)
+            try:
+                from src.agents.risk import RiskAgent
+                risk_agent = RiskAgent(a2a_protocol=self.a2a_protocol)
+
+                # Process proposal through RiskAgent
+                risk_assessment = await risk_agent.process_input(proposal)
+
+                # Check drawdown projection
+                max_drawdown_sim = risk_assessment.get('max_drawdown_sim', 0)
+                drawdown_threshold = 0.04  # 4% threshold
+
+                risk_approved = max_drawdown_sim < drawdown_threshold
+                veto_result['details']['risk_agent_approval'] = {
+                    'approved': risk_approved,
+                    'max_drawdown_sim': max_drawdown_sim,
+                    'threshold': drawdown_threshold,
+                    'rationale': risk_assessment.get('rationale', 'No rationale provided')
+                }
+
+                if not risk_approved:
+                    veto_result['approved'] = False
+                    veto_result['details']['veto_triggered_by'].append('RiskAgent')
+                    veto_result['reason'] = f'RiskAgent veto: projected drawdown {max_drawdown_sim:.1%} exceeds threshold {drawdown_threshold:.1%}'
+
+            except Exception as e:
+                logger.warning(f"RiskAgent veto check failed: {e}")
+                # On RiskAgent failure, we veto to be safe
+                veto_result['approved'] = False
+                veto_result['details']['risk_agent_approval'] = {'error': str(e)}
+                veto_result['details']['veto_triggered_by'].append('RiskAgent_error')
+                veto_result['reason'] = f'RiskAgent check failed: {str(e)}'
+
+            # ===== EXECUTION AGENT VETO CHECK =====
+            # Check if ExecutionAgent approves (slippage <0.5%)
+            try:
+                from src.agents.execution import ExecutionAgent
+                execution_agent = ExecutionAgent(a2a_protocol=self.a2a_protocol)
+
+                # For slippage check, we need to simulate execution
+                # Use the timing check as a proxy for slippage assessment
+                slippage_check = await execution_agent._check_execution_timing(proposal.get('symbol', 'SPY'))
+
+                # Estimate slippage based on timing check
+                # If timing is not optimal, assume higher slippage
+                slippage_estimate = 0.005  # Default 0.5% slippage
+                if not slippage_check.get('optimal_timing', True):
+                    slippage_estimate = 0.008  # Higher slippage for suboptimal timing
+
+                slippage_threshold = 0.005  # 0.5% threshold
+
+                execution_approved = slippage_estimate < slippage_threshold
+                veto_result['details']['execution_agent_approval'] = {
+                    'approved': execution_approved,
+                    'estimated_slippage': slippage_estimate,
+                    'threshold': slippage_threshold,
+                    'timing_check': slippage_check
+                }
+
+                if not execution_approved:
+                    veto_result['approved'] = False
+                    veto_result['details']['veto_triggered_by'].append('ExecutionAgent')
+                    if veto_result['reason'] == 'approved':
+                        veto_result['reason'] = f'ExecutionAgent veto: estimated slippage {slippage_estimate:.2%} exceeds threshold {slippage_threshold:.2%}'
+                    else:
+                        veto_result['reason'] += f'; ExecutionAgent veto: estimated slippage {slippage_estimate:.2%} exceeds threshold {slippage_threshold:.2%}'
+
+            except Exception as e:
+                logger.warning(f"ExecutionAgent veto check failed: {e}")
+                # On ExecutionAgent failure, we veto to be safe
+                veto_result['approved'] = False
+                veto_result['details']['execution_agent_approval'] = {'error': str(e)}
+                veto_result['details']['veto_triggered_by'].append('ExecutionAgent_error')
+                if veto_result['reason'] == 'approved':
+                    veto_result['reason'] = f'ExecutionAgent check failed: {str(e)}'
+                else:
+                    veto_result['reason'] += f'; ExecutionAgent check failed: {str(e)}'
+
+            # Log veto decision
+            if veto_result['approved']:
+                logger.info("Multi-agent veto: Proposal approved by both RiskAgent and ExecutionAgent")
+            else:
+                logger.warning(f"Multi-agent veto: Proposal rejected - {veto_result['reason']}")
+
+            return veto_result
+
+        except Exception as e:
+            logger.error(f"Multi-agent veto failed: {e}")
+            # On system failure, veto to be safe
+            return {
+                'approved': False,
+                'reason': f'Multi-agent veto system error: {str(e)}',
+                'details': {'system_error': str(e)}
+            }
+
+    def _calculate_risk_adjusted_score(self, proposal: Dict[str, Any], foundation_score: float) -> float:
+        """
+        Calculate risk-adjusted score incorporating Sharpe ratio and correlation thresholds.
+
+        Args:
+            proposal: Trading proposal with risk metrics
+            foundation_score: Base score from ROI * POP * pyramiding efficiency
+
+        Returns:
+            Risk-adjusted score with Sharpe ratio >1.5 and correlation <0.3 weighting
+        """
+        risk_adjusted_score = foundation_score
+
+        # Get Sharpe ratio from proposal (default to 1.0 if not available)
+        sharpe_ratio = proposal.get('sharpe_ratio', 1.0)
+
+        # Get portfolio correlation from proposal (default to 0.5 if not available)
+        portfolio_correlation = proposal.get('portfolio_correlation', 0.5)
+
+        # Apply Sharpe ratio weighting (>1.5 threshold)
+        if sharpe_ratio > 1.5:
+            sharpe_multiplier = 1.0 + (sharpe_ratio - 1.5) * 0.2  # 20% bonus per unit above 1.5
+            risk_adjusted_score *= sharpe_multiplier
+        elif sharpe_ratio < 1.0:
+            # Penalize low Sharpe ratios
+            sharpe_penalty = max(0.5, sharpe_ratio)  # Minimum 50% penalty
+            risk_adjusted_score *= sharpe_penalty
+
+        # Apply correlation weighting (<0.3 threshold for diversification)
+        if portfolio_correlation < 0.3:
+            correlation_bonus = 1.0 + (0.3 - portfolio_correlation) * 0.5  # 50% bonus for low correlation
+            risk_adjusted_score *= correlation_bonus
+        elif portfolio_correlation > 0.7:
+            # Penalize high correlation (reduced diversification)
+            correlation_penalty = max(0.7, 1.0 - (portfolio_correlation - 0.7) * 0.3)
+            risk_adjusted_score *= correlation_penalty
+
+        return risk_adjusted_score
 
     def _apply_dynamic_pyramiding(self, proposal: Dict[str, Any], input_data: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -905,12 +1103,18 @@ Provide a clear recommendation with the selected strategy type and detailed rati
                             
                             break  # Only one scale-out per check
                 
-                # Check stop loss
-                stops = self.pyramiding_engine.calculate_stops(
-                    position.entry_price, current_price, 0.1, 'normal'
+                # Check stop loss with regime-based trailing stops
+                regime = self._detect_market_regime(market_data)
+                stops = self.pyramiding_engine.calculate_regime_based_stops(
+                    position.entry_price, current_price, regime, position.trailing_stop_level
                 )
                 
-                if current_price <= stops.get('initial_stop', 0) and position.quantity != 0:
+                # Update trailing stop level if price has moved favorably
+                if current_price > position.trailing_stop_level:
+                    position.trailing_stop_level = current_price * (1 - stops.get('trail_percentage', 0.10))
+                    logger.info(f"Updated trailing stop for {symbol} to ${position.trailing_stop_level:.2f} (regime: {regime})")
+                
+                if current_price <= position.trailing_stop_level and position.quantity != 0:
                     # Execute stop loss
                     exit_quantity = position.quantity
                     loss = (position.entry_price - current_price) * abs(exit_quantity)
@@ -937,6 +1141,33 @@ Provide a clear recommendation with the selected strategy type and detailed rati
             'actions_taken': actions_taken,
             'timestamp': datetime.datetime.now().isoformat()
         }
+
+    def _detect_market_regime(self, market_data: Dict[str, Any]) -> str:
+        """
+        Detect current market regime for trailing stop adjustment.
+        
+        Returns:
+            'bull' for bullish markets (10% trailing stops)
+            'neutral' for neutral/bearish markets (15% trailing stops)
+        """
+        try:
+            # Get VIX level for volatility assessment
+            vix_level = market_data.get('VIX', {}).get('price', 20.0)
+            
+            # Get SPY trend (simplified trend analysis)
+            spy_data = market_data.get('SPY', {})
+            spy_price = spy_data.get('price', 0)
+            
+            # Bullish regime: VIX < 18 (low volatility) and positive momentum
+            if vix_level < 18.0:
+                return 'bull'
+            else:
+                # Neutral/bearish regime: higher volatility
+                return 'neutral'
+                
+        except Exception as e:
+            logger.warning(f"Error detecting market regime: {e}")
+            return 'neutral'  # Default to more conservative trailing stops
 
     def _refine_via_batches(self, proposal: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -1317,9 +1548,9 @@ Format each proposal clearly with headers like "TRADE PROPOSAL 1:", "TRADE PROPO
             )
 
             if "error" in coordination_result:
-                logger.warning(f"Coordination failed, falling back to individual analysis: {coordination_result['error']}")
-                # Fallback to individual subagent analysis
-                return await self._fallback_market_analysis(market_data)
+                logger.warning(f"Coordination failed, requiring real-time collaborative agent coordination: {coordination_result['error']}")
+                # Require real-time collaborative agent coordination - no fallback analysis
+                raise Exception(f'Market analysis requires real-time collaborative agent coordination: {coordination_result["error"]}')
 
             # Extract key insights from coordination
             final_decision = coordination_result.get("final_decision", {})
@@ -1382,26 +1613,7 @@ Format each proposal clearly with headers like "TRADE PROPOSAL 1:", "TRADE PROPO
 
         return recommendations
 
-    async def _fallback_market_analysis(self, market_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Fallback market analysis when coordination fails."""
-        try:
-            # Use individual analyzers for analysis
-            options_result = await self.options_analyzer.process_input(market_data)
-            flow_result = await self.flow_analyzer.process_input(market_data)
-            ai_result = await self.ai_analyzer.process_input(market_data)
 
-            return {
-                "market_analysis": "Fallback analysis using individual subagents",
-                "options_analysis": options_result.get('options', {}),
-                "flow_analysis": flow_result.get('flow', {}),
-                "ai_analysis": ai_result.get('ai', {}),
-                "analysis_method": "fallback_individual_subagents",
-                "timestamp": datetime.datetime.now().isoformat()
-            }
-
-        except Exception as e:
-            logger.error(f"Fallback market analysis failed: {e}")
-            return {"error": f"Fallback analysis failed: {str(e)}"}
 
     async def analyze_market_opportunities(self) -> List[Dict[str, Any]]:
         """
@@ -1421,8 +1633,9 @@ Format each proposal clearly with headers like "TRADE PROPOSAL 1:", "TRADE PROPO
             )
 
             if "error" in coordination_result:
-                logger.warning(f"Coordination failed, using fallback analysis: {coordination_result['error']}")
-                return await self._fallback_market_opportunities(market_context)
+                logger.warning(f"Coordination failed, requiring real-time collaborative agent coordination: {coordination_result['error']}")
+                # Require real-time collaborative agent coordination - no fallback analysis
+                raise Exception(f'Market opportunity analysis requires real-time collaborative agent coordination: {coordination_result["error"]}')
 
             # Extract trading signals from coordination results
             signals = []
@@ -1430,7 +1643,7 @@ Format each proposal clearly with headers like "TRADE PROPOSAL 1:", "TRADE PROPO
             final_decision = coordination_result.get("final_decision", {})
 
             # Extract multiple signals from the collaborative synthesis
-            collaborative_signals = self._extract_multiple_signals_from_synthesis(
+            collaborative_signals = await self._extract_multiple_signals_from_synthesis(
                 final_decision.get("synthesized_decision", ""),
                 coordination_results
             )
@@ -1743,94 +1956,7 @@ Format each proposal clearly with headers like "TRADE PROPOSAL 1:", "TRADE PROPO
             logger.warning(f"Signal validation failed: {e}")
             return False
 
-    async def _fallback_market_opportunities(self, market_context: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """
-        Fallback market opportunity analysis when coordination fails.
-        """
-        try:
-            logger.info("Using fallback market opportunity analysis")
-
-            # Generate basic signals based on market context
-            signals = []
-
-            # Basic signal generation
-            base_signals = [
-                {
-                    'symbol': 'SPY',
-                    'direction': 'long',
-                    'quantity': 100,
-                    'strategy_type': 'Conservative',
-                    'confidence': 0.6,
-                    'roi_estimate': 0.12,
-                    'analysis': 'Conservative long position in SPY based on stable market conditions',
-                    'timestamp': datetime.datetime.now().isoformat(),
-                    'agent_source': 'fallback'
-                },
-                {
-                    'symbol': 'QQQ',
-                    'direction': 'long',
-                    'quantity': 50,
-                    'strategy_type': 'Technology',
-                    'confidence': 0.7,
-                    'roi_estimate': 0.18,
-                    'analysis': 'Technology sector showing momentum with AI and cloud growth',
-                    'timestamp': datetime.datetime.now().isoformat(),
-                    'agent_source': 'fallback'
-                },
-                {
-                    'symbol': 'NVDA',
-                    'direction': 'long',
-                    'quantity': 75,
-                    'strategy_type': 'Growth',
-                    'confidence': 0.8,
-                    'roi_estimate': 0.22,
-                    'analysis': 'AI semiconductor leader with strong earnings momentum',
-                    'timestamp': datetime.datetime.now().isoformat(),
-                    'agent_source': 'fallback'
-                },
-                {
-                    'symbol': 'TSLA',
-                    'direction': 'long',
-                    'quantity': 60,
-                    'strategy_type': 'Momentum',
-                    'confidence': 0.7,
-                    'roi_estimate': 0.20,
-                    'analysis': 'EV market leader with autonomous driving potential',
-                    'timestamp': datetime.datetime.now().isoformat(),
-                    'agent_source': 'fallback'
-                },
-                {
-                    'symbol': 'AAPL',
-                    'direction': 'long',
-                    'quantity': 80,
-                    'strategy_type': 'Stable',
-                    'confidence': 0.75,
-                    'roi_estimate': 0.16,
-                    'analysis': 'Consumer electronics giant with services growth',
-                    'timestamp': datetime.datetime.now().isoformat(),
-                    'agent_source': 'fallback'
-                }
-            ]
-
-            # Filter based on market context
-            trend = market_context.get('market_data', {}).get('trend', 'neutral')
-            if trend == 'bullish':
-                signals = base_signals  # Include all signals in bullish market
-            elif trend == 'bearish':
-                # Only include defensive positions
-                signals = [s for s in base_signals if s['strategy_type'] == 'Conservative']
-            else:
-                # Include only high-confidence signals in neutral market
-                signals = [s for s in base_signals if s['confidence'] >= 0.7]
-
-            logger.info(f"Fallback analysis generated {len(signals)} signals")
-            return signals
-
-        except Exception as e:
-            logger.error(f"Fallback market opportunity analysis failed: {e}")
-            return []
-    
-    def _extract_multiple_signals_from_synthesis(self, synthesis: str,
+    async def _extract_multiple_signals_from_synthesis(self, synthesis: str,
                                                coordination_results: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
         Extract multiple trading signals from the collaborative synthesis.
@@ -1857,13 +1983,13 @@ Format each proposal clearly with headers like "TRADE PROPOSAL 1:", "TRADE PROPO
                         break
 
             for proposal_num, proposal_text in proposals:
-                signal = self._parse_trade_proposal(proposal_text.strip(), coordination_results)
+                signal = await self._parse_trade_proposal(proposal_text.strip(), coordination_results)
                 if signal:
                     signals.append(signal)
 
             # If no structured proposals found, try to extract signals from the entire synthesis
             if not signals:
-                signals = self._extract_signals_from_text(synthesis, coordination_results)
+                signals = await self._extract_signals_from_text(synthesis, coordination_results)
 
             logger.info(f"Extracted {len(signals)} signals from collaborative synthesis")
             return signals
@@ -1872,7 +1998,7 @@ Format each proposal clearly with headers like "TRADE PROPOSAL 1:", "TRADE PROPO
             logger.warning(f"Failed to extract multiple signals from synthesis: {e}")
             return []
 
-    def _parse_trade_proposal(self, proposal_text: str, coordination_results: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    async def _parse_trade_proposal(self, proposal_text: str, coordination_results: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
         Parse a single trade proposal from the synthesis text.
         """
@@ -1930,8 +2056,30 @@ Format each proposal clearly with headers like "TRADE PROPOSAL 1:", "TRADE PROPO
             if roi_match:
                 roi_estimate = float(roi_match.group(1)) / 100
 
-            # Calculate position size
-            base_quantity = 100
+            # Calculate position size based on account value and risk limits
+            try:
+                # Get account value from IBKR
+                from integrations.ibkr_connector import get_ibkr_connector
+                ibkr_connector = get_ibkr_connector()
+                account_info = await ibkr_connector.get_account_summary()
+                account_value = float(account_info.get('NetLiquidation', 1000000))  # Default to $1M if not available
+                
+                # Use 1% of account value as base position size
+                max_position_value = account_value * 0.01  # 1% of account
+                
+                # Assume average price per unit (this should be more sophisticated)
+                # For now, use conservative estimate
+                estimated_price_per_unit = 100  # Conservative estimate for options/stocks
+                base_quantity = int(max_position_value / estimated_price_per_unit)
+                
+                # Ensure minimum quantity
+                base_quantity = max(base_quantity, 10)
+                
+            except Exception as e:
+                logger.warning(f"Could not get account value for position sizing: {e}")
+                # Fallback to conservative sizing
+                base_quantity = 50  # Conservative fallback
+            
             quantity = int(base_quantity * confidence)
 
             return {
@@ -1950,7 +2098,7 @@ Format each proposal clearly with headers like "TRADE PROPOSAL 1:", "TRADE PROPO
             logger.warning(f"Failed to parse trade proposal: {e}")
             return None
 
-    def _extract_signals_from_text(self, text: str, coordination_results: Dict[str, Any]) -> List[Dict[str, Any]]:
+    async def _extract_signals_from_text(self, text: str, coordination_results: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
         Extract signals from unstructured text when no clear proposals are found.
         """
@@ -1967,7 +2115,7 @@ Format each proposal clearly with headers like "TRADE PROPOSAL 1:", "TRADE PROPO
                     end = min(len(text), symbol_index + 200)
                     context = text[start:end]
 
-                    signal = self._parse_trade_proposal(context, coordination_results)
+                    signal = await self._parse_trade_proposal(context, coordination_results)
                     if signal:
                         signals.append(signal)
 
@@ -2005,8 +2153,8 @@ Format each proposal clearly with headers like "TRADE PROPOSAL 1:", "TRADE PROPO
                 symbol = signal.get('symbol', '')
                 strategy_type = signal.get('strategy_type', '').lower()
 
-                # Determine instrument type from strategy
-                instrument_type = self._map_strategy_to_instrument_type(strategy_type)
+                # Determine instrument type from symbol and strategy
+                instrument_type = self._map_symbol_and_strategy_to_instrument_type(symbol, strategy_type)
 
                 # Check if account can trade this instrument
                 try:
@@ -2090,6 +2238,36 @@ Format each proposal clearly with headers like "TRADE PROPOSAL 1:", "TRADE PROPO
         else:
             # Default to equity for most strategies
             return 'equity'
+
+    def _map_symbol_and_strategy_to_instrument_type(self, symbol: str, strategy_type: str) -> str:
+        """
+        Map symbol and strategy type to instrument type for permissions checking.
+        Prioritizes symbol-based detection for crypto assets.
+
+        Args:
+            symbol: Trading symbol (e.g., 'BTC', 'SPY', 'EUR/USD')
+            strategy_type: Strategy type (e.g., 'Options', 'Flow', 'ML')
+
+        Returns:
+            Instrument type string ('equity', 'option', 'future', 'forex', 'crypto')
+        """
+        symbol_upper = symbol.upper()
+
+        # First, check symbol for known crypto assets
+        crypto_symbols = {'BTC', 'ETH', 'LTC', 'BCH', 'XRP', 'ADA', 'DOT', 'LINK', 'BNB', 'SOL', 'MATIC', 'AVAX', 'UNI', 'SUSHI', 'COMP'}
+        if symbol_upper in crypto_symbols or symbol_upper.endswith(('-USD', '-USDT', '-BTC')):
+            return 'crypto'
+
+        # Check for forex pairs (typically XXX/YYY format)
+        if '/' in symbol_upper and len(symbol_upper.split('/')) == 2:
+            return 'forex'
+
+        # Check for futures (typically end with =F or similar)
+        if '=F' in symbol_upper or symbol_upper.endswith(('1!', '2!', '3!')):
+            return 'future'
+
+        # Fall back to strategy-based mapping
+        return self._map_strategy_to_instrument_type(strategy_type)
 
     # ===== PERFORMANCE MONITORING AND PROPOSAL GENERATION =====
 
@@ -2674,3 +2852,1155 @@ Format each proposal clearly with headers like "TRADE PROPOSAL 1:", "TRADE PROPO
         except Exception as e:
             logger.error(f"Error generating strategy: {e}")
             return f"Error generating trading strategy: {str(e)}"
+
+    async def analyze_portfolio_rebalancing(self) -> Dict[str, Any]:
+        """
+        Analyze current portfolio and generate rebalancing recommendations based on real IBKR data.
+        
+        Returns:
+            Dict with rebalancing analysis and recommendations
+        """
+        try:
+            logger.info("StrategyAgent analyzing portfolio rebalancing opportunities")
+
+            # Get current portfolio composition from IBKR
+            current_portfolio = await self._get_current_portfolio_composition()
+
+            # Analyze sector performance (requires real market data integration)
+            try:
+                sector_analysis = self._analyze_sector_performance(current_portfolio)
+            except Exception as e:
+                logger.error(f"Sector performance analysis unavailable: {e}")
+                raise Exception(f"Portfolio rebalancing requires real-time market data integration: {e}")
+
+            # Detect market regime for rebalancing strategy (requires real market data)
+            try:
+                market_regime = self._detect_market_regime_for_rebalancing()
+            except Exception as e:
+                logger.error(f"Market regime detection unavailable: {e}")
+                raise Exception(f"Portfolio rebalancing requires real-time market data integration: {e}")
+
+            # Generate rebalancing recommendations
+            rebalancing_recommendations = self._generate_rebalancing_recommendations(
+                current_portfolio, sector_analysis, market_regime
+            )
+
+            # Calculate expected impact (requires real market data)
+            try:
+                impact_analysis = self._calculate_rebalancing_impact(
+                    current_portfolio, rebalancing_recommendations
+                )
+            except Exception as e:
+                logger.error(f"Rebalancing impact calculation unavailable: {e}")
+                raise Exception(f"Portfolio rebalancing requires real-time market analytics integration: {e}")
+
+            analysis_result = {
+                'current_portfolio': current_portfolio,
+                'sector_analysis': sector_analysis,
+                'market_regime': market_regime,
+                'rebalancing_recommendations': rebalancing_recommendations,
+                'impact_analysis': impact_analysis,
+                'recommendation_type': 'tactical' if market_regime.get('volatility', 'normal') == 'normal' else 'defensive',
+                'implementation_priority': 'high' if impact_analysis.get('expected_sharpe_improvement', 0) > 0.2 else 'medium',
+                'timestamp': datetime.datetime.now().isoformat()
+            }
+
+            logger.info(f"Portfolio rebalancing analysis completed: {analysis_result['recommendation_type']} recommendations generated")
+            return analysis_result
+
+        except Exception as e:
+            logger.error(f"StrategyAgent portfolio rebalancing analysis failed: {e}")
+            return {'error': f'Portfolio rebalancing analysis unavailable: {str(e)}'}
+
+    async def _get_current_portfolio_composition(self) -> Dict[str, Any]:
+        """
+        Get current portfolio composition from IBKR or memory.
+        
+        Returns:
+            Dict with current portfolio holdings and allocations
+        """
+        try:
+            # Try to get from IBKR first
+            from integrations.ibkr_connector import get_ibkr_connector
+            ibkr_connector = get_ibkr_connector()
+
+            try:
+                account_summary = await ibkr_connector.get_account_summary()
+                positions = await ibkr_connector.get_positions()
+
+                portfolio = {
+                    'total_value': float(account_summary.get('NetLiquidation', 1000000)),
+                    'cash': float(account_summary.get('TotalCashValue', 0)),
+                    'positions': {},
+                    'sector_allocation': {},
+                    'source': 'ibkr_live'
+                }
+
+                # Process positions
+                for position in positions:
+                    symbol = position.get('symbol', '')
+                    quantity = position.get('quantity', 0)
+                    market_value = position.get('marketValue', 0)
+                    sector = self._map_symbol_to_sector(symbol)
+
+                    portfolio['positions'][symbol] = {
+                        'quantity': quantity,
+                        'market_value': market_value,
+                        'sector': sector
+                    }
+
+                    # Update sector allocation
+                    if sector not in portfolio['sector_allocation']:
+                        portfolio['sector_allocation'][sector] = 0
+                    portfolio['sector_allocation'][sector] += market_value
+
+                # Convert to percentages
+                total_value = portfolio['total_value']
+                for sector in portfolio['sector_allocation']:
+                    portfolio['sector_allocation'][sector] = portfolio['sector_allocation'][sector] / total_value
+
+                portfolio['cash_allocation'] = portfolio['cash'] / total_value
+
+            except Exception as e:
+                logger.error(f"Could not get live portfolio data: {e}")
+                raise Exception(f"Live portfolio data unavailable: {e}")
+
+        except Exception as e:
+            logger.error(f"IBKR connector not available: {e}")
+            raise Exception(f"Portfolio data source unavailable: {e}")
+
+        return portfolio
+
+
+    def _map_symbol_to_sector(self, symbol: str) -> str:
+        """
+        Map trading symbol to sector for portfolio analysis.
+        
+        Args:
+            symbol: Trading symbol
+            
+        Returns:
+            Sector name
+        """
+        sector_mapping = {
+            'AAPL': 'technology', 'MSFT': 'technology', 'GOOGL': 'technology', 'TSLA': 'technology',
+            'NVDA': 'technology', 'AMZN': 'technology', 'META': 'technology', 'NFLX': 'technology',
+            'XLP': 'consumer_staples', 'PG': 'consumer_staples', 'KO': 'consumer_staples',
+            'XLE': 'energy', 'XOM': 'energy', 'CVX': 'energy',
+            'XLV': 'healthcare', 'JNJ': 'healthcare', 'PFE': 'healthcare',
+            'XLF': 'financials', 'JPM': 'financials', 'BAC': 'financials',
+            'SPY': 'broad_market', 'QQQ': 'broad_market'
+        }
+
+        return sector_mapping.get(symbol.upper(), 'other')
+
+    def _analyze_sector_performance(self, portfolio: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Analyze historical performance by sector.
+        
+        Args:
+            portfolio: Current portfolio composition
+            
+        Returns:
+            Dict with sector performance analysis
+        """
+        # No default estimates - analysis requires real market data
+        raise Exception("Sector performance analysis requires real-time market data integration")
+
+    def _get_sector_recommendation(self, sector: str, current_allocation: float, metrics: Dict[str, Any]) -> str:
+        """
+        Get recommendation for sector based on current allocation and performance.
+        
+        Args:
+            sector: Sector name
+            current_allocation: Current allocation percentage
+            metrics: Historical performance metrics
+            
+        Returns:
+            Recommendation string
+        """
+        sharpe = metrics.get('sharpe_ratio', 1.0)
+        max_dd = metrics.get('max_drawdown', 0.05)
+
+        if sector == 'technology' and current_allocation > 0.35:
+            return 'reduce'  # Over-allocated based on Learning Agent analysis
+        elif sector == 'consumer_staples' and current_allocation < 0.30:
+            return 'increase'  # Under-allocated defensive sector
+        elif sector == 'cash' and current_allocation < 0.10:
+            return 'increase'  # Need more cash buffer
+        elif sharpe > 2.0 and max_dd < 0.03:
+            return 'maintain' if current_allocation > 0.15 else 'consider_increase'
+        else:
+            return 'monitor'
+
+    def _detect_market_regime_for_rebalancing(self) -> Dict[str, Any]:
+        """
+        Detect market regime specifically for rebalancing decisions.
+        
+        Returns:
+            Dict with regime analysis for rebalancing
+        """
+        # No default estimates - requires real-time market data integration
+        raise Exception("Market regime detection requires real-time market data integration")
+
+    def _generate_rebalancing_recommendations(self, current_portfolio: Dict[str, Any],
+                                            sector_analysis: Dict[str, Any],
+                                            market_regime: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Generate rebalancing recommendations based on analysis.
+        
+        Args:
+            current_portfolio: Current portfolio composition
+            sector_analysis: Sector performance analysis
+            market_regime: Current market regime
+            
+        Returns:
+            Dict with rebalancing recommendations
+        """
+        recommendations = {
+            'tactical_rebalancing': {},
+            'strategic_rebalancing': {},
+            'implementation_plan': {},
+            'risk_considerations': {}
+        }
+
+        volatility = market_regime.get('volatility', 'normal')
+        risk_tolerance = market_regime.get('risk_tolerance', 'moderate')
+
+        # Tactical Rebalancing (24-48 hours) - Based on Learning Agent recommendations
+        if volatility == 'normal':
+            # Reduce tech exposure from ~44% to 30%
+            recommendations['tactical_rebalancing']['technology'] = {
+                'action': 'reduce',
+                'target_allocation': 0.30,
+                'reason': 'Over-allocated tech sector with high drawdown risk',
+                'expected_impact': 'Reduce portfolio beta, improve risk-adjusted returns'
+            }
+
+            # Increase consumer staples from ~30% to 35%
+            recommendations['tactical_rebalancing']['consumer_staples'] = {
+                'action': 'increase',
+                'target_allocation': 0.35,
+                'reason': 'Defensive sector with stable performance',
+                'expected_impact': 'Improve portfolio stability and Sharpe ratio'
+            }
+
+            # Boost cash from 10% to 15%
+            recommendations['tactical_rebalancing']['cash'] = {
+                'action': 'increase',
+                'target_allocation': 0.15,
+                'reason': 'Build cash buffer for opportunities',
+                'expected_impact': 'Increase liquidity and reduce risk'
+            }
+
+            # Hold energy at 20%
+            recommendations['tactical_rebalancing']['energy'] = {
+                'action': 'maintain',
+                'target_allocation': 0.20,
+                'reason': 'Neutral trend with good historical performance',
+                'expected_impact': 'Maintain diversification'
+            }
+
+        # Strategic Rebalancing (Quarterly) - Regime adaptive
+        if risk_tolerance == 'high':
+            # Bull market allocation
+            recommendations['strategic_rebalancing'] = {
+                'technology': 0.35,
+                'growth': 0.30,
+                'value': 0.20,
+                'cash': 0.15
+            }
+        elif risk_tolerance == 'low':
+            # Bear/defensive allocation
+            recommendations['strategic_rebalancing'] = {
+                'defensives': 0.25,
+                'cash': 0.25,
+                'technology': 0.20,
+                'value': 0.30
+            }
+        else:
+            # Balanced allocation
+            recommendations['strategic_rebalancing'] = {
+                'technology': 0.30,
+                'consumer_staples': 0.30,
+                'energy': 0.20,
+                'cash': 0.20
+            }
+
+        # Implementation plan
+        recommendations['implementation_plan'] = {
+            'timing': '9:30-10:00 AM ET' if volatility == 'normal' else 'Gradual over 1-2 weeks',
+            'max_position_change': 0.05,  # Max 5% allocation change at once
+            'monitoring_period': '24-48 hours post-rebalancing',
+            'rollback_trigger': '2% performance degradation'
+        }
+
+        # Risk considerations
+        recommendations['risk_considerations'] = {
+            'max_drawdown_target': 0.05,
+            'portfolio_beta_target': 0.95 if risk_tolerance == 'moderate' else 0.85,
+            'liquidity_requirement': 0.15,
+            'correlation_limit': 0.7
+        }
+
+        return recommendations
+
+    def _calculate_rebalancing_impact(self, current_portfolio: Dict[str, Any],
+                                    recommendations: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Calculate expected impact of rebalancing recommendations.
+        
+        Args:
+            current_portfolio: Current portfolio
+            recommendations: Rebalancing recommendations
+            
+        Returns:
+            Dict with impact analysis
+        """
+        # No default estimates - impact calculation requires real market data and portfolio metrics
+        raise Exception("Rebalancing impact calculation requires real-time market data and portfolio analytics integration")
+
+    async def enhance_proposal_quality(self, proposal: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Enhance proposal quality using historical analogy scoring and cross-agent feedback loops.
+        Based on Learning Agent recommendations for workflow improvements.
+
+        Args:
+            proposal: Original trading proposal
+
+        Returns:
+            Enhanced proposal with quality improvements
+        """
+        try:
+            logger.info("StrategyAgent enhancing proposal quality with historical analogies and cross-agent feedback")
+
+            # Step 1: Historical analogy scoring
+            analogy_score = await self._calculate_historical_analogy_score(proposal)
+
+            # Step 2: Cross-agent feedback loop
+            feedback_results = await self._gather_cross_agent_feedback(proposal)
+
+            # Step 3: Quality enhancement based on insights
+            enhanced_proposal = await self._apply_quality_enhancements(
+                proposal, analogy_score, feedback_results
+            )
+
+            # Step 4: Confidence adjustment
+            enhanced_proposal['quality_enhancement'] = {
+                'historical_analogy_score': analogy_score,
+                'cross_agent_feedback_count': len(feedback_results),
+                'enhancement_confidence': min(analogy_score.get('confidence', 0) + 0.1, 1.0),
+                'improvement_factors': self._identify_improvement_factors(analogy_score, feedback_results),
+                'timestamp': datetime.datetime.now().isoformat()
+            }
+
+            logger.info(f"Proposal quality enhanced: analogy_score={analogy_score.get('overall_score', 0):.2f}, "
+                       f"feedback_count={len(feedback_results)}")
+            return enhanced_proposal
+
+        except Exception as e:
+            logger.error(f"StrategyAgent proposal quality enhancement failed: {e}")
+            return proposal  # Return original proposal if enhancement fails
+
+    async def _calculate_historical_analogy_score(self, proposal: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Calculate historical analogy score by comparing current proposal to past successful trades.
+        Based on Learning Agent's historical pattern analysis recommendations.
+
+        Args:
+            proposal: Current trading proposal
+
+        Returns:
+            Historical analogy scoring results
+        """
+        try:
+            logger.info("Calculating historical analogy score for proposal")
+
+            # Get historical trade data from memory
+            historical_trades = await self._retrieve_historical_trades()
+
+            if not historical_trades:
+                logger.warning("No historical trade data available for analogy scoring")
+                return {
+                    'overall_score': 0.5,  # Neutral score
+                    'confidence': 0.3,
+                    'similar_trades': [],
+                    'reasoning': 'No historical data available'
+                }
+
+            # Extract proposal characteristics
+            proposal_features = self._extract_proposal_features(proposal)
+
+            # Find similar historical trades
+            similar_trades = []
+            analogy_scores = []
+
+            for trade in historical_trades:
+                similarity_score = self._calculate_trade_similarity(proposal_features, trade)
+                if similarity_score > 0.6:  # High similarity threshold
+                    similar_trades.append({
+                        'trade': trade,
+                        'similarity_score': similarity_score,
+                        'outcome': trade.get('outcome', 'unknown'),
+                        'roi_achieved': trade.get('actual_roi', 0)
+                    })
+
+                    # Weight score by outcome and similarity
+                    outcome_weight = 1.0 if trade.get('outcome') == 'success' else 0.3
+                    weighted_score = similarity_score * outcome_weight
+                    analogy_scores.append(weighted_score)
+
+            # Calculate overall analogy score
+            if analogy_scores:
+                overall_score = sum(analogy_scores) / len(analogy_scores)
+                confidence = min(len(similar_trades) / 5.0, 1.0)  # Higher confidence with more similar trades
+            else:
+                overall_score = 0.5  # Neutral
+                confidence = 0.2
+
+            # Sort similar trades by similarity
+            similar_trades.sort(key=lambda x: x['similarity_score'], reverse=True)
+
+            analogy_result = {
+                'overall_score': overall_score,
+                'confidence': confidence,
+                'similar_trades_count': len(similar_trades),
+                'top_similar_trades': similar_trades[:3],  # Top 3 most similar
+                'average_similarity': sum([t['similarity_score'] for t in similar_trades]) / len(similar_trades) if similar_trades else 0,
+                'success_rate_among_similar': self._calculate_success_rate_among_similar(similar_trades),
+                'key_insights': self._extract_key_insights_from_similar_trades(similar_trades),
+                'recommendations': self._generate_analogy_based_recommendations(similar_trades, proposal)
+            }
+
+            logger.info(f"Historical analogy scoring completed: score={overall_score:.2f}, "
+                       f"similar_trades={len(similar_trades)}, confidence={confidence:.2f}")
+            return analogy_result
+
+        except Exception as e:
+            logger.error(f"Error calculating historical analogy score: {e}")
+            return {
+                'overall_score': 0.5,
+                'confidence': 0.1,
+                'error': str(e)
+            }
+
+    async def _retrieve_historical_trades(self) -> List[Dict[str, Any]]:
+        """
+        Retrieve historical trades from memory for analogy analysis.
+
+        Returns:
+            List of historical trade records
+        """
+        try:
+            # Get trades from memory
+            memory_data = self.memory.get('historical_trades', [])
+
+            # Also check for trades in data files
+            import os
+            import json
+            data_dir = 'data'
+            historical_files = [
+                'full_system_integration_20251110_195056.json',
+                'full_system_integration_20251110_195504.json',
+                'full_system_integration_20251118_101054.json'
+            ]
+
+            for filename in historical_files:
+                filepath = os.path.join(data_dir, filename)
+                if os.path.exists(filepath):
+                    try:
+                        with open(filepath, 'r') as f:
+                            data = json.load(f)
+                            # Extract trade records from integration test data
+                            if 'trades' in data:
+                                memory_data.extend(data['trades'])
+                            elif 'results' in data and 'trades' in data['results']:
+                                memory_data.extend(data['results']['trades'])
+                    except Exception as e:
+                        logger.warning(f"Could not load historical data from {filename}: {e}")
+
+            # Filter and format trade records
+            formatted_trades = []
+            for trade in memory_data:
+                if isinstance(trade, dict) and 'symbol' in trade:
+                    formatted_trade = {
+                        'symbol': trade.get('symbol', ''),
+                        'direction': trade.get('direction', ''),
+                        'strategy_type': trade.get('strategy_type', ''),
+                        'entry_price': trade.get('entry_price', 0),
+                        'quantity': trade.get('quantity', 0),
+                        'outcome': trade.get('outcome', 'unknown'),
+                        'actual_roi': trade.get('actual_roi', 0),
+                        'timestamp': trade.get('timestamp', ''),
+                        'market_conditions': trade.get('market_conditions', {}),
+                        'execution_quality': trade.get('execution_quality', 'unknown')
+                    }
+                    formatted_trades.append(formatted_trade)
+
+            logger.info(f"Retrieved {len(formatted_trades)} historical trades for analogy analysis")
+            return formatted_trades
+
+        except Exception as e:
+            logger.error(f"Error retrieving historical trades: {e}")
+            return []
+
+    def _extract_proposal_features(self, proposal: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Extract key features from a trading proposal for similarity comparison.
+
+        Args:
+            proposal: Trading proposal
+
+        Returns:
+            Dict of proposal features
+        """
+        return {
+            'symbol': proposal.get('symbol', ''),
+            'direction': proposal.get('direction', ''),
+            'strategy_type': proposal.get('strategy_type', ''),
+            'confidence': proposal.get('confidence', 0),
+            'roi_estimate': proposal.get('roi_estimate', 0),
+            'quantity': proposal.get('quantity', 0),
+            'market_regime': proposal.get('market_regime', 'neutral'),
+            'volatility': proposal.get('volatility', 0.2),
+            'trend_strength': proposal.get('trend_strength', 0.5),
+            'liquidity_score': proposal.get('liquidity_score', 0.5)
+        }
+
+    def _calculate_trade_similarity(self, proposal_features: Dict[str, Any],
+                                  historical_trade: Dict[str, Any]) -> float:
+        """
+        Calculate similarity score between proposal and historical trade.
+
+        Args:
+            proposal_features: Features of current proposal
+            historical_trade: Historical trade record
+
+        Returns:
+            Similarity score (0-1)
+        """
+        try:
+            similarity_factors = []
+
+            # Symbol similarity (exact match = 1.0, same sector = 0.5)
+            if proposal_features['symbol'] == historical_trade.get('symbol'):
+                similarity_factors.append(1.0)
+            elif self._same_sector(proposal_features['symbol'], historical_trade.get('symbol', '')):
+                similarity_factors.append(0.5)
+            else:
+                similarity_factors.append(0.0)
+
+            # Direction similarity
+            if proposal_features['direction'] == historical_trade.get('direction'):
+                similarity_factors.append(1.0)
+            else:
+                similarity_factors.append(0.0)
+
+            # Strategy type similarity
+            if proposal_features['strategy_type'] == historical_trade.get('strategy_type'):
+                similarity_factors.append(1.0)
+            elif proposal_features['strategy_type'].lower() in historical_trade.get('strategy_type', '').lower():
+                similarity_factors.append(0.7)
+            else:
+                similarity_factors.append(0.0)
+
+            # ROI estimate similarity (closer estimates = higher similarity)
+            proposal_roi = proposal_features['roi_estimate']
+            historical_roi = historical_trade.get('actual_roi', 0)
+            roi_similarity = max(0, 1 - abs(proposal_roi - historical_roi) / max(abs(proposal_roi), abs(historical_roi), 0.01))
+            similarity_factors.append(roi_similarity)
+
+            # Market condition similarity
+            market_similarity = self._calculate_market_condition_similarity(
+                proposal_features, historical_trade
+            )
+            similarity_factors.append(market_similarity)
+
+            # Calculate weighted average
+            weights = [0.2, 0.2, 0.2, 0.2, 0.2]  # Equal weights
+            similarity_score = sum(s * w for s, w in zip(similarity_factors, weights))
+
+            return min(similarity_score, 1.0)
+
+        except Exception as e:
+            logger.warning(f"Error calculating trade similarity: {e}")
+            return 0.0
+
+    def _same_sector(self, symbol1: str, symbol2: str) -> bool:
+        """
+        Check if two symbols are in the same sector.
+
+        Args:
+            symbol1: First symbol
+            symbol2: Second symbol
+
+        Returns:
+            True if same sector
+        """
+        sector_map = {
+            'technology': ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA', 'AMZN', 'META', 'NFLX'],
+            'consumer_staples': ['XLP', 'PG', 'KO', 'PEP'],
+            'energy': ['XLE', 'XOM', 'CVX'],
+            'financials': ['XLF', 'JPM', 'BAC'],
+            'healthcare': ['XLV', 'JNJ', 'PFE'],
+            'broad_market': ['SPY', 'QQQ', 'IWM']
+        }
+
+        sector1 = None
+        sector2 = None
+
+        for sector, symbols in sector_map.items():
+            if symbol1.upper() in symbols:
+                sector1 = sector
+            if symbol2.upper() in symbols:
+                sector2 = sector
+
+        return sector1 == sector2 and sector1 is not None
+
+    def _calculate_market_condition_similarity(self, proposal_features: Dict[str, Any],
+                                            historical_trade: Dict[str, Any]) -> float:
+        """
+        Calculate similarity of market conditions.
+
+        Args:
+            proposal_features: Current proposal features
+            historical_trade: Historical trade
+
+        Returns:
+            Market condition similarity score (0-1)
+        """
+        try:
+            similarity = 0.0
+            factors = 0
+
+            # Volatility similarity
+            proposal_vol = proposal_features.get('volatility', 0.2)
+            historical_conditions = historical_trade.get('market_conditions', {})
+            historical_vol = historical_conditions.get('volatility', 0.2)
+
+            if abs(proposal_vol - historical_vol) < 0.05:
+                similarity += 1.0
+            elif abs(proposal_vol - historical_vol) < 0.1:
+                similarity += 0.5
+            factors += 1
+
+            # Trend strength similarity
+            proposal_trend = proposal_features.get('trend_strength', 0.5)
+            historical_trend = historical_conditions.get('trend_strength', 0.5)
+
+            if abs(proposal_trend - historical_trend) < 0.1:
+                similarity += 1.0
+            elif abs(proposal_trend - historical_trend) < 0.2:
+                similarity += 0.5
+            factors += 1
+
+            # Market regime similarity
+            proposal_regime = proposal_features.get('market_regime', 'neutral')
+            historical_regime = historical_conditions.get('regime', 'neutral')
+
+            if proposal_regime == historical_regime:
+                similarity += 1.0
+            elif abs(['bull', 'neutral', 'bear'].index(proposal_regime) -
+                    ['bull', 'neutral', 'bear'].index(historical_regime)) == 1:
+                similarity += 0.5  # Adjacent regimes are somewhat similar
+            factors += 1
+
+            return similarity / factors if factors > 0 else 0.5
+
+        except Exception as e:
+            logger.warning(f"Error calculating market condition similarity: {e}")
+            return 0.5
+
+    def _calculate_success_rate_among_similar(self, similar_trades: List[Dict[str, Any]]) -> float:
+        """
+        Calculate success rate among similar historical trades.
+
+        Args:
+            similar_trades: List of similar historical trades
+
+        Returns:
+            Success rate (0-1)
+        """
+        if not similar_trades:
+            return 0.5
+
+        success_count = sum(1 for trade in similar_trades
+                          if trade.get('outcome') == 'success')
+        return success_count / len(similar_trades)
+
+    def _extract_key_insights_from_similar_trades(self, similar_trades: List[Dict[str, Any]]) -> List[str]:
+        """
+        Extract key insights from similar historical trades.
+
+        Args:
+            similar_trades: Similar historical trades
+
+        Returns:
+            List of key insights
+        """
+        insights = []
+
+        if not similar_trades:
+            return ["No similar historical trades found for insights"]
+
+        # Analyze common patterns
+        successful_trades = [t for t in similar_trades if t.get('outcome') == 'success']
+        failed_trades = [t for t in similar_trades if t.get('outcome') == 'failure']
+
+        if successful_trades:
+            avg_success_roi = sum(t.get('roi_achieved', 0) for t in successful_trades) / len(successful_trades)
+            insights.append(f"Similar successful trades achieved average ROI of {avg_success_roi:.1%}")
+
+        if failed_trades:
+            avg_failure_roi = sum(t.get('roi_achieved', 0) for t in failed_trades) / len(failed_trades)
+            insights.append(f"Similar failed trades had average ROI of {avg_failure_roi:.1%}")
+
+        # Common market conditions
+        regimes = [t['trade'].get('market_conditions', {}).get('regime', 'unknown')
+                  for t in similar_trades]
+        most_common_regime = max(set(regimes), key=regimes.count) if regimes else 'unknown'
+        if most_common_regime != 'unknown':
+            insights.append(f"Most similar trades occurred in {most_common_regime} market regime")
+
+        return insights
+
+    def _generate_analogy_based_recommendations(self, similar_trades: List[Dict[str, Any]],
+                                              proposal: Dict[str, Any]) -> List[str]:
+        """
+        Generate recommendations based on historical analogies.
+
+        Args:
+            similar_trades: Similar historical trades
+            proposal: Current proposal
+
+        Returns:
+            List of recommendations
+        """
+        recommendations = []
+
+        if not similar_trades:
+            return ["Insufficient historical data for specific recommendations"]
+
+        success_rate = self._calculate_success_rate_among_similar(similar_trades)
+
+        if success_rate > 0.7:
+            recommendations.append("High historical success rate suggests proceeding with confidence")
+        elif success_rate < 0.4:
+            recommendations.append("Low historical success rate suggests reducing position size or reconsidering")
+
+        # ROI expectations
+        successful_trades = [t for t in similar_trades if t.get('outcome') == 'success']
+        if successful_trades:
+            avg_roi = sum(t.get('roi_achieved', 0) for t in successful_trades) / len(successful_trades)
+            current_estimate = proposal.get('roi_estimate', 0)
+            if avg_roi > current_estimate * 1.2:
+                recommendations.append(f"Historical performance suggests ROI could be higher than estimated ({avg_roi:.1%} vs {current_estimate:.1%})")
+            elif avg_roi < current_estimate * 0.8:
+                recommendations.append(f"Historical performance suggests ROI could be lower than estimated ({avg_roi:.1%} vs {current_estimate:.1%})")
+
+        return recommendations
+
+    async def _gather_cross_agent_feedback(self, proposal: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """
+        Gather feedback from other agents in the collaborative framework.
+        Based on Learning Agent's cross-agent feedback loop recommendations.
+
+        Args:
+            proposal: Trading proposal to get feedback on
+
+        Returns:
+            List of feedback from different agents
+        """
+        try:
+            logger.info("Gathering cross-agent feedback for proposal")
+
+            feedback_results = []
+
+            # Get feedback from key agents
+            agent_feedback_requests = [
+                ('risk', 'Risk assessment and position sizing feedback'),
+                ('execution', 'Execution quality and timing feedback'),
+                ('learning', 'Historical performance and learning feedback'),
+                ('macro', 'Macro-economic context feedback')
+            ]
+
+            for agent_name, feedback_type in agent_feedback_requests:
+                try:
+                    feedback = await self._get_agent_feedback(agent_name, feedback_type, proposal)
+                    if feedback:
+                        feedback_results.append({
+                            'agent': agent_name,
+                            'feedback_type': feedback_type,
+                            'feedback': feedback,
+                            'timestamp': datetime.datetime.now().isoformat()
+                        })
+                except Exception as e:
+                    logger.warning(f"Failed to get feedback from {agent_name}: {e}")
+
+            # Also get feedback from strategy sub-agents
+            sub_agent_feedback = await self._get_sub_agent_feedback(proposal)
+            feedback_results.extend(sub_agent_feedback)
+
+            logger.info(f"Gathered feedback from {len(feedback_results)} agents")
+            return feedback_results
+
+        except Exception as e:
+            logger.error(f"Error gathering cross-agent feedback: {e}")
+            return []
+
+    async def _get_agent_feedback(self, agent_name: str, feedback_type: str,
+                                proposal: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """
+        Get feedback from a specific agent.
+
+        Args:
+            agent_name: Name of the agent to get feedback from
+            feedback_type: Type of feedback requested
+            proposal: Trading proposal
+
+        Returns:
+            Feedback dict or None if unavailable
+        """
+        try:
+            # Use LLM to simulate agent feedback (in real implementation, this would call actual agent methods)
+            feedback_prompt = f"""
+You are the {agent_name} agent providing feedback on a trading proposal.
+
+Proposal Details:
+- Symbol: {proposal.get('symbol', 'Unknown')}
+- Direction: {proposal.get('direction', 'Unknown')}
+- Strategy: {proposal.get('strategy_type', 'Unknown')}
+- Confidence: {proposal.get('confidence', 0):.1%}
+- Expected ROI: {proposal.get('roi_estimate', 0):.1%}
+- Quantity: {proposal.get('quantity', 0)}
+
+Feedback Type: {feedback_type}
+
+Provide specific, actionable feedback from your agent's perspective. Include:
+1. Strengths of the proposal
+2. Potential concerns or risks
+3. Suggestions for improvement
+4. Confidence level in the proposal (0-1)
+5. Any adjustments you would recommend
+
+Be concise but thorough.
+"""
+
+            # Check if LLM is available, provide fallback if not
+            if not self.llm:
+                logger.warning(f"No LLM available for {agent_name} feedback, using fallback")
+                # Provide basic fallback feedback based on agent role
+                fallback_feedback = self._get_fallback_agent_feedback(agent_name, proposal)
+                return fallback_feedback
+
+            feedback_response = await self.reason_with_llm(str(proposal), feedback_prompt)
+
+            # Parse feedback response
+            return {
+                'content': feedback_response,
+                'confidence': self._extract_confidence_from_feedback(feedback_response),
+                'recommendations': self._extract_recommendations_from_feedback(feedback_response),
+                'risk_assessment': 'positive' if 'positive' in feedback_response.lower() else 'neutral'
+            }
+
+        except Exception as e:
+            logger.warning(f"Error getting feedback from {agent_name}: {e}")
+            # Return fallback feedback on error
+            return self._get_fallback_agent_feedback(agent_name, proposal)
+
+    def _get_fallback_agent_feedback(self, agent_name: str, proposal: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Provide fallback feedback when LLM is not available.
+
+        Args:
+            agent_name: Name of the agent
+            proposal: Trading proposal
+
+        Returns:
+            Basic feedback dict
+        """
+        try:
+            # Basic feedback patterns based on agent role
+            feedback_patterns = {
+                'risk': {
+                    'content': f'Risk assessment: Proposal has {proposal.get("confidence", 0):.0%} confidence. '
+                              f'Monitor position size and stop losses. Consider volatility-based adjustments.',
+                    'confidence': 0.6,
+                    'recommendations': ['Monitor volatility', 'Use appropriate position sizing', 'Set stop losses'],
+                    'risk_assessment': 'moderate'
+                },
+                'execution': {
+                    'content': f'Execution feedback: Ensure proper order routing for {proposal.get("symbol", "symbol")}. '
+                              f'Verify slippage expectations and execution quality.',
+                    'confidence': 0.7,
+                    'recommendations': ['Check order routing', 'Monitor execution quality', 'Verify slippage'],
+                    'risk_assessment': 'neutral'
+                },
+                'learning': {
+                    'content': f'Learning perspective: Track this trade for pattern recognition. '
+                              f'ROI estimate of {proposal.get("roi_estimate", 0):.1%} should be monitored against actual results.',
+                    'confidence': 0.5,
+                    'recommendations': ['Track trade outcome', 'Update learning patterns', 'Analyze performance'],
+                    'risk_assessment': 'neutral'
+                },
+                'macro': {
+                    'content': f'Macro analysis: Consider broader market conditions for {proposal.get("strategy_type", "strategy")}. '
+                              f'Evaluate sector trends and economic indicators.',
+                    'confidence': 0.6,
+                    'recommendations': ['Check sector trends', 'Monitor economic data', 'Consider market regime'],
+                    'risk_assessment': 'neutral'
+                }
+            }
+
+            # Return pattern-based feedback or generic feedback
+            if agent_name in feedback_patterns:
+                return feedback_patterns[agent_name]
+            else:
+                return {
+                    'content': f'{agent_name.title()} feedback: Proposal appears reasonable. '
+                              f'Monitor execution and adjust as needed.',
+                    'confidence': 0.5,
+                    'recommendations': ['Monitor closely', 'Be prepared to adjust'],
+                    'risk_assessment': 'neutral'
+                }
+
+        except Exception as e:
+            logger.warning(f"Error generating fallback feedback for {agent_name}: {e}")
+            return {
+                'content': f'Basic feedback from {agent_name}: Monitor the trade execution.',
+                'confidence': 0.5,
+                'recommendations': ['Monitor execution'],
+                'risk_assessment': 'neutral'
+            }
+
+    async def _get_sub_agent_feedback(self, proposal: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """
+        Get feedback from strategy sub-agents.
+
+        Args:
+            proposal: Trading proposal
+
+        Returns:
+            List of sub-agent feedback
+        """
+        feedback_list = []
+
+        try:
+            # Get feedback from options analyzer
+            if self.options_analyzer:
+                options_feedback = await self.options_analyzer.process_input({
+                    'task': 'feedback',
+                    'proposal': proposal
+                })
+                if options_feedback:
+                    feedback_list.append({
+                        'agent': 'options_strategy',
+                        'feedback_type': 'Options strategy feedback',
+                        'feedback': options_feedback,
+                        'timestamp': datetime.datetime.now().isoformat()
+                    })
+
+            # Get feedback from flow analyzer
+            if self.flow_analyzer:
+                flow_feedback = await self.flow_analyzer.process_input({
+                    'task': 'feedback',
+                    'proposal': proposal
+                })
+                if flow_feedback:
+                    feedback_list.append({
+                        'agent': 'flow_strategy',
+                        'feedback_type': 'Flow analysis feedback',
+                        'feedback': flow_feedback,
+                        'timestamp': datetime.datetime.now().isoformat()
+                    })
+
+            # Get feedback from AI analyzer
+            if self.ai_analyzer:
+                ai_feedback = await self.ai_analyzer.process_input({
+                    'task': 'feedback',
+                    'proposal': proposal
+                })
+                if ai_feedback:
+                    feedback_list.append({
+                        'agent': 'ai_strategy',
+                        'feedback_type': 'AI/ML feedback',
+                        'feedback': ai_feedback,
+                        'timestamp': datetime.datetime.now().isoformat()
+                    })
+
+        except Exception as e:
+            logger.warning(f"Error getting sub-agent feedback: {e}")
+
+        return feedback_list
+
+    def _extract_confidence_from_feedback(self, feedback: str) -> float:
+        """
+        Extract confidence level from feedback text.
+
+        Args:
+            feedback: Feedback text
+
+        Returns:
+            Confidence level (0-1)
+        """
+        feedback_lower = feedback.lower()
+
+        if 'high confidence' in feedback_lower or 'very confident' in feedback_lower:
+            return 0.9
+        elif 'medium confidence' in feedback_lower or 'moderately confident' in feedback_lower:
+            return 0.7
+        elif 'low confidence' in feedback_lower or 'not confident' in feedback_lower:
+            return 0.4
+        else:
+            # Look for numeric confidence
+            import re
+            confidence_match = re.search(r'confidence[:\s]+(\d+(?:\.\d+)?)', feedback_lower)
+            if confidence_match:
+                return min(float(confidence_match.group(1)), 1.0)
+            else:
+                return 0.6  # Default moderate confidence
+
+    def _extract_recommendations_from_feedback(self, feedback: str) -> List[str]:
+        """
+        Extract recommendations from feedback text.
+
+        Args:
+            feedback: Feedback text
+
+        Returns:
+            List of recommendations
+        """
+        recommendations = []
+
+        # Split feedback into sentences and look for recommendations
+        sentences = feedback.split('.')
+        for sentence in sentences:
+            sentence = sentence.strip()
+            if any(word in sentence.lower() for word in ['recommend', 'suggest', 'should', 'consider', 'advise']):
+                if len(sentence) > 10:  # Meaningful recommendation
+                    recommendations.append(sentence)
+
+        return recommendations[:3]  # Limit to top 3 recommendations
+
+    async def _apply_quality_enhancements(self, proposal: Dict[str, Any],
+                                       analogy_score: Dict[str, Any],
+                                       feedback_results: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Apply quality enhancements based on analogy scores and feedback.
+
+        Args:
+            proposal: Original proposal
+            analogy_score: Historical analogy scoring
+            feedback_results: Cross-agent feedback
+
+        Returns:
+            Enhanced proposal
+        """
+        try:
+            enhanced_proposal = proposal.copy()
+
+            # Apply analogy-based adjustments
+            if analogy_score.get('overall_score', 0.5) > 0.7:
+                # High analogy score - boost confidence
+                enhanced_proposal['confidence'] = min(proposal.get('confidence', 0) + 0.1, 1.0)
+                enhanced_proposal['analogy_boost'] = True
+            elif analogy_score.get('overall_score', 0.5) < 0.4:
+                # Low analogy score - reduce confidence and position size
+                enhanced_proposal['confidence'] = max(proposal.get('confidence', 0) - 0.1, 0.1)
+                enhanced_proposal['quantity'] = int(proposal.get('quantity', 0) * 0.8)
+                enhanced_proposal['analogy_concern'] = True
+
+            # Apply feedback-based adjustments
+            risk_concerns = 0
+            confidence_boosts = 0
+
+            for feedback in feedback_results:
+                feedback_content = feedback.get('feedback', {})
+                if isinstance(feedback_content, dict):
+                    feedback_text = str(feedback_content)
+                else:
+                    feedback_text = feedback_content
+
+                # Count risk concerns
+                if any(word in feedback_text.lower() for word in ['risk', 'concern', 'caution', 'warning']):
+                    risk_concerns += 1
+
+                # Count confidence boosts
+                if any(word in feedback_text.lower() for word in ['confident', 'positive', 'good', 'strong']):
+                    confidence_boosts += 1
+
+            # Adjust based on feedback balance
+            total_feedback = len(feedback_results)
+            if total_feedback > 0:
+                risk_ratio = risk_concerns / total_feedback
+                confidence_ratio = confidence_boosts / total_feedback
+
+                if risk_ratio > 0.5:
+                    # High risk concerns - reduce position size
+                    enhanced_proposal['quantity'] = int(proposal.get('quantity', 0) * 0.9)
+                    enhanced_proposal['risk_adjusted'] = True
+
+                if confidence_ratio > 0.6:
+                    # High confidence feedback - slight boost
+                    enhanced_proposal['confidence'] = min(proposal.get('confidence', 0) + 0.05, 1.0)
+                    enhanced_proposal['feedback_boost'] = True
+
+            # Add enhancement metadata
+            enhanced_proposal['enhancement_applied'] = {
+                'analogy_score_used': analogy_score.get('overall_score', 0),
+                'feedback_count': len(feedback_results),
+                'risk_concerns': risk_concerns,
+                'confidence_boosts': confidence_boosts,
+                'adjustments_made': [
+                    k for k in ['analogy_boost', 'analogy_concern', 'risk_adjusted', 'feedback_boost']
+                    if enhanced_proposal.get(k, False)
+                ]
+            }
+
+            logger.info(f"Applied quality enhancements: {len(enhanced_proposal.get('enhancement_applied', {}).get('adjustments_made', []))} adjustments made")
+            return enhanced_proposal
+
+        except Exception as e:
+            logger.error(f"Error applying quality enhancements: {e}")
+            return proposal  # Return original if enhancement fails
+
+    def _identify_improvement_factors(self, analogy_score: Dict[str, Any],
+                                    feedback_results: List[Dict[str, Any]]) -> List[str]:
+        """
+        Identify key factors that contributed to proposal improvements.
+
+        Args:
+            analogy_score: Historical analogy results
+            feedback_results: Cross-agent feedback
+
+        Returns:
+            List of improvement factors
+        """
+        factors = []
+
+        # Analogy-based factors
+        if analogy_score.get('overall_score', 0) > 0.7:
+            factors.append("Strong historical precedent")
+        elif analogy_score.get('overall_score', 0) < 0.4:
+            factors.append("Limited historical precedent - increased caution")
+
+        success_rate = analogy_score.get('success_rate_among_similar', 0)
+        if success_rate > 0.7:
+            factors.append("High success rate in similar trades")
+        elif success_rate < 0.4:
+            factors.append("Low success rate in similar trades")
+
+        # Feedback-based factors
+        risk_concerns = sum(1 for f in feedback_results
+                          if 'risk' in str(f.get('feedback', '')).lower())
+        if risk_concerns > len(feedback_results) * 0.5:
+            factors.append("Multiple risk concerns addressed")
+        elif risk_concerns == 0:
+            factors.append("No significant risk concerns identified")
+
+        confidence_signals = sum(1 for f in feedback_results
+                               if 'confident' in str(f.get('feedback', '')).lower())
+        if confidence_signals > len(feedback_results) * 0.6:
+            factors.append("Strong cross-agent confidence")
+
+        return factors

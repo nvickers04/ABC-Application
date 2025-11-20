@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 # Add project root to path
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 async def test_trading_permissions():
     """Test trading permissions functionality."""
@@ -99,6 +99,17 @@ async def test_trading_permissions():
                 'confidence': 0.7,
                 'roi_estimate': 0.25,
                 'analysis': 'Call option strategy',
+                'timestamp': '2025-11-20T10:00:00Z',
+                'agent_source': 'test'
+            },
+            {
+                'symbol': 'BTC',
+                'direction': 'long',
+                'quantity': 1,
+                'strategy_type': 'Crypto',
+                'confidence': 0.8,
+                'roi_estimate': 0.30,
+                'analysis': 'Bitcoin momentum trade',
                 'timestamp': '2025-11-20T10:00:00Z',
                 'agent_source': 'test'
             }
