@@ -227,3 +227,6 @@ continuous_trading.log
 tools/vault/vault.exe
 tools/vault/vault.zip
 vault.zip
+# Memory backups
+data/memory/backups/
+src/data/memory/backups/
