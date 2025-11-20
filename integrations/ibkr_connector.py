@@ -849,6 +849,475 @@ class IBKRConnector:
             logger.error(f"Error getting portfolio P&L: {e}")
             return {'error': str(e)}
 
+    async def get_news_bulletins(self, all_messages: bool = True) -> List[Dict[str, Any]]:
+        """
+        Get news bulletins from IBKR.
+        Requires market data subscription for full access.
+
+        Args:
+            all_messages: Whether to get all messages or just new ones
+
+        Returns:
+            List of news bulletin dictionaries
+        """
+        try:
+            if not self.connected:
+                await self.connect()
+                if not self.connected:
+                    return []
+
+            # Request news bulletins
+            bulletins = await self._run_in_executor(self.ib.reqNewsBulletins, all_messages)
+
+            news_bulletins = []
+            for bulletin in bulletins:
+                news_bulletins.append({
+                    'id': bulletin.id,
+                    'message': bulletin.message,
+                    'exchange': bulletin.exchange,
+                    'timestamp': datetime.now(timezone.utc).isoformat(),
+                    'type': 'bulletin'
+                })
+
+            logger.info(f"Retrieved {len(news_bulletins)} news bulletins from IBKR")
+            return news_bulletins
+
+        except Exception as e:
+            logger.error(f"Error getting news bulletins: {e}")
+            return []
+
+    async def get_historical_news(self, contract_id: int, provider_codes: str = "",
+                                 start_date: str = "", end_date: str = "",
+                                 total_results: int = 10) -> List[Dict[str, Any]]:
+        """
+        Get historical news for a specific contract.
+        Requires market data subscription.
+
+        Args:
+            contract_id: IBKR contract ID
+            provider_codes: News provider codes (comma-separated)
+            start_date: Start date (YYYYMMDD format)
+            end_date: End date (YYYYMMDD format)
+            total_results: Maximum number of results
+
+        Returns:
+            List of historical news items
+        """
+        try:
+            if not self.connected:
+                await self.connect()
+                if not self.connected:
+                    return []
+
+            # Request historical news
+            news_items = await self._run_in_executor(
+                self.ib.reqHistoricalNews,
+                contract_id, provider_codes, start_date, end_date, total_results
+            )
+
+            historical_news = []
+            for news_item in news_items:
+                historical_news.append({
+                    'time': news_item.time,
+                    'provider_code': news_item.providerCode,
+                    'article_id': news_item.articleId,
+                    'headline': news_item.headline,
+                    'timestamp': datetime.now(timezone.utc).isoformat(),
+                    'type': 'historical_news'
+                })
+
+            logger.info(f"Retrieved {len(historical_news)} historical news items from IBKR")
+            return historical_news
+
+        except Exception as e:
+            logger.error(f"Error getting historical news: {e}")
+            return []
+
+    async def get_news_article(self, provider_code: str, article_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get a specific news article content.
+        Requires market data subscription.
+
+        Args:
+            provider_code: News provider code
+            article_id: Article ID
+
+        Returns:
+            News article content or None if not found
+        """
+        try:
+            if not self.connected:
+                await self.connect()
+                if not self.connected:
+                    return None
+
+            # Request news article
+            article = await self._run_in_executor(
+                self.ib.reqNewsArticle,
+                provider_code, article_id
+            )
+
+            if article:
+                return {
+                    'article_type': article.articleType,
+                    'article_text': article.articleText,
+                    'provider_code': provider_code,
+                    'article_id': article_id,
+                    'timestamp': datetime.now(timezone.utc).isoformat(),
+                    'type': 'news_article'
+                }
+
+            return None
+
+        except Exception as e:
+            logger.error(f"Error getting news article {article_id}: {e}")
+            return None
+
+    def setup_news_event_handlers(self):
+        """
+        Set up event handlers for real-time news feeds.
+        Call this after connecting to enable real-time news.
+        """
+        try:
+            # Set up news bulletin event handler
+            @self.ib.newsBulletinsEvent
+            def on_news_bulletin(bulletin):
+                logger.info(f"NEWS BULLETIN: {bulletin.message} (Exchange: {bulletin.exchange})")
+                # In production, would forward to strategy agents for analysis
+
+            # Set up news article event handler
+            @self.ib.newsArticleEvent
+            def on_news_article(article_id, article_type, extra_data):
+                logger.info(f"NEWS ARTICLE: {article_id} - {article_type}")
+                # In production, would fetch and analyze article content
+
+            logger.info("IBKR news event handlers configured")
+
+        except Exception as e:
+            logger.error(f"Error setting up news event handlers: {e}")
+
+    async def get_account_permissions(self) -> Dict[str, Any]:
+        """
+        Get detailed account permissions and trading restrictions from IBKR.
+
+        Returns:
+            Dict with account type, trading permissions, and restrictions
+        """
+        try:
+            if not self.connected:
+                await self.connect()
+                if not self.connected:
+                    return {'error': 'Not connected to IBKR'}
+
+            # Get account summary for detailed account information
+            summary = await self._run_in_executor(self.ib.reqAccountSummary)
+
+            # Parse account features and permissions
+            account_features = {}
+            trading_permissions = {
+                'equities': {'enabled': False, 'exchanges': [], 'restrictions': []},
+                'options': {'enabled': False, 'types': [], 'restrictions': []},
+                'futures': {'enabled': False, 'exchanges': [], 'restrictions': []},
+                'forex': {'enabled': False, 'pairs': [], 'restrictions': []},
+                'crypto': {'enabled': False, 'exchanges': [], 'restrictions': []}
+            }
+
+            # Parse account summary tags for permissions
+            for item in summary:
+                tag = item.tag
+                value = item.value
+
+                # Account type identification
+                if tag == 'AccountType':
+                    account_features['account_type'] = value
+                elif tag == 'AccountCode':
+                    account_features['account_code'] = value
+
+                # Trading permissions
+                elif tag == 'Cushion':
+                    account_features['cushion'] = float(value)  # Buying power cushion
+                elif tag == 'LookAheadNextChange':
+                    account_features['next_reset'] = value  # Pattern day trading reset
+
+                # Margin information
+                elif tag == 'AvailableFunds':
+                    account_features['available_funds'] = float(value)
+                elif tag == 'BuyingPower':
+                    account_features['buying_power'] = float(value)
+                elif tag == 'EquityWithLoanValue':
+                    account_features['equity_with_loan'] = float(value)
+
+                # Pattern day trading status
+                elif tag == 'DayTradesRemaining':
+                    account_features['day_trades_remaining'] = int(float(value))
+
+            # Determine account type and permissions based on IBKR data
+            account_type = self._determine_account_type(account_features)
+
+            # Get trading permissions based on account type and features
+            permissions = self._get_trading_permissions(account_type, account_features)
+
+            return {
+                'account_id': self.account_id,
+                'account_type': account_type,
+                'account_features': account_features,
+                'trading_permissions': permissions,
+                'timestamp': datetime.now(timezone.utc).isoformat()
+            }
+
+        except Exception as e:
+            logger.error(f"Error getting account permissions: {e}")
+            return {'error': str(e)}
+
+    def _determine_account_type(self, account_features: Dict[str, Any]) -> str:
+        """
+        Determine account type from IBKR account features.
+
+        Args:
+            account_features: Account features from IBKR
+
+        Returns:
+            Account type string
+        """
+        account_type = account_features.get('account_type', '')
+        account_code = account_features.get('account_code', '')
+
+        # Check for paper trading account
+        if self.account_id.startswith('D') and len(self.account_id) == 9:
+            return 'paper_trading'
+
+        # Map IBKR account types to our categories
+        type_mapping = {
+            'INDIVIDUAL': 'individual_margin',
+            'CASH': 'individual_cash',
+            'IRA': 'ira',
+            'TRUST': 'individual_margin',
+            'LLC': 'individual_margin',
+            'PARTNERSHIP': 'institutional',
+            'CORPORATION': 'institutional',
+            'INSTITUTIONAL': 'institutional'
+        }
+
+        # Try to determine from account type
+        if account_type in type_mapping:
+            return type_mapping[account_type]
+
+        # Fallback based on account code patterns
+        if 'IRA' in account_code.upper():
+            return 'ira'
+        elif any(term in account_code.upper() for term in ['LLC', 'INC', 'CORP', 'LTD']):
+            return 'institutional'
+
+        # Default to individual cash account
+        return 'individual_cash'
+
+    def _get_trading_permissions(self, account_type: str, account_features: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Get trading permissions based on account type and features.
+
+        Args:
+            account_type: Determined account type
+            account_features: Account features from IBKR
+
+        Returns:
+            Dict with detailed trading permissions
+        """
+        # Base permissions by account type
+        base_permissions = {
+            'paper_trading': {
+                'equities': {'enabled': True, 'exchanges': ['NASDAQ', 'NYSE', 'AMEX', 'ARCA']},
+                'options': {'enabled': True, 'types': ['CALL', 'PUT', 'SPREAD', 'STRADDLE', 'STRANGLE']},
+                'futures': {'enabled': True, 'exchanges': ['CME', 'CBOT', 'NYMEX', 'COMEX']},
+                'forex': {'enabled': True, 'pairs': ['EUR/USD', 'GBP/USD', 'USD/JPY', 'USD/CHF', 'AUD/USD', 'USD/CAD']},
+                'crypto': {'enabled': False},
+                'margin': {'enabled': True, 'leverage_max': 4.0},
+                'short_selling': {'enabled': True}
+            },
+            'individual_cash': {
+                'equities': {'enabled': True, 'exchanges': ['NASDAQ', 'NYSE', 'AMEX', 'ARCA']},
+                'options': {'enabled': True, 'types': ['CALL', 'PUT']},
+                'futures': {'enabled': False},
+                'forex': {'enabled': False},
+                'crypto': {'enabled': False},
+                'margin': {'enabled': False},
+                'short_selling': {'enabled': False}
+            },
+            'individual_margin': {
+                'equities': {'enabled': True, 'exchanges': ['NASDAQ', 'NYSE', 'AMEX', 'ARCA']},
+                'options': {'enabled': True, 'types': ['CALL', 'PUT', 'SPREAD', 'STRADDLE', 'STRANGLE', 'IRON_CONDOR']},
+                'futures': {'enabled': False},
+                'forex': {'enabled': True, 'pairs': ['EUR/USD', 'GBP/USD', 'USD/JPY', 'USD/CHF', 'AUD/USD', 'USD/CAD']},
+                'crypto': {'enabled': False},
+                'margin': {'enabled': True, 'leverage_max': 4.0},
+                'short_selling': {'enabled': True}
+            },
+            'ira': {
+                'equities': {'enabled': True, 'exchanges': ['NASDAQ', 'NYSE', 'AMEX', 'ARCA']},
+                'options': {'enabled': False},
+                'futures': {'enabled': False},
+                'forex': {'enabled': False},
+                'crypto': {'enabled': False},
+                'margin': {'enabled': False},
+                'short_selling': {'enabled': False}
+            },
+            'institutional': {
+                'equities': {'enabled': True, 'exchanges': ['NASDAQ', 'NYSE', 'AMEX', 'ARCA', 'OTC']},
+                'options': {'enabled': True, 'types': ['ALL']},
+                'futures': {'enabled': True, 'exchanges': ['CME', 'CBOT', 'NYMEX', 'COMEX', 'ICE']},
+                'forex': {'enabled': True, 'pairs': ['ALL']},
+                'crypto': {'enabled': True},
+                'margin': {'enabled': True, 'leverage_max': 10.0},
+                'short_selling': {'enabled': True}
+            }
+        }
+
+        # Get base permissions for account type
+        permissions = base_permissions.get(account_type, base_permissions['individual_cash']).copy()
+
+        # Apply dynamic restrictions based on account features
+        day_trades_remaining = account_features.get('day_trades_remaining', -1)
+        if day_trades_remaining == 0:
+            permissions['pattern_day_trading_restricted'] = True
+            permissions['equities']['restrictions'].append('Pattern day trading limit reached')
+
+        # Check buying power for margin accounts
+        buying_power = account_features.get('buying_power', 0)
+        if buying_power <= 0 and permissions.get('margin', {}).get('enabled'):
+            permissions['margin']['restricted'] = True
+            permissions['margin']['restrictions'] = ['Insufficient buying power']
+
+        return permissions
+
+    async def get_trading_permissions_config(self) -> Dict[str, Any]:
+        """
+        Get combined trading permissions from YAML config and IBKR account data.
+
+        Returns:
+            Dict with complete trading permissions configuration
+        """
+        try:
+            import yaml
+            import os
+
+            # Load static configuration
+            config_path = 'config/trading-permissions.yaml'
+            if os.path.exists(config_path):
+                with open(config_path, 'r') as f:
+                    static_config = yaml.safe_load(f)
+            else:
+                logger.warning(f"Trading permissions config not found: {config_path}")
+                static_config = {}
+
+            # Get dynamic account permissions
+            dynamic_permissions = await self.get_account_permissions()
+            if 'error' in dynamic_permissions:
+                logger.warning(f"Could not get dynamic permissions: {dynamic_permissions['error']}")
+                dynamic_permissions = {}
+
+            # Combine static and dynamic permissions
+            account_type = dynamic_permissions.get('account_type', 'individual_cash')
+            static_account_config = static_config.get('account_types', {}).get(account_type, {})
+
+            # Merge permissions (dynamic overrides static where available)
+            combined_permissions = static_account_config.get('permissions', {}).copy()
+
+            if 'trading_permissions' in dynamic_permissions:
+                # Update with dynamic permissions
+                dynamic_trading = dynamic_permissions['trading_permissions']
+                for asset_class, permissions in dynamic_trading.items():
+                    if asset_class in combined_permissions:
+                        combined_permissions[asset_class].update(permissions)
+                    else:
+                        combined_permissions[asset_class] = permissions
+
+            # Add account features and metadata
+            result = {
+                'account_id': self.account_id,
+                'account_type': account_type,
+                'static_config': static_account_config,
+                'dynamic_permissions': dynamic_permissions,
+                'combined_permissions': combined_permissions,
+                'timestamp': datetime.now(timezone.utc).isoformat()
+            }
+
+            logger.info(f"Trading permissions loaded for account {self.account_id} (type: {account_type})")
+            return result
+
+        except Exception as e:
+            logger.error(f"Error loading trading permissions config: {e}")
+            return {'error': str(e)}
+
+    async def can_trade_instrument(self, symbol: str, instrument_type: str = 'equity',
+                                  exchange: str = None) -> Dict[str, Any]:
+        """
+        Check if the account can trade a specific instrument.
+
+        Args:
+            symbol: Trading symbol
+            instrument_type: Type of instrument ('equity', 'option', 'future', 'forex', 'crypto')
+            exchange: Exchange where instrument trades
+
+        Returns:
+            Dict with tradability status and restrictions
+        """
+        try:
+            permissions = await self.get_trading_permissions_config()
+            if 'error' in permissions:
+                return {'can_trade': False, 'error': permissions['error']}
+
+            combined_permissions = permissions.get('combined_permissions', {})
+
+            # Check if instrument type is enabled
+            if instrument_type not in combined_permissions:
+                return {
+                    'can_trade': False,
+                    'reason': f'Instrument type {instrument_type} not supported',
+                    'instrument_type': instrument_type
+                }
+
+            type_permissions = combined_permissions[instrument_type]
+
+            if not type_permissions.get('enabled', False):
+                return {
+                    'can_trade': False,
+                    'reason': f'{instrument_type} trading not enabled for this account',
+                    'instrument_type': instrument_type,
+                    'restrictions': type_permissions.get('restrictions', [])
+                }
+
+            # Check exchange permissions
+            if exchange and 'exchanges' in type_permissions:
+                allowed_exchanges = type_permissions['exchanges']
+                if allowed_exchanges and exchange not in allowed_exchanges and 'ALL' not in allowed_exchanges:
+                    return {
+                        'can_trade': False,
+                        'reason': f'Exchange {exchange} not allowed for {instrument_type}',
+                        'instrument_type': instrument_type,
+                        'exchange': exchange,
+                        'allowed_exchanges': allowed_exchanges
+                    }
+
+            # Check for any restrictions
+            restrictions = type_permissions.get('restrictions', [])
+            if restrictions:
+                return {
+                    'can_trade': True,
+                    'restricted': True,
+                    'restrictions': restrictions,
+                    'instrument_type': instrument_type,
+                    'exchange': exchange
+                }
+
+            return {
+                'can_trade': True,
+                'instrument_type': instrument_type,
+                'exchange': exchange
+            }
+
+        except Exception as e:
+            logger.error(f"Error checking tradability for {symbol}: {e}")
+            return {'can_trade': False, 'error': str(e)}
+
 # Global connector instance - now thread-safe
 def get_ibkr_connector(config_path: str = 'config/ibkr_config.ini') -> IBKRConnector:
     """Get singleton IBKR connector instance (thread-safe)"""

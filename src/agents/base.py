@@ -158,12 +158,18 @@ class BaseAgent(abc.ABC):
             if not ChatXAI:
                 return None
 
+            # Get LLM configuration - agent-specific first, then global fallback
+            llm_config = self._get_agent_llm_config()
+            max_tokens = llm_config.get('max_tokens', 32768)
+            temperature = llm_config.get('temperature', 0.1)
+            timeout = llm_config.get('timeout_seconds', 300)
+
             return ChatXAI(
                 api_key=api_key,
                 model=model,
-                temperature=0.1,  # Lower temperature for more consistent responses
-                max_tokens=4096,
-                timeout=30
+                temperature=temperature,
+                max_tokens=max_tokens,
+                timeout=timeout
             )
         except Exception as e:
             logger.debug(f"XAI {model} initialization failed: {e}")
@@ -176,12 +182,18 @@ class BaseAgent(abc.ABC):
             if not ChatOpenAI:
                 return None
 
+            # Get LLM configuration - agent-specific first, then global fallback
+            llm_config = self._get_agent_llm_config()
+            max_tokens = llm_config.get('max_tokens', 32768)
+            temperature = llm_config.get('temperature', 0.1)
+            timeout = llm_config.get('timeout_seconds', 300)
+
             return ChatOpenAI(
                 api_key=api_key,
                 model=model,
-                temperature=0.1,
-                max_tokens=4096,
-                timeout=30
+                temperature=temperature,
+                max_tokens=max_tokens,
+                timeout=timeout
             )
         except Exception as e:
             logger.debug(f"OpenAI {model} initialization failed: {e}")
@@ -194,12 +206,18 @@ class BaseAgent(abc.ABC):
             if not ChatAnthropic:
                 return None
 
+            # Get LLM configuration - agent-specific first, then global fallback
+            llm_config = self._get_agent_llm_config()
+            max_tokens = llm_config.get('max_tokens', 32768)
+            temperature = llm_config.get('temperature', 0.1)
+            timeout = llm_config.get('timeout_seconds', 300)
+
             return ChatAnthropic(
                 api_key=api_key,
                 model=model,
-                temperature=0.1,
-                max_tokens=4096,
-                timeout=30
+                temperature=temperature,
+                max_tokens=max_tokens,
+                timeout=timeout
             )
         except Exception as e:
             logger.debug(f"Anthropic {model} initialization failed: {e}")
@@ -212,12 +230,18 @@ class BaseAgent(abc.ABC):
             if not ChatGoogleGenerativeAI:
                 return None
 
+            # Get LLM configuration - agent-specific first, then global fallback
+            llm_config = self._get_agent_llm_config()
+            max_tokens = llm_config.get('max_tokens', 32768)
+            temperature = llm_config.get('temperature', 0.1)
+            timeout = llm_config.get('timeout_seconds', 300)
+
             return ChatGoogleGenerativeAI(
                 api_key=api_key,
                 model=model,
-                temperature=0.1,
-                max_tokens=4096,
-                timeout=30
+                temperature=temperature,
+                max_tokens=max_tokens,
+                timeout=timeout
             )
         except Exception as e:
             logger.debug(f"Google {model} initialization failed: {e}")
@@ -226,10 +250,14 @@ class BaseAgent(abc.ABC):
     async def _test_llm_connection(self, llm) -> bool:
         """Test LLM connectivity with a simple query."""
         try:
+            # Get LLM configuration from system config
+            llm_config = self.configs.get('system', {}).get('llm', {})
+            timeout = llm_config.get('timeout_seconds', 300)
+
             test_prompt = "Respond with 'OK' if you can understand this message."
             response = await asyncio.wait_for(
                 llm.ainvoke(test_prompt),
-                timeout=30  # Increased timeout from 10 to 30 seconds
+                timeout=timeout
             )
             if response and hasattr(response, 'content') and 'OK' in str(response.content).upper():
                 return True
@@ -628,6 +656,11 @@ class BaseAgent(abc.ABC):
         # Primary initialization strategies with priority and health checks and health checks
         strategies = []
 
+        # Get LLM configuration for primary and fallback models
+        llm_config = self.configs.get('system', {}).get('llm', {})
+        primary_model = llm_config.get('primary_model', 'grok-4-fast-reasoning')
+        fallback_models = llm_config.get('fallback_models', [])
+
         if xai_api_key:
             # Check XAI API health before attempting
             xai_healthy = True
@@ -642,38 +675,42 @@ class BaseAgent(abc.ABC):
                     logger.info("XAI API healthy or not yet tested - proceeding with XAI strategies")
 
             if xai_healthy:
+                strategies.append(("ChatXAI_primary", lambda: self._try_initialize_xai(xai_api_key, primary_model)))
+
+        # Add fallback models based on configuration (if any)
+        if fallback_models:
+            for fallback in fallback_models:
+                provider = fallback.get('provider', '').lower()
+                model = fallback.get('model', '')
+
+                if provider == 'openai' and openai_api_key:
+                    strategies.append((f"OpenAI_{model.replace('-', '_')}", lambda m=model: self._try_initialize_openai(openai_api_key, m)))
+                elif provider == 'anthropic' and anthropic_api_key:
+                    strategies.append((f"Anthropic_{model.replace('-', '_')}", lambda m=model: self._try_initialize_anthropic(anthropic_api_key, m)))
+                elif provider == 'google' and google_api_key:
+                    strategies.append((f"Google_{model.replace('-', '_')}", lambda m=model: self._try_initialize_google(google_api_key, m)))
+
+        # If no strategies from config, fall back to hardcoded defaults
+        if not strategies:
+            logger.warning("No LLM strategies configured, using fallback defaults")
+            if xai_api_key:
                 strategies.extend([
                     ("ChatXAI_grok4", lambda: self._try_initialize_xai(xai_api_key, "grok-4-fast-reasoning")),
                 ])
 
-        if openai_api_key:
-            # Check OpenAI API health (if monitored)
-            openai_healthy = True
-            # Note: OpenAI API health monitoring would need to be added to api_health_monitor.py
-
-            if openai_healthy:
+            if openai_api_key:
                 strategies.extend([
                     ("OpenAI_gpt4", lambda: self._try_initialize_openai(openai_api_key, "gpt-4")),
                     ("OpenAI_gpt35", lambda: self._try_initialize_openai(openai_api_key, "gpt-3.5-turbo")),
                 ])
 
-        if anthropic_api_key:
-            # Check Anthropic API health (if monitored)
-            anthropic_healthy = True
-            # Note: Anthropic API health monitoring would need to be added to api_health_monitor.py
-
-            if anthropic_healthy:
+            if anthropic_api_key:
                 strategies.extend([
                     ("Anthropic_claude3", lambda: self._try_initialize_anthropic(anthropic_api_key, "claude-3-sonnet-20240229")),
                     ("Anthropic_claude2", lambda: self._try_initialize_anthropic(anthropic_api_key, "claude-2.1")),
                 ])
 
-        if google_api_key:
-            # Check Google API health (if monitored)
-            google_healthy = True
-            # Note: Google API health monitoring would need to be added to api_health_monitor.py
-
-            if google_healthy:
+            if google_api_key:
                 strategies.extend([
                     ("Google_gemini_pro", lambda: self._try_initialize_google(google_api_key, "gemini-pro")),
                     ("Google_gemini_1", lambda: self._try_initialize_google(google_api_key, "gemini-1.5-flash")),
@@ -845,33 +882,31 @@ Consider market conditions, risk factors, and alignment with our goals (10-20% m
 
         return sanitized
 
-    def _sanitize_llm_options(self, options: Dict[str, Any]) -> Dict[str, Any]:
+    def _get_agent_llm_config(self) -> Dict[str, Any]:
         """
-        Sanitize options dictionary for LLM prompts.
+        Get LLM configuration for this agent.
+        Checks agent-specific config first, then falls back to global system config.
+        
+        Returns:
+            Dict with LLM configuration parameters
         """
-        if not isinstance(options, dict):
-            return {}
-
-        sanitized_options = {}
-        for key, value in options.items():
-            if isinstance(key, str):
-                sanitized_key = self._sanitize_llm_input(key)
-            else:
-                sanitized_key = str(key)
-
-            if isinstance(value, str):
-                sanitized_value = self._sanitize_llm_input(value)
-            elif isinstance(value, (int, float, bool)):
-                sanitized_value = value
-            elif isinstance(value, (list, dict)):
-                # Convert complex types to string and sanitize
-                sanitized_value = self._sanitize_llm_input(str(value))
-            else:
-                sanitized_value = str(value)
-
-            sanitized_options[sanitized_key] = sanitized_value
-
-        return sanitized_options
+        # Try agent-specific config first
+        # Config structure: self.configs['agents'] = {'agents': {'agent_name': {...}}}
+        agents_config = self.configs.get('agents', {}).get('agents', {})
+        agent_config = agents_config.get(self.role, {})
+        agent_llm_config = agent_config.get('llm', {})
+        
+        if agent_llm_config:
+            logger.debug(f"Using agent-specific LLM config for {self.role}: {agent_llm_config}")
+            # Merge with global config for any missing parameters
+            global_llm_config = self.configs.get('system', {}).get('llm', {})
+            merged_config = {**global_llm_config, **agent_llm_config}
+            return merged_config
+        
+        # Fall back to global system config
+        global_llm_config = self.configs.get('system', {}).get('llm', {})
+        logger.debug(f"Using global LLM config for {self.role}: {global_llm_config}")
+        return global_llm_config
 
     def _should_use_tool(self, tool: Any, query_lower: str) -> bool:
         """Determine if a tool should be used based on query keywords."""

@@ -1,0 +1,245 @@
+# [LABEL:CONFIG:trading_permissions] [LABEL:CONFIG:ibkr] [LABEL:FRAMEWORK:yaml]
+# [LABEL:AUTHOR:system] [LABEL:UPDATED:2025-11-20] [LABEL:REVIEWED:pending]
+#
+# Purpose: Trading permissions and restrictions configuration for IBKR accounts
+# Dependencies: YAML parser, IBKR connector, strategy agents
+# Related: config/ibkr_config.ini, integrations/ibkr_connector.py, src/agents/strategy.py
+#
+# Trading Permissions Configuration
+# Purpose: Defines what securities and instruments can be traded based on account type and restrictions
+# Format: YAML for dynamic loading with IBKR account data overrides
+# Integration: Used by strategy agents to filter analysis to tradeable instruments only
+#
+# Account Types and Their Trading Permissions
+# Individual accounts have different permissions than institutional or IRA accounts
+
+account_types:
+  # Paper Trading Account (most permissive for testing)
+  paper_trading:
+    name: "Paper Trading Account"
+    permissions:
+      equities:
+        enabled: true
+        exchanges: ["NASDAQ", "NYSE", "AMEX", "ARCA"]
+        restrictions: []  # No restrictions for paper trading
+      options:
+        enabled: true
+        types: ["CALL", "PUT", "SPREAD", "STRADDLE", "STRANGLE"]
+        restrictions: []  # No restrictions for paper trading
+      futures:
+        enabled: true
+        exchanges: ["CME", "CBOT", "NYMEX", "COMEX"]
+        restrictions: []  # No restrictions for paper trading
+      forex:
+        enabled: true
+        pairs: ["EUR/USD", "GBP/USD", "USD/JPY", "USD/CHF", "AUD/USD", "USD/CAD"]
+        restrictions: []  # No restrictions for paper trading
+      crypto:
+        enabled: false  # Not available in paper trading
+        restrictions: ["Not supported in paper trading"]
+    margin:
+      enabled: true
+      leverage_max: 4.0  # 4:1 leverage
+    short_selling:
+      enabled: true
+    restrictions:
+      - "Paper trading only - no real money at risk"
+      - "Some advanced features may be limited"
+
+  # Individual Cash Account
+  individual_cash:
+    name: "Individual Cash Account"
+    permissions:
+      equities:
+        enabled: true
+        exchanges: ["NASDAQ", "NYSE", "AMEX", "ARCA"]
+        restrictions: ["No margin trading"]
+      options:
+        enabled: true
+        types: ["CALL", "PUT"]
+        restrictions: ["No complex spreads", "Limited to covered calls"]
+      futures:
+        enabled: false
+        restrictions: ["Requires separate futures account"]
+      forex:
+        enabled: false
+        restrictions: ["Requires pattern day trading approval"]
+      crypto:
+        enabled: false
+        restrictions: ["Not available for individual cash accounts"]
+    margin:
+      enabled: false
+      restrictions: ["Cash account only"]
+    short_selling:
+      enabled: false
+      restrictions: ["Cash account only"]
+    restrictions:
+      - "No margin available"
+      - "No short selling"
+      - "Limited options strategies"
+
+  # Individual Margin Account
+  individual_margin:
+    name: "Individual Margin Account"
+    permissions:
+      equities:
+        enabled: true
+        exchanges: ["NASDAQ", "NYSE", "AMEX", "ARCA"]
+        restrictions: []
+      options:
+        enabled: true
+        types: ["CALL", "PUT", "SPREAD", "STRADDLE", "STRANGLE", "IRON_CONDOR"]
+        restrictions: []
+      futures:
+        enabled: false
+        restrictions: ["Requires separate futures account"]
+      forex:
+        enabled: true
+        pairs: ["EUR/USD", "GBP/USD", "USD/JPY", "USD/CHF", "AUD/USD", "USD/CAD"]
+        restrictions: ["Pattern day trading rules apply"]
+      crypto:
+        enabled: false
+        restrictions: ["Limited availability"]
+    margin:
+      enabled: true
+      leverage_max: 4.0
+      maintenance_margin: 0.25  # 25% maintenance requirement
+    short_selling:
+      enabled: true
+    restrictions:
+      - "Pattern day trading rules apply"
+      - "Margin interest charges"
+
+  # IRA Account
+  ira:
+    name: "IRA Account"
+    permissions:
+      equities:
+        enabled: true
+        exchanges: ["NASDAQ", "NYSE", "AMEX", "ARCA"]
+        restrictions: ["No margin trading"]
+      options:
+        enabled: false
+        restrictions: ["Options not allowed in IRA accounts"]
+      futures:
+        enabled: false
+        restrictions: ["Futures not allowed in IRA accounts"]
+      forex:
+        enabled: false
+        restrictions: ["Forex not allowed in IRA accounts"]
+      crypto:
+        enabled: false
+        restrictions: ["Crypto not allowed in IRA accounts"]
+    margin:
+      enabled: false
+      restrictions: ["No margin in retirement accounts"]
+    short_selling:
+      enabled: false
+      restrictions: ["No short selling in retirement accounts"]
+    restrictions:
+      - "Limited to long-only equity positions"
+      - "No derivatives trading"
+      - "Tax-deferred growth"
+
+  # Institutional Account
+  institutional:
+    name: "Institutional Account"
+    permissions:
+      equities:
+        enabled: true
+        exchanges: ["NASDAQ", "NYSE", "AMEX", "ARCA", "OTC"]
+        restrictions: []
+      options:
+        enabled: true
+        types: ["CALL", "PUT", "SPREAD", "STRADDLE", "STRANGLE", "IRON_CONDOR", "BUTTERFLY", "COMPLEX"]
+        restrictions: []
+      futures:
+        enabled: true
+        exchanges: ["CME", "CBOT", "NYMEX", "COMEX", "ICE"]
+        restrictions: []
+      forex:
+        enabled: true
+        pairs: ["ALL_MAJOR", "ALL_MINOR", "EXOTIC"]
+        restrictions: []
+      crypto:
+        enabled: true
+        exchanges: ["CME", "ICE", "INDEPENDENT"]
+        restrictions: []
+    margin:
+      enabled: true
+      leverage_max: 10.0  # Higher leverage for institutions
+      maintenance_margin: 0.15  # Lower maintenance requirement
+    short_selling:
+      enabled: true
+    restrictions:
+      - "Higher capital requirements"
+      - "Enhanced reporting requirements"
+
+# Default account type mappings (IBKR account codes to our types)
+account_type_mapping:
+  # IBKR Account Types (from account summary)
+  "INDIVIDUAL": "individual_margin"
+  "CASH": "individual_cash"
+  "IRA": "ira"
+  "TRUST": "individual_margin"
+  "LLC": "individual_margin"
+  "PARTNERSHIP": "institutional"
+  "CORPORATION": "institutional"
+  "INSTITUTIONAL": "institutional"
+
+  # Default fallback
+  "UNKNOWN": "individual_cash"
+
+# Regulatory restrictions by country/jurisdiction
+regulatory_restrictions:
+  us:
+    pattern_day_trading:
+      max_day_trades: 4
+      equity_requirement: 25000
+      monitoring_period: 5  # business days
+    wash_sale_rule:
+      enabled: true
+      holding_period: 30  # days
+    uptick_rule:
+      enabled: false  # Removed in 2010, but some brokers still reference it
+
+  eu:
+    short_selling_bans:
+      enabled: false  # Can be enabled during market stress
+    derivative_limits:
+      enabled: true
+      max_leverage: 5.0
+
+# Market-specific restrictions
+market_restrictions:
+  pre_market:
+    enabled: false
+    restrictions: ["Limited liquidity", "Wider spreads"]
+  after_hours:
+    enabled: false
+    restrictions: ["Limited liquidity", "Wider spreads"]
+  extended_hours:
+    enabled: true
+    restrictions: ["Additional fees may apply"]
+
+# Dynamic overrides from IBKR account data
+# These will be populated at runtime from actual IBKR account information
+dynamic_overrides:
+  account_features: []  # Populated from IBKR account summary
+  trading_permissions: {}  # Populated from IBKR account capabilities
+  subscription_status: {}  # Market data and news subscriptions
+
+# Agent integration settings
+agent_integration:
+  # How agents should use trading permissions
+  filter_analysis: true  # Only analyze instruments that can be traded
+  validate_orders: true  # Validate orders against permissions before submission
+  log_restrictions: true  # Log when analysis is filtered due to restrictions
+
+  # Risk management integration
+  respect_margin_limits: true
+  enforce_position_limits: true
+  pattern_day_trading_monitoring: true
+
+# Reasoning for this configuration
+reasoning: "Ensures agents only analyze and propose trades for instruments actually available to the account, preventing invalid order attempts and maintaining compliance with IBKR account restrictions and regulatory requirements."

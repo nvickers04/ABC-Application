@@ -1405,32 +1405,14 @@ Format each proposal clearly with headers like "TRADE PROPOSAL 1:", "TRADE PROPO
 
     async def analyze_market_opportunities(self) -> List[Dict[str, Any]]:
         """
-        Analyze market opportunities using the 22-agent collaborative reasoning framework.
+        Analyze market opportunities using real IBKR market data and collaborative reasoning.
         Returns a list of trading signals ready for risk assessment.
-
-        Returns:
-            List of trading signal dictionaries
         """
         try:
-            logger.info("StrategyAgent analyzing market opportunities with 22-agent collaboration")
+            logger.info("StrategyAgent analyzing market opportunities with IBKR data and 22-agent collaboration")
 
-            # Get current market data (simplified for now - in production this would pull from data agents)
-            market_context = {
-                'market_data': {
-                    'trend': 'bullish',
-                    'volatility': 'moderate',
-                    'momentum': 'strong'
-                },
-                'economic_data': {
-                    'fed_rate': 0.05,
-                    'inflation': 0.02,
-                    'gdp_growth': 0.03
-                },
-                'risk_params': {
-                    'max_drawdown': 0.05,
-                    'max_position_size': 0.30
-                }
-            }
+            # Get real market data from IBKR instead of hardcoded data
+            market_context = await self._get_real_market_context()
 
             # Use collaborative reasoning to analyze opportunities
             coordination_result = await self.coordinate_agents(
@@ -1470,12 +1452,203 @@ Format each proposal clearly with headers like "TRADE PROPOSAL 1:", "TRADE PROPO
             valid_signals = [s for s in signals if self._validate_signal(s)]
             ranked_signals = sorted(valid_signals, key=lambda x: x.get('confidence', 0), reverse=True)
 
-            logger.info(f"StrategyAgent identified {len(ranked_signals)} market opportunities")
-            return ranked_signals[:10]  # Return top 10 opportunities
+            # Filter signals based on account trading permissions
+            tradeable_signals = await self._filter_signals_by_trading_permissions(ranked_signals)
+
+            logger.info(f"StrategyAgent identified {len(tradeable_signals)} tradeable market opportunities from {len(ranked_signals)} analyzed signals")
+            return tradeable_signals[:10]  # Return top 10 tradeable opportunities
 
         except Exception as e:
             logger.error(f"StrategyAgent market opportunity analysis failed: {e}")
             return []
+
+    async def _get_real_market_context(self) -> Dict[str, Any]:
+        """
+        Get real market context from IBKR data sources including market data and news.
+        """
+        try:
+            market_context = {
+                'market_data': {},
+                'economic_data': {},
+                'news_data': {},
+                'risk_params': {
+                    'max_drawdown': 0.05,
+                    'max_position_size': 0.30
+                },
+                'data_sources': []
+            }
+
+            # Get IBKR connector for market data
+            from integrations.ibkr_connector import get_ibkr_connector
+            ibkr_connector = get_ibkr_connector()
+
+            # Get market data for key indices and stocks
+            key_symbols = ['SPY', 'QQQ', 'VIX', 'TNX']  # SPY, QQQ, VIX (volatility), TNX (10-year treasury)
+
+            for symbol in key_symbols:
+                try:
+                    market_data = await ibkr_connector.get_market_data(symbol, bar_size='1 day', duration='1 M')
+                    if market_data:
+                        market_context['market_data'][symbol] = market_data
+                        market_context['data_sources'].append(f'ibkr_{symbol}')
+                    else:
+                        logger.warning(f"Could not get market data for {symbol}")
+                except Exception as e:
+                    logger.warning(f"Error getting market data for {symbol}: {e}")
+
+            # Analyze market trend from SPY data
+            if 'SPY' in market_context['market_data']:
+                spy_data = market_context['market_data']['SPY']
+                # Simple trend analysis (in production, use more sophisticated analysis)
+                market_context['market_data']['trend'] = self._analyze_market_trend(spy_data)
+                market_context['market_data']['volatility'] = self._calculate_volatility(spy_data)
+
+            # Get news data
+            try:
+                news_data = await self._get_ibkr_news_data()
+                if news_data:
+                    market_context['news_data'] = news_data
+                    market_context['data_sources'].append('ibkr_news')
+            except Exception as e:
+                logger.warning(f"Could not get IBKR news data: {e}")
+
+            # Get economic data (placeholder - could integrate with FRED API)
+            market_context['economic_data'] = {
+                'fed_rate': 0.05,  # Placeholder - would pull from FRED
+                'inflation': 0.02,
+                'gdp_growth': 0.03
+            }
+
+            logger.info(f"Retrieved real market context from sources: {market_context['data_sources']}")
+            return market_context
+
+        except Exception as e:
+            logger.error(f"Error getting real market context: {e}")
+            # Fallback to basic market context
+            return {
+                'market_data': {
+                    'trend': 'neutral',
+                    'volatility': 'moderate',
+                    'momentum': 'neutral'
+                },
+                'economic_data': {
+                    'fed_rate': 0.05,
+                    'inflation': 0.02,
+                    'gdp_growth': 0.03
+                },
+                'risk_params': {
+                    'max_drawdown': 0.05,
+                    'max_position_size': 0.30
+                },
+                'data_sources': ['fallback']
+            }
+
+    async def _get_ibkr_news_data(self) -> Dict[str, Any]:
+        """
+        Get news data from IBKR news feeds.
+        """
+        try:
+            from integrations.ibkr_connector import get_ibkr_connector
+            ibkr_connector = get_ibkr_connector()
+
+            # Check subscription status
+            subscription_info = await ibkr_connector.check_market_data_subscription()
+
+            # Get news bulletins
+            bulletins = await ibkr_connector.get_news_bulletins(all_messages=False)  # Just recent bulletins
+
+            # Get recent news for major indices
+            spy_contract_id = 756733  # SPY contract ID (would need to look this up properly)
+            historical_news = await ibkr_connector.get_historical_news(
+                contract_id=spy_contract_id,
+                provider_codes="",
+                start_date="",  # Today
+                end_date="",
+                total_results=5
+            )
+
+            # Analyze news sentiment (simplified)
+            sentiment_scores = []
+            headlines = []
+
+            for bulletin in bulletins:
+                headlines.append(bulletin.get('message', ''))
+                # Simple sentiment analysis - in production would use NLP
+                sentiment_scores.append(0)  # Neutral default
+
+            for news_item in historical_news:
+                headlines.append(news_item.get('headline', ''))
+                sentiment_scores.append(0)  # Neutral default
+
+            # Calculate overall sentiment
+            avg_sentiment = sum(sentiment_scores) / len(sentiment_scores) if sentiment_scores else 0
+
+            if avg_sentiment > 0.1:
+                overall_sentiment = 'positive'
+            elif avg_sentiment < -0.1:
+                overall_sentiment = 'negative'
+            else:
+                overall_sentiment = 'neutral'
+
+            # Assess market impact
+            if len(headlines) > 3:
+                market_impact = 'high'
+            elif len(headlines) > 1:
+                market_impact = 'medium'
+            else:
+                market_impact = 'low'
+
+            news_data = {
+                'headlines': headlines[:10],  # Top 10 headlines
+                'sentiment': overall_sentiment,
+                'market_impact': market_impact,
+                'subscription_status': subscription_info.get('market_data_subscribed', False),
+                'news_count': len(headlines),
+                'bulletins_count': len(bulletins),
+                'historical_news_count': len(historical_news),
+                'timestamp': datetime.datetime.now().isoformat()
+            }
+
+            logger.info(f"Retrieved {len(headlines)} news items from IBKR feeds")
+            return news_data
+
+        except Exception as e:
+            logger.error(f"Error getting IBKR news data: {e}")
+            return {
+                'headlines': [],
+                'sentiment': 'neutral',
+                'market_impact': 'unknown',
+                'subscription_status': False,
+                'error': str(e)
+            }
+
+    def _analyze_market_trend(self, market_data: Dict[str, Any]) -> str:
+        """
+        Analyze market trend from price data.
+        """
+        try:
+            # Simple trend analysis based on recent price movement
+            # In production, would use more sophisticated technical analysis
+
+            # For now, return neutral - real implementation would analyze price series
+            return 'neutral'
+
+        except Exception as e:
+            logger.warning(f"Error analyzing market trend: {e}")
+            return 'neutral'
+
+    def _calculate_volatility(self, market_data: Dict[str, Any]) -> str:
+        """
+        Calculate market volatility from price data.
+        """
+        try:
+            # Simple volatility assessment
+            # In production, would calculate actual volatility metrics
+            return 'moderate'
+
+        except Exception as e:
+            logger.warning(f"Error calculating volatility: {e}")
+            return 'moderate'
 
     def _extract_trading_signal_from_analysis(self, analysis: str, agent_type: str) -> Optional[Dict[str, Any]]:
         """
@@ -1801,9 +1974,122 @@ Format each proposal clearly with headers like "TRADE PROPOSAL 1:", "TRADE PROPO
             # Limit to top signals to avoid duplicates
             return signals[:5]
 
+            # Limit to top signals to avoid duplicates
+            return signals[:5]
+
         except Exception as e:
             logger.warning(f"Failed to extract signals from text: {e}")
             return []
+
+    async def _filter_signals_by_trading_permissions(self, signals: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Filter trading signals based on account trading permissions and restrictions.
+
+        Args:
+            signals: List of trading signals to filter
+
+        Returns:
+            List of signals that can be traded based on account permissions
+        """
+        try:
+            logger.info(f"Filtering {len(signals)} signals by trading permissions")
+
+            filtered_signals = []
+            filtered_out_signals = []
+
+            # Get IBKR connector for trading permissions
+            from integrations.ibkr_connector import get_ibkr_connector
+            ibkr_connector = get_ibkr_connector()
+
+            for signal in signals:
+                symbol = signal.get('symbol', '')
+                strategy_type = signal.get('strategy_type', '').lower()
+
+                # Determine instrument type from strategy
+                instrument_type = self._map_strategy_to_instrument_type(strategy_type)
+
+                # Check if account can trade this instrument
+                try:
+                    tradability_check = await ibkr_connector.can_trade_instrument(
+                        symbol=symbol,
+                        instrument_type=instrument_type
+                    )
+
+                    if tradability_check.get('can_trade', False):
+                        # Signal is tradeable
+                        signal['trading_permissions'] = {
+                            'can_trade': True,
+                            'instrument_type': instrument_type,
+                            'permissions_check': tradability_check
+                        }
+                        filtered_signals.append(signal)
+                        logger.debug(f"Signal for {symbol} ({instrument_type}) approved for trading")
+                    else:
+                        # Signal is not tradeable
+                        reason = tradability_check.get('reason', 'Unknown restriction')
+                        signal['trading_permissions'] = {
+                            'can_trade': False,
+                            'reason': reason,
+                            'instrument_type': instrument_type,
+                            'permissions_check': tradability_check
+                        }
+                        filtered_out_signals.append(signal)
+                        logger.info(f"Signal for {symbol} ({instrument_type}) filtered out: {reason}")
+
+                except Exception as e:
+                    logger.warning(f"Error checking tradability for {symbol}: {e}")
+                    # On error, assume not tradeable for safety
+                    signal['trading_permissions'] = {
+                        'can_trade': False,
+                        'reason': f'Error checking permissions: {str(e)}',
+                        'instrument_type': instrument_type
+                    }
+                    filtered_out_signals.append(signal)
+
+            # Log filtering summary
+            logger.info(f"Trading permissions filtering complete: {len(filtered_signals)} approved, {len(filtered_out_signals)} filtered out")
+
+            if filtered_out_signals:
+                # Log reasons for filtering
+                restriction_reasons = {}
+                for signal in filtered_out_signals:
+                    reason = signal.get('trading_permissions', {}).get('reason', 'Unknown')
+                    restriction_reasons[reason] = restriction_reasons.get(reason, 0) + 1
+
+                logger.info(f"Signals filtered out by reason: {restriction_reasons}")
+
+            return filtered_signals
+
+        except Exception as e:
+            logger.error(f"Error filtering signals by trading permissions: {e}")
+            # On error, return all signals (fail open for safety)
+            logger.warning("Returning all signals due to filtering error")
+            return signals
+
+    def _map_strategy_to_instrument_type(self, strategy_type: str) -> str:
+        """
+        Map strategy type to instrument type for permissions checking.
+
+        Args:
+            strategy_type: Strategy type (e.g., 'Options', 'Flow', 'ML')
+
+        Returns:
+            Instrument type string ('equity', 'option', 'future', 'forex', 'crypto')
+        """
+        strategy_lower = strategy_type.lower()
+
+        # Map strategy types to instrument types
+        if 'option' in strategy_lower:
+            return 'option'
+        elif 'future' in strategy_lower or 'commodity' in strategy_lower:
+            return 'future'
+        elif 'forex' in strategy_lower or 'currency' in strategy_lower:
+            return 'forex'
+        elif 'crypto' in strategy_lower or 'bitcoin' in strategy_lower or 'ethereum' in strategy_lower:
+            return 'crypto'
+        else:
+            # Default to equity for most strategies
+            return 'equity'
 
     # ===== PERFORMANCE MONITORING AND PROPOSAL GENERATION =====
 

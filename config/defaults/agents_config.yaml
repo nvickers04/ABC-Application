@@ -3,20 +3,23 @@ agents:
   data_agent:
     enabled: true
     priority: "high"
+    llm:
+      temperature: 0.1  # Low temperature for factual, consistent data analysis
+      max_tokens: 16384  # Moderate token limit for data processing
     subagents:
       market_data:
         enabled: true
         update_frequency_seconds: 60
-        sources: ["ibkr", "yahoo_finance", "alpha_vantage", "polygon"]
+        sources: []  # Allow LLM to dynamically select optimal sources
         max_symbols_per_request: 100
       sentiment:
         enabled: true
-        apis: ["newsapi", "twitter", "reddit", "stocktwits"]
+        apis: []  # Allow LLM to dynamically select sentiment sources
         processing_batch_size: 100
         sentiment_model: "finbert"
       economic:
         enabled: true
-        indicators: ["GDP", "CPI", "Unemployment", "FedFundsRate", "TreasuryYield"]
+        indicators: []  # Allow LLM to dynamically select economic indicators
         update_frequency_hours: 24
         forecast_horizon_months: 12
       options_data:
@@ -26,17 +29,20 @@ agents:
         implied_volatility: true
       alternative_data:
         enabled: true
-        sources: ["satellite", "web_traffic", "social_media"]
+        sources: []  # Allow LLM to dynamically explore alternative data sources
         processing_interval_minutes: 60
 
   strategy_agent:
     enabled: true
     priority: "high"
+    llm:
+      temperature: 0.3  # Moderate creativity for strategy generation and innovation
+      max_tokens: 24576  # Higher token limit for complex strategy analysis
     subagents:
       options:
         enabled: true
         max_complexity: 3
-        supported_strategies: ["covered_call", "protective_put", "spread", "butterfly"]
+        supported_strategies: ["covered_call", "protective_put", "spread", "butterfly", "iron_condor", "straddle", "strangle", "collar", "calendar_spread"]
         risk_limits: {"max_loss_percent": 0.10, "max_theta_days": 30}
       ml_models:
         enabled: true
@@ -63,6 +69,9 @@ agents:
   risk_agent:
     enabled: true
     priority: "critical"
+    llm:
+      temperature: 0.1  # Very low temperature for safety-critical risk assessment
+      max_tokens: 16384  # Moderate token limit for risk analysis
     subagents:
       portfolio_risk:
         enabled: true
@@ -91,6 +100,9 @@ agents:
   execution_agent:
     enabled: true
     priority: "high"
+    llm:
+      temperature: 0.1  # Low temperature for precise, reliable execution decisions
+      max_tokens: 12288  # Lower token limit for execution-focused responses
     subagents:
       order_management:
         enabled: true
@@ -113,6 +125,9 @@ agents:
   macro_agent:
     enabled: true
     priority: "high"
+    llm:
+      temperature: 0.2  # Low-moderate creativity for market regime analysis
+      max_tokens: 20480  # Higher token limit for comprehensive macro analysis
     subagents:
       sector_analysis:
         enabled: true
@@ -137,6 +152,9 @@ agents:
   learning_agent:
     enabled: true
     priority: "medium"
+    llm:
+      temperature: 0.25  # Moderate creativity for strategy optimization and learning
+      max_tokens: 20480  # Higher token limit for complex optimization analysis
     subagents:
       performance_analysis:
         enabled: true
@@ -157,6 +175,9 @@ agents:
   reflection_agent:
     enabled: true
     priority: "medium"
+    llm:
+      temperature: 0.4  # Higher creativity for generating diverse perspectives and insights
+      max_tokens: 20480  # Higher token limit for comprehensive reflection analysis
     subagents:
       decision_review:
         enabled: true
@@ -177,6 +198,9 @@ agents:
   memory_agent:
     enabled: true
     priority: "medium"
+    llm:
+      temperature: 0.1  # Low temperature for consistent memory operations
+      max_tokens: 12288  # Moderate token limit for memory management
     subagents:
       short_term_memory:
         enabled: true

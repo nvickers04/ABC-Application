@@ -8,12 +8,7 @@ data_sources:
       port: 7497
       client_id: 1
       timeout_seconds: 30
-    data_types:
-      - real_time_quotes
-      - historical_data
-      - options_chains
-      - account_info
-      - executions
+    data_types: []  # Allow LLM to explore all available IBKR data types
     rate_limits:
       requests_per_second: 50
       max_symbols_per_request: 100
@@ -25,32 +20,21 @@ data_sources:
     rate_limits:
       requests_per_minute: 5
       requests_per_day: 500
-    data_types:
-      - intraday_quotes
-      - daily_quotes
-      - technical_indicators
-      - sector_performance
+    data_types: []  # Allow LLM to explore all available Alpha Vantage data types
 
   yahoo_finance:
     enabled: true
     rate_limits:
       requests_per_second: 2
-    data_types:
-      - historical_prices
-      - options_data
-      - analyst_ratings
-      - institutional_holdings
+    data_types: []  # Allow LLM to explore all available Yahoo Finance data types
 
-  polygon:
+  marketdataapp:
     enabled: true
-    api_key: "${POLYGON_API_KEY}"
+    api_key: "${MARKETDATAAPP_API_KEY}"
     rate_limits:
-      requests_per_minute: 5
-    data_types:
-      - real_time_trades
-      - real_time_quotes
-      - aggregated_bars
-      - news_feed
+      requests_per_minute: 10
+      requests_per_day: 1000
+    data_types: []  # Allow LLM to explore all available MarketDataApp data types
 
   # Economic data
   fred:
@@ -58,13 +42,7 @@ data_sources:
     api_key: "${FRED_API_KEY}"
     rate_limits:
       requests_per_second: 2
-    indicators:
-      - GDP
-      - CPI
-      - Unemployment
-      - FedFundsRate
-      - TreasuryYields
-      - HousingStarts
+    indicators: []  # Allow LLM to explore all available FRED indicators
 
   # News and sentiment
   newsapi:
@@ -72,45 +50,17 @@ data_sources:
     api_key: "${NEWSAPI_KEY}"
     rate_limits:
       requests_per_day: 1000
-    sources:
-      - reuters
-      - bloomberg
-      - cnbc
-      - financial_times
-      - wall_street_journal
+    sources: []  # Allow LLM to explore all available NewsAPI sources
 
   twitter:
     enabled: true
     bearer_token: "${TWITTER_BEARER_TOKEN}"
     rate_limits:
       requests_per_15min: 300
-    search_terms:
-      - "$TICKER"
-      - "earnings"
-      - "guidance"
-      - "analyst"
-      - "upgrade"
-      - "downgrade"
+    search_terms: []  # Allow LLM to explore all relevant Twitter search terms
 
   # Alternative data
   kalshi:
     enabled: true
     api_key: "${KALSHI_API_KEY}"
-    markets:
-      - economic_indicators
-      - political_events
-      - weather_events
-      - sports_events
-
-  # Satellite and web data
-  satellite_imagery:
-    enabled: false  # Premium feature
-    provider: "planet_labs"
-    api_key: "${PLANET_LABS_KEY}"
-    coverage: ["agriculture", "energy", "real_estate"]
-
-  web_traffic:
-    enabled: false  # Premium feature
-    provider: "similarweb"
-    api_key: "${SIMILARWEB_KEY}"
-    metrics: ["traffic_volume", "engagement", "demographics"]
+    markets: []  # Allow LLM to explore all available Kalshi markets

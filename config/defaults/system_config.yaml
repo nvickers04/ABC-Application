@@ -16,6 +16,14 @@ system:
   max_cpu_percent: 70
   max_network_bandwidth_mbps: 500
 
+# LLM Configuration
+llm:
+  # Primary model settings
+  primary_model: "grok-4-fast-reasoning"
+  max_tokens: 32768  # Increased for complex analysis
+  temperature: 0.1   # Low temperature for consistent responses
+  timeout_seconds: 300  # 5 minutes for complex reasoning
+
 # Agent orchestration
 agents:
   max_concurrent_operations: 10
@@ -49,7 +57,7 @@ data:
 
   # Data sources
   primary_data_provider: "ibkr"
-  fallback_providers: ["alpha_vantage", "yahoo_finance", "polygon"]
+  fallback_providers: []  # Allow dynamic fallback provider selection
 
   # Quality thresholds
   min_data_completeness: 0.95
