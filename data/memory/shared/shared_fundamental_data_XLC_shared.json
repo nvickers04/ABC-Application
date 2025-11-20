@@ -1,33 +1,33 @@
 {
   "namespace": "shared:fundamental_data:XLC",
   "safe_namespace": "shared_fundamental_data_XLC",
-  "timestamp": "2025-11-20T09:22:37.881589",
+  "timestamp": "2025-11-20T12:56:35.027060",
   "version": "1.0",
   "data": {
     "data": {
       "fundamental_data": {
-        "metadata": "{'consolidation_timestamp': '2025-11-20T09:22:25.857647', 'sources_used': \"['company_overview', 'financial_statements', 'analyst_estimates', 'institutional_ownership', 'dividend_history', 'sec_edgar_filings']\", 'analysis_focus': \"['valuation_metrics', 'growth_metrics', 'financial_health', 'risk_assessment', 'competitive_position']\"}",
+        "metadata": "{'consolidation_timestamp': '2025-11-20T12:56:27.666719', 'sources_used': \"['company_overview', 'financial_statements', 'analyst_estimates', 'earnings_history', 'dividend_history', 'institutional_ownership', 'sec_edgar_filings', 'insider_transactions']\", 'analysis_focus': \"['valuation_metrics', 'growth_metrics', 'profitability_metrics', 'financial_health', 'cash_flow_quality', 'risk_assessment', 'competitive_position']\"}",
         "valuation_df": "{'type': 'DataFrame', 'columns': ['pe_ratio', 'pb_ratio', 'ps_ratio', 'ev_ebitda', 'peg_ratio', 'forward_pe', 'beta'], 'shape': (1, 7), 'data': [{'pe_ratio': None, 'pb_ratio': None, 'ps_ratio': None, 'ev_ebitda': None, 'peg_ratio': None, 'forward_pe': None, 'beta': None}], 'summary': '       pe_ratio pb_ratio ps_ratio ev_ebitda peg_ratio forward_pe beta\\ncount         0        0        0         0         0          0    0\\nunique        0        0        0         0         0          0    0\\ntop         NaN      NaN      NaN       NaN       NaN        NaN  NaN\\nfreq        NaN      NaN      NaN       NaN       NaN        NaN  NaN'}",
-        "financial_health_df": "{'type': 'DataFrame', 'columns': ['total_assets', 'total_liabilities', 'total_equity', 'current_assets', 'current_liabilities', 'debt_to_equity', 'current_ratio', 'quick_ratio'], 'shape': (1, 8), 'data': [{'total_assets': None, 'total_liabilities': None, 'total_equity': None, 'current_assets': None, 'current_liabilities': None, 'debt_to_equity': None, 'current_ratio': None, 'quick_ratio': None}], 'summary': '       total_assets total_liabilities total_equity  ... debt_to_equity current_ratio quick_ratio\\ncount             0                 0            0  ...              0             0           0\\nunique            0                 0            0  ...              0             0           0\\ntop             NaN               NaN          NaN  ...            NaN           NaN         NaN\\nfreq            NaN               NaN          NaN  ...            NaN           NaN         NaN\\n\\n[4 rows x 8 columns]'}"
+        "financial_health_df": "{'type': 'DataFrame', 'columns': ['total_assets', 'total_liabilities', 'total_equity', 'current_assets', 'current_liabilities', 'debt_to_equity', 'current_ratio', 'quick_ratio'], 'shape': (1, 8), 'data': [{'total_assets': None, 'total_liabilities': None, 'total_equity': None, 'current_assets': None, 'current_liabilities': None, 'debt_to_equity': None, 'current_ratio': None, 'quick_ratio': None}], 'summary': '       total_assets total_liabilities  ... current_ratio quick_ratio\\ncount             0                 0  ...             0           0\\nunique            0                 0  ...             0           0\\ntop             NaN               NaN  ...           NaN         NaN\\nfreq            NaN               NaN  ...           NaN         NaN\\n\\n[4 rows x 8 columns]'}"
       },
       "llm_analysis": {
-        "overall_assessment": "The current market is experiencing volatility due to interest rate uncertainties and geopolitical tensions, but technology and consumer sectors show resilience with strong fundamentals supporting selective investments.",
-        "company_analysis": "{'AAPL': \"{'fundamental_score': 92, 'valuation_assessment': 'fairly valued', 'key_strengths': ['Dominant market position in consumer electronics with high brand loyalty', 'Robust cash flow generation and consistent innovation in services ecosystem'], 'key_weaknesses': ['Heavy reliance on iPhone sales for revenue', 'Exposure to supply chain disruptions in Asia'], 'recommendation': 'buy', 'price_target': 220.0, 'key_risks': ['Intensifying competition from Android ecosystem', 'Regulatory scrutiny on app store practices'], 'catalysts': ['Launch of new AI-integrated products in 2024', 'Expansion of services revenue through Apple One bundles']}\"}",
-        "sector_insights": "Technology sector exhibits strong growth metrics with average P/E ratios around 25x, but financial health varies; consumer discretionary faces margin pressures from inflation.",
-        "market_context": "In a high-interest-rate environment, companies with solid balance sheets like those in tech are better positioned, while cyclical sectors may underperform until rate cuts materialize."
+        "overall_assessment": "The current market is experiencing volatility due to interest rate uncertainties and geopolitical tensions, but strong fundamentals in tech and consumer sectors provide selective opportunities for undervalued stocks with robust growth prospects.",
+        "company_analysis": "{'SYMBOL1': \"{'fundamental_score': 85, 'valuation_assessment': 'undervalued', 'key_strengths': ['Strong balance sheet with high liquidity ratios', 'Consistent revenue growth driven by market leadership'], 'key_weaknesses': ['Elevated debt levels compared to peers', 'Margin pressures from rising input costs'], 'recommendation': 'buy', 'price_target': 150.0, 'key_risks': ['Interest rate sensitivity impacting borrowing costs', 'Competitive threats from new market entrants'], 'catalysts': ['Upcoming product launches expected in Q3', 'Potential regulatory approvals boosting expansion']}\"}",
+        "sector_insights": "The technology sector shows resilient growth metrics but faces valuation compression; consumer goods remain stable with improving profitability amid economic recovery.",
+        "market_context": "Fundamentals suggest a defensive posture in a high-inflation environment, favoring companies with solid cash flows and low leverage to weather potential downturns."
       },
-      "timestamp": "2025-11-20T09:22:37.863548"
+      "timestamp": "2025-11-20T12:56:35.006940"
     },
-    "timestamp": "2025-11-20T09:22:37.877984",
+    "timestamp": "2025-11-20T12:56:35.024550",
     "memory_type": "shared",
     "metadata": {
       "shared_by": "fundamental_data",
       "namespace": "fundamental_data",
-      "shared_at": "2025-11-20T09:22:37.877984",
+      "shared_at": "2025-11-20T12:56:35.024550",
       "access_level": "shared",
       "original_data_type": "dict"
     },
     "user": null,
-    "size": 3358
+    "size": 3249
   }
 }

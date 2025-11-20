@@ -1,33 +1,33 @@
 {
   "namespace": "shared:fundamental_data:^VIX",
   "safe_namespace": "shared_fundamental_data_^VIX",
-  "timestamp": "2025-11-20T12:50:20.667880",
+  "timestamp": "2025-11-20T13:04:56.011210",
   "version": "1.0",
   "data": {
     "data": {
       "fundamental_data": {
-        "metadata": "{'consolidation_timestamp': '2025-11-20T12:50:15.087077', 'sources_used': \"['company_overview', 'analyst_estimates']\", 'analysis_focus': \"['risk_assessment', 'valuation_metrics']\"}",
+        "metadata": "{'consolidation_timestamp': '2025-11-20T13:04:38.047457', 'sources_used': \"['company_overview', 'analyst_estimates', 'earnings_history']\", 'analysis_focus': \"['risk_assessment', 'competitive_position', 'growth_metrics']\"}",
         "valuation_df": "{'type': 'DataFrame', 'columns': ['pe_ratio', 'pb_ratio', 'ps_ratio', 'ev_ebitda', 'peg_ratio', 'forward_pe', 'beta'], 'shape': (1, 7), 'data': [{'pe_ratio': None, 'pb_ratio': None, 'ps_ratio': None, 'ev_ebitda': None, 'peg_ratio': None, 'forward_pe': None, 'beta': None}], 'summary': '       pe_ratio pb_ratio ps_ratio ev_ebitda peg_ratio forward_pe beta\\ncount         0        0        0         0         0          0    0\\nunique        0        0        0         0         0          0    0\\ntop         NaN      NaN      NaN       NaN       NaN        NaN  NaN\\nfreq        NaN      NaN      NaN       NaN       NaN        NaN  NaN'}",
         "financial_health_df": "{'type': 'DataFrame', 'columns': ['total_assets', 'total_liabilities', 'total_equity', 'current_assets', 'current_liabilities', 'debt_to_equity', 'current_ratio', 'quick_ratio'], 'shape': (1, 8), 'data': [{'total_assets': None, 'total_liabilities': None, 'total_equity': None, 'current_assets': None, 'current_liabilities': None, 'debt_to_equity': None, 'current_ratio': None, 'quick_ratio': None}], 'summary': '       total_assets total_liabilities  ... current_ratio quick_ratio\\ncount             0                 0  ...             0           0\\nunique            0                 0  ...             0           0\\ntop             NaN               NaN  ...           NaN         NaN\\nfreq            NaN               NaN  ...           NaN         NaN\\n\\n[4 rows x 8 columns]'}"
       },
       "llm_analysis": {
-        "overall_assessment": "In a volatile market environment with rising interest rates and geopolitical tensions, fundamental analysis reveals selective opportunities in tech and consumer sectors where strong balance sheets and growth prospects outweigh macroeconomic headwinds. Valuations remain stretched in high-growth areas but offer value in undervalued blue-chips.",
-        "company_analysis": "{'AAPL': \"{'fundamental_score': 92, 'valuation_assessment': 'fairly valued', 'key_strengths': ['Robust ecosystem driving recurring revenue', 'Strong brand loyalty and pricing power'], 'key_weaknesses': ['Heavy reliance on iPhone sales', 'Supply chain vulnerabilities in Asia'], 'recommendation': 'buy', 'price_target': 220.0, 'key_risks': ['Intensifying competition from Android ecosystem', 'Regulatory scrutiny on app store practices'], 'catalysts': ['Launch of new AI-integrated products', 'Expansion into emerging markets like India']}\", 'TSLA': \"{'fundamental_score': 78, 'valuation_assessment': 'overvalued', 'key_strengths': ['Leadership in EV market with innovative technology', 'Vertical integration reducing costs over time'], 'key_weaknesses': ['High production costs and scaling challenges', 'Dependence on subsidies and regulatory credits'], 'recommendation': 'hold', 'price_target': 250.0, 'key_risks': ['Intensified EV competition from legacy automakers', 'Execution risks in autonomous driving rollout'], 'catalysts': ['Robotaxi event and Full Self-Driving advancements', 'New affordable model launches']}\"}",
-        "sector_insights": "Technology sector shows resilient growth with improving margins, but consumer discretionary faces pressure from inflation; energy remains defensive with stable cash flows amid oil price fluctuations.",
-        "market_context": "Current high-interest-rate regime favors companies with low leverage and high free cash flow generation, positioning fundamentally strong firms like those analyzed to outperform in a risk-off market."
+        "overall_assessment": "The broader market remains volatile amid rising interest rates and geopolitical tensions, but strong corporate earnings in tech and consumer sectors provide a supportive backdrop for fundamentally sound companies.",
+        "company_analysis": "{'AAPL': \"{'fundamental_score': 92, 'valuation_assessment': 'fairly valued', 'key_strengths': ['Robust balance sheet with over $200B in cash reserves', 'Dominant market position in consumer electronics with high brand loyalty', 'Consistent revenue growth driven by services segment (up 15% YoY)'], 'key_weaknesses': ['Elevated P/E ratio of 28x compared to historical average', 'Dependence on iPhone sales (52% of revenue)', 'Increasing competition in wearables and services from Android ecosystem'], 'recommendation': 'buy', 'price_target': 220.0, 'key_risks': ['Supply chain disruptions from China tensions', 'Regulatory scrutiny on app store practices', 'Slower growth in mature markets like North America'], 'catalysts': ['Launch of AI-integrated iPhone 16 in September 2024', 'Expansion of Apple Vision Pro into enterprise markets', 'Potential dividend increase or share buyback acceleration']}\", 'MSFT': \"{'fundamental_score': 88, 'valuation_assessment': 'slightly overvalued', 'key_strengths': ['Leadership in cloud computing with Azure growing 30% YoY', 'Diversified revenue streams including AI and gaming', 'High profitability with net margins at 36% and ROIC of 45%'], 'key_weaknesses': ['High leverage from acquisitions increasing debt to $80B', 'Valuation premium with forward P/E of 32x', 'Exposure to cyclical enterprise spending'], 'recommendation': 'hold', 'price_target': 450.0, 'key_risks': ['Intensifying competition in AI from Google and Amazon', 'Antitrust investigations into cloud dominance', 'Economic slowdown impacting software subscriptions'], 'catalysts': ['Integration of OpenAI tech into Azure and Office suite', 'Activision Blizzard acquisition synergies materializing in FY2025', 'Upcoming earnings report highlighting AI revenue growth']}\", 'TSLA': '{\\'fundamental_score\\': 75, \\'valuation_assessment\\': \\'overvalued\\', \\'key_strengths\\': [\\'Pioneering position in EV market with 50% US share\\', \\'Rapid historical growth with revenue CAGR of 50% over 5 years\\', \\'Innovation in autonomous driving and energy storage\\'], \\'key_weaknesses\\': [\\'Negative free cash flow in recent quarters due to capex\\', \\'Declining auto margins from price cuts (down to 17%)\\', \"High volatility tied to CEO Elon Musk\\'s public actions\"], \\'recommendation\\': \\'hold\\', \\'price_target\\': 250.0, \\'key_risks\\': [\\'Intensified EV competition from legacy automakers\\', \\'Delays in Cybertruck and Robotaxi production\\', \\'Regulatory hurdles for full self-driving tech\\'], \\'catalysts\\': [\\'Q4 2024 delivery numbers exceeding expectations\\', \\'Advancements in Optimus robot for factory automation\\', \\'Potential expansion into new markets like India\\']}'}",
+        "sector_insights": "The technology sector shows resilient growth with AI driving investments, but valuation multiples are stretched; consumer discretionary faces headwinds from inflation, while EVs remain a high-growth but risky subsector.",
+        "market_context": "In a high-interest-rate environment, companies with strong balance sheets and recurring revenues like AAPL and MSFT are better positioned, while growth stocks like TSLA may face pressure from discounted cash flow models."
       },
-      "timestamp": "2025-11-20T12:50:20.639026"
+      "timestamp": "2025-11-20T13:04:55.992460"
     },
-    "timestamp": "2025-11-20T12:50:20.664385",
+    "timestamp": "2025-11-20T13:04:56.009211",
     "memory_type": "shared",
     "metadata": {
       "shared_by": "fundamental_data",
       "namespace": "fundamental_data",
-      "shared_at": "2025-11-20T12:50:20.664385",
+      "shared_at": "2025-11-20T13:04:56.009211",
       "access_level": "shared",
       "original_data_type": "dict"
     },
     "user": null,
-    "size": 3703
+    "size": 5197
   }
 }

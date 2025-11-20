@@ -28,58 +28,74 @@ from src.utils.tools import tf_quant_monte_carlo_tool, pyfolio_metrics_tool, loa
 
 logger = logging.getLogger(__name__)
 
-# Try to import TensorFlow Probability for advanced stochastic modeling
+# TensorFlow imports are handled lazily in methods that need them
+TFP_AVAILABLE = False
+tf = None
+tfp = None
+scipy_stats = None
+# Import scipy.stats for fallback if TensorFlow fails
 try:
-    import warnings
-    import logging
-    from contextlib import redirect_stderr
-    import io
-
-    # Suppress Python warnings
-    warnings.filterwarnings('ignore', category=UserWarning, module='tensorflow')
-    warnings.filterwarnings('ignore', category=UserWarning, module='tensorflow_probability')
-    warnings.filterwarnings('ignore', category=UserWarning, module='tf_keras')
-    warnings.filterwarnings('ignore', category=DeprecationWarning)
-
-    # Disable TensorFlow and related logging before import
-    logging.getLogger('tensorflow').setLevel(logging.ERROR)
-    logging.getLogger('tensorflow_probability').setLevel(logging.ERROR)
-    logging.getLogger('absl').setLevel(logging.ERROR)
-
-    # Try to suppress absl logging which TensorFlow uses
-    try:
-        import absl.logging
-        absl.logging.set_verbosity(absl.logging.ERROR)
-    except ImportError:
-        pass
-
-    # Capture stderr to suppress TensorFlow warnings during import
-    stderr_capture = io.StringIO()
-    with redirect_stderr(stderr_capture):
-        import tensorflow as tf
-        # After importing TensorFlow, also set its internal logger
-        tf.get_logger().setLevel(logging.ERROR)
-        import tensorflow_probability as tfp
-        import scipy.stats  # For statistical functions not available in tfp.stats
-
-    TFP_AVAILABLE = True
-    logger.info("TensorFlow Probability available for advanced stochastic simulations")
-except Exception as e:
-    logger.warning(f"TensorFlow Probability not available: {e}. Using numpy fallback.")
-    TFP_AVAILABLE = False
-    tf = None
-    tfp = None
-    # Import scipy.stats for fallback if TensorFlow fails
-    try:
-        import scipy.stats
-    except ImportError:
-        scipy = None
+    import scipy.stats
+except ImportError:
+    scipy = None
 
 class RiskAgent(BaseAgent):
     """
     Risk Agent subclass.
     Reasoning: Vets proposals with stochastic models; auto-adjusts YAML via reflections for closed-loop evolution.
     """
+    
+    def _lazy_import_tensorflow(self):
+        """Lazy import TensorFlow and related libraries when needed."""
+        global TFP_AVAILABLE, tf, tfp, scipy_stats
+        if TFP_AVAILABLE is not False:  # Not already determined unavailable
+            return  # Already imported or determined available
+        
+        try:
+            import warnings
+            import logging
+            from contextlib import redirect_stderr
+            import io
+
+            # Suppress Python warnings
+            warnings.filterwarnings('ignore', category=UserWarning, module='tensorflow')
+            warnings.filterwarnings('ignore', category=UserWarning, module='tensorflow_probability')
+            warnings.filterwarnings('ignore', category=UserWarning, module='tf_keras')
+            warnings.filterwarnings('ignore', category=DeprecationWarning)
+
+            # Disable TensorFlow and related logging before import
+            logging.getLogger('tensorflow').setLevel(logging.ERROR)
+            logging.getLogger('tensorflow_probability').setLevel(logging.ERROR)
+            logging.getLogger('absl').setLevel(logging.ERROR)
+
+            # Try to suppress absl logging which TensorFlow uses
+            try:
+                import absl.logging
+                absl.logging.set_verbosity(absl.logging.ERROR)
+            except ImportError:
+                pass
+
+            # Use lazy import to avoid loading TensorFlow at module level
+            stderr_capture = io.StringIO()
+            with redirect_stderr(stderr_capture):
+                import tensorflow as tf
+                # After importing TensorFlow, also set its internal logger
+                tf.get_logger().setLevel(logging.ERROR)
+                import tensorflow_probability as tfp
+                import scipy.stats  # For statistical functions not available in tfp.stats
+                scipy_stats = scipy.stats
+
+            tf = tf
+            tfp = tfp
+            TFP_AVAILABLE = True
+            logger.info("TensorFlow Probability available for advanced stochastic simulations")
+        except Exception as e:
+            logger.warning(f"TensorFlow Probability not available: {e}. Using numpy fallback.")
+            TFP_AVAILABLE = False
+            tf = None
+            tfp = None
+            scipy_stats = None
+
     def __init__(self, a2a_protocol=None):
         config_paths = {'risk': 'config/risk-constraints.yaml', 'profit': 'config/profitability-targets.yaml'}  # Relative to root.
         prompt_paths = {'base': 'config/base_prompt.txt', 'role': 'docs/AGENTS/main-agents/risk-agent.md'}
@@ -568,6 +584,8 @@ Focus on immediate actions to reduce risk while maintaining alpha potential.
                 return self._run_numpy_stochastics(proposal, volatility)
             except Exception as e:
                 logger.warning(f"Numpy stochastic method failed, trying TensorFlow fallback: {e}")
+                # Try lazy import of TensorFlow
+                self._lazy_import_tensorflow()
                 if TFP_AVAILABLE and tf is not None and tfp is not None:
                     return self._run_tensorflow_stochastics(proposal, volatility)
                 else:

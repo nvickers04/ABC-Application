@@ -1,7 +1,7 @@
 # src/agents/learning.py
 # Purpose: Implements the Learning Agent, subclassing BaseAgent for ML refinements and batch directives (e.g., prune on SD >1.0).
 # Handles parallel sims and convergence checks.
-# Structural Reasoning: Ties to learning-agent-notes.md (e.g., FinRL/tf-quant tools) and configs (loaded fresh); backs funding with logged directives (e.g., "Pruned for +1.2% ROI lift").
+# Structural Reasoning: (e.g., FinRL/tf-quant tools) and configs (loaded fresh); backs funding with logged directives (e.g., "Pruned for +1.2% ROI lift").
 # New: Async process_input for sims; reflect method for fading (e.g., linear over 15 batches).
 # For legacy wealth: Accelerates proficiency without live risk, ensuring 15-20% sustained growth through experiential evolution.
 # Update: Dynamic path setup for imports; root-relative paths for configs/prompts.
@@ -28,10 +28,22 @@ logger.warning("TensorFlow import disabled to prevent startup issues. Using nump
 TENSORFLOW_AVAILABLE = False
 tf = None
 
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_squared_error, r2_score
+# Try to import sklearn libraries
+try:
+    from sklearn.ensemble import RandomForestRegressor
+    from sklearn.preprocessing import StandardScaler
+    from sklearn.model_selection import train_test_split
+    from sklearn.metrics import mean_squared_error, r2_score
+    SKLEARN_AVAILABLE = True
+    logger.info("scikit-learn available for machine learning operations")
+except ImportError as e:
+    logger.warning(f"scikit-learn not available: {e}. Using numpy fallback.")
+    SKLEARN_AVAILABLE = False
+    RandomForestRegressor = None
+    StandardScaler = None
+    train_test_split = None
+    mean_squared_error = None
+    r2_score = None
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +75,12 @@ except ImportError as e:
     logger.warning(f"Backtrader not available: {e}. Using numpy backtesting fallback.")
     BACKTRADER_AVAILABLE = False
     bt = None
+    Cerebro = None
+    Strategy = None
+    PandasData = None
+    SharpeRatio = None
+    DrawDown = None
+    Returns = None
 
 logger = logging.getLogger(__name__)
 
@@ -3776,3 +3794,132 @@ Provide specific directive recommendations with values and detailed rationale fo
         }
 
         return changes_map.get(proposal_type, {})
+
+    # ===== PROPOSAL LOG ACCESS =====
+
+    def get_proposal_log(self, status_filter: str = None, limit: int = 50) -> Dict[str, Any]:
+        """
+        Get the proposal log with filtering and pagination.
+
+        Args:
+            status_filter: Filter by status ('queued', 'evaluated', 'implemented', 'rejected', 'rolled_back', etc.)
+            limit: Maximum number of proposals to return
+
+        Returns:
+            Dict with proposal log data
+        """
+        try:
+            proposal_tracking = self.memory.get('proposal_tracking', {})
+            proposal_queue = self.memory.get('proposal_queue', [])
+
+            # Filter proposals by status if requested
+            if status_filter:
+                filtered_tracking = {
+                    pid: data for pid, data in proposal_tracking.items()
+                    if data.get('status') == status_filter
+                }
+                filtered_queue = [
+                    p for p in proposal_queue
+                    if p.get('evaluation_status') == status_filter or p.get('status') == status_filter
+                ]
+            else:
+                filtered_tracking = proposal_tracking
+                filtered_queue = proposal_queue
+
+            # Combine and sort by most recent first
+            all_proposals = []
+
+            # Add tracking data
+            for proposal_id, tracking_data in filtered_tracking.items():
+                proposal_data = {
+                    'proposal_id': proposal_id,
+                    'status': tracking_data.get('status', 'unknown'),
+                    'submitted_by': tracking_data.get('submitted_by', 'unknown'),
+                    'proposal_type': tracking_data.get('proposal_type', 'unknown'),
+                    'received_at': tracking_data.get('received_at'),
+                    'evaluated_at': tracking_data.get('evaluated_at'),
+                    'implemented_at': tracking_data.get('implemented_at'),
+                    'evaluation_score': tracking_data.get('evaluation_score'),
+                    'recommendation': tracking_data.get('recommendation'),
+                    'source': 'tracking'
+                }
+                all_proposals.append(proposal_data)
+
+            # Add queue data (more detailed)
+            for proposal in filtered_queue[-limit:]:  # Limit queue items
+                queue_data = {
+                    'proposal_id': proposal.get('proposal_id'),
+                    'status': proposal.get('evaluation_status', proposal.get('status', 'unknown')),
+                    'submitted_by': proposal.get('submitted_by', 'unknown'),
+                    'proposal_type': proposal.get('proposal_type', 'unknown'),
+                    'received_at': proposal.get('received_at'),
+                    'evaluated_at': proposal.get('evaluated_at'),
+                    'implemented_at': proposal.get('implemented_at'),
+                    'evaluation_results': proposal.get('evaluation_results'),
+                    'test_results': proposal.get('test_results'),
+                    'implementation_results': proposal.get('implementation_results'),
+                    'description': proposal.get('description', ''),
+                    'confidence_score': proposal.get('confidence_score'),
+                    'source': 'queue'
+                }
+                all_proposals.append(queue_data)
+
+            # Remove duplicates (prefer queue data over tracking data)
+            seen_ids = set()
+            unique_proposals = []
+            for proposal in reversed(all_proposals):  # Process in reverse to prefer later entries
+                pid = proposal['proposal_id']
+                if pid and pid not in seen_ids:
+                    seen_ids.add(pid)
+                    unique_proposals.append(proposal)
+
+            # Sort by most recent timestamp
+            def get_sort_key(p):
+                timestamps = [
+                    p.get('implemented_at'),
+                    p.get('evaluated_at'),
+                    p.get('received_at')
+                ]
+                valid_timestamps = [t for t in timestamps if t]
+                return max(valid_timestamps) if valid_timestamps else ''
+
+            unique_proposals.sort(key=get_sort_key, reverse=True)
+
+            # Apply limit
+            unique_proposals = unique_proposals[:limit]
+
+            # Calculate summary statistics
+            status_counts = {}
+            type_counts = {}
+            for proposal in unique_proposals:
+                status = proposal.get('status', 'unknown')
+                p_type = proposal.get('proposal_type', 'unknown')
+
+                status_counts[status] = status_counts.get(status, 0) + 1
+                type_counts[p_type] = type_counts.get(p_type, 0) + 1
+
+            proposal_log = {
+                'total_proposals': len(unique_proposals),
+                'status_filter': status_filter,
+                'limit_applied': limit,
+                'summary': {
+                    'status_distribution': status_counts,
+                    'type_distribution': type_counts,
+                    'total_tracked': len(proposal_tracking),
+                    'total_queued': len(proposal_queue)
+                },
+                'proposals': unique_proposals,
+                'timestamp': pd.Timestamp.now().isoformat()
+            }
+
+            logger.info(f"Retrieved proposal log: {len(unique_proposals)} proposals, filter: {status_filter}")
+            return proposal_log
+
+        except Exception as e:
+            logger.error(f"Error retrieving proposal log: {e}")
+            return {
+                'error': str(e),
+                'total_proposals': 0,
+                'proposals': [],
+                'timestamp': pd.Timestamp.now().isoformat()
+            }

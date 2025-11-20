@@ -1,40 +1,39 @@
 {
   "namespace": "shared:marketdataapp_data:XLK",
   "safe_namespace": "shared_marketdataapp_data_XLK",
-  "timestamp": "2025-11-20T09:22:29.961648",
+  "timestamp": "2025-11-20T12:56:27.674801",
   "version": "1.0",
   "data": {
     "data": {
       "premium_data": {
         "symbol": "XLK",
         "source": "marketdataapp_llm_exploration",
-        "endpoints_explored": "['microstructure', 'orderbook', 'flow', 'darkpool', 'options', 'trades', 'quotes']",
-        "timestamp": "2025-11-20T09:22:26.989669",
-        "quotes_df": "{'type': 'DataFrame', 'columns': ['timestamp', 'open', 'high', 'low', 'close', 'volume', 'bid', 'ask', 'vwap'], 'shape': (1, 9), 'data': [{'timestamp': None, 'open': 0, 'high': 0, 'low': 0, 'close': 0, 'volume': 0, 'bid': 0, 'ask': 0, 'vwap': 0}], 'summary': '       open  high  low  close  volume  bid  ask  vwap\\ncount   1.0   1.0  1.0    1.0     1.0  1.0  1.0   1.0\\nmean    0.0   0.0  0.0    0.0     0.0  0.0  0.0   0.0\\nstd     NaN   NaN  NaN    NaN     NaN  NaN  NaN   NaN\\nmin     0.0   0.0  0.0    0.0     0.0  0.0  0.0   0.0\\n25%     0.0   0.0  0.0    0.0     0.0  0.0  0.0   0.0\\n50%     0.0   0.0  0.0    0.0     0.0  0.0  0.0   0.0\\n75%     0.0   0.0  0.0    0.0     0.0  0.0  0.0   0.0\\nmax     0.0   0.0  0.0    0.0     0.0  0.0  0.0   0.0'}",
+        "endpoints_explored": "['microstructure', 'orderbook', 'flow', 'darkpool', 'options', 'trades']",
+        "timestamp": "2025-11-20T12:56:27.660206",
         "orderbook_bids_df": "{'type': 'DataFrame', 'columns': [], 'shape': (0, 0), 'data': [], 'summary': 'Empty DataFrame'}",
         "orderbook_asks_df": "{'type': 'DataFrame', 'columns': [], 'shape': (0, 0), 'data': [], 'summary': 'Empty DataFrame'}",
-        "data_quality_score": "8.5",
+        "data_quality_score": "8.0",
         "institutional_insights": "['Standard market conditions observed']"
       },
       "exploration_plan": {
-        "endpoints": "['microstructure', 'orderbook', 'flow', 'darkpool', 'options', 'trades', 'quotes']",
-        "priorities": "{'microstructure': '10', 'orderbook': '9', 'flow': '8', 'darkpool': '8', 'options': '7', 'trades': '6', 'quotes': '5'}",
-        "reasoning": "Prioritize advanced microstructure and institutional flow data for XLK's high liquidity and tech sector volatility to uncover alpha, balancing real-time signals with historical depth while de-emphasizing basic quotes to control costs",
-        "expected_insights": "['Microstructure imbalances for momentum signals', 'Order book depth for liquidity traps', 'Institutional flow patterns for positioning', 'Dark pool accumulation/distribution', 'Options skew for sentiment shifts']"
+        "endpoints": "['microstructure', 'orderbook', 'flow', 'darkpool', 'options', 'trades']",
+        "priorities": "{'microstructure': '10', 'orderbook': '9', 'flow': '9', 'darkpool': '8', 'options': '7', 'trades': '7'}",
+        "reasoning": "Prioritize microstructure and institutional flow endpoints for XLK's high liquidity and tech sector institutional dominance; balance real-time signals for alpha with historical depth while deprioritizing basic quotes to control costs",
+        "expected_insights": "['Market impact and liquidity provision signals', 'Order book imbalances for momentum trades', 'Institutional order flow for positioning shifts', 'Dark pool accumulation/distribution patterns', 'Options skew and gamma exposure for volatility plays', 'Trade clustering for short-term alpha edges']"
       },
-      "timestamp": "2025-11-20T09:22:26.991694",
+      "timestamp": "2025-11-20T12:56:27.661206",
       "symbol": "XLK"
     },
-    "timestamp": "2025-11-20T09:22:27.014904",
+    "timestamp": "2025-11-20T12:56:27.661206",
     "memory_type": "shared",
     "metadata": {
       "shared_by": "marketdataapp_data",
       "namespace": "marketdataapp_data",
-      "shared_at": "2025-11-20T09:22:27.014904",
+      "shared_at": "2025-11-20T12:56:27.661206",
       "access_level": "shared",
       "original_data_type": "dict"
     },
     "user": null,
-    "size": 2126
+    "size": 1404
   }
 }
