@@ -28,22 +28,31 @@ logger.warning("TensorFlow import disabled to prevent startup issues. Using nump
 TENSORFLOW_AVAILABLE = False
 tf = None
 
-# Try to import sklearn libraries
-try:
-    from sklearn.ensemble import RandomForestRegressor
-    from sklearn.preprocessing import StandardScaler
-    from sklearn.model_selection import train_test_split
-    from sklearn.metrics import mean_squared_error, r2_score
-    SKLEARN_AVAILABLE = True
-    logger.info("scikit-learn available for machine learning operations")
-except ImportError as e:
-    logger.warning(f"scikit-learn not available: {e}. Using numpy fallback.")
-    SKLEARN_AVAILABLE = False
-    RandomForestRegressor = None
-    StandardScaler = None
-    train_test_split = None
-    mean_squared_error = None
-    r2_score = None
+# Try to import sklearn libraries (lazy import)
+SKLEARN_AVAILABLE = False
+RandomForestRegressor = None
+StandardScaler = None
+train_test_split = None
+mean_squared_error = None
+r2_score = None
+
+def _import_sklearn():
+    """Lazy import sklearn libraries"""
+    global SKLEARN_AVAILABLE, RandomForestRegressor, StandardScaler, train_test_split, mean_squared_error, r2_score
+    if SKLEARN_AVAILABLE:
+        return True
+    try:
+        from sklearn.ensemble import RandomForestRegressor
+        from sklearn.preprocessing import StandardScaler
+        from sklearn.model_selection import train_test_split
+        from sklearn.metrics import mean_squared_error, r2_score
+        SKLEARN_AVAILABLE = True
+        logger.info("scikit-learn available for machine learning operations")
+        return True
+    except ImportError as e:
+        logger.warning(f"scikit-learn not available: {e}. Using numpy fallback.")
+        SKLEARN_AVAILABLE = False
+        return False
 
 logger = logging.getLogger(__name__)
 
@@ -129,6 +138,11 @@ class LearningAgent(BaseAgent):
         Initialize machine learning components for strategy optimization.
         """
         try:
+            # Lazy import sklearn
+            if not _import_sklearn():
+                logger.warning("Cannot initialize ML components - sklearn not available")
+                return
+            
             # Strategy performance prediction model
             self.strategy_predictor = RandomForestRegressor(
                 n_estimators=100,
@@ -376,8 +390,8 @@ class LearningAgent(BaseAgent):
         Returns:
             Training metrics and model performance
         """
-        if not performance_data or not self.strategy_predictor:
-            return {'trained': False, 'reason': 'No data or model unavailable'}
+        if not performance_data or not _import_sklearn():
+            return {'trained': False, 'reason': 'No data or sklearn unavailable'}
         
         try:
             # Extract features and targets from performance data

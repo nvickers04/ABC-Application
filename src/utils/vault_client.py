@@ -12,13 +12,17 @@ class VaultClient:
         self.vault_available = False
 
         try:
+            # Add timeout to prevent hanging
+            import requests
+            self.client.session.timeout = 5  # 5 second timeout
             if self.client.is_authenticated():
                 self.vault_available = True
                 logger.info("Vault connection established successfully")
             else:
                 logger.warning("Vault authentication failed - falling back to environment variables")
-        except Exception as e:
+        except (ConnectionRefusedError, requests.exceptions.ConnectionError, requests.exceptions.Timeout, Exception) as e:
             logger.warning(f"Vault connection failed: {e} - falling back to environment variables")
+            self.vault_available = False
 
     def get_secret(self, path: str, key: str) -> str:
         if self.vault_available:

@@ -81,19 +81,19 @@ class LiveWorkflowOrchestrator:
         self.monitoring_log = []
         self.monitoring_responses = []
         
-        # Phase timing configuration
+        # Phase timing configuration - REDUCED for faster alpha discovery
         self.phase_delays = {
-            'macro_foundation_data_collection': 300,  # Maximum wait time (300s = 5min) for data collection
-            'macro_foundation_analysis': 300,  # Maximum wait time (300s = 5min) for macro analysis responses
-            'intelligence_gathering': 240,  # Maximum wait time (240s = 4min) per command
-            'strategy_development': 300,  # Maximum wait time (300s = 5min) for strategy development
-            'debate': 360,  # Maximum wait time (360s = 6min) for debates
-            'risk_assessment': 240,  # Maximum wait time (240s = 4min) for risk assessment
-            'consensus': 300,  # Maximum wait time (300s = 5min) for consensus building
-            'execution_validation': 240,  # Maximum wait time (240s = 4min) for execution validation
-            'learning': 240,  # Maximum wait time (240s = 4min) for learning
-            'executive_review': 420,  # Maximum wait time (420s = 7min) for enhanced iteration 2 analysis
-            'supreme_oversight': 480  # Maximum wait time (480s = 8min) for final decisions
+            'macro_foundation_data_collection': 120,  # Reduced from 300s to 2min for rapid data gathering
+            'macro_foundation_analysis': 120,  # Reduced from 300s to 2min for quick macro insights
+            'intelligence_gathering': 90,  # Reduced from 240s to 1.5min per command
+            'strategy_development': 120,  # Reduced from 300s to 2min for strategy development
+            'debate': 180,  # Reduced from 360s to 3min for debates
+            'risk_assessment': 90,  # Reduced from 240s to 1.5min for risk assessment
+            'consensus': 120,  # Reduced from 300s to 2min for consensus building
+            'execution_validation': 90,  # Reduced from 240s to 1.5min for execution validation
+            'learning': 90,  # Reduced from 240s to 1.5min for learning
+            'executive_review': 210,  # Reduced from 420s to 3.5min for enhanced iteration 2 analysis
+            'supreme_oversight': 240  # Reduced from 480s to 4min for final decisions
         }
 
         self._initialize_workflow_commands()
@@ -679,36 +679,57 @@ class LiveWorkflowOrchestrator:
                 'cash_balance': 0.0
             }
 
-    async def _execute_command_with_full_context(self, command: str, phase_key: str) -> List[Dict[str, Any]]:
-        """Execute command with all agents having full context"""
-        agent_responses = []
+    async def _execute_commands_parallel(self, commands: List[str], phase_key: str) -> List[Dict[str, Any]]:
+        """Execute all commands in parallel across all agents for maximum collaboration"""
+        if not self.agent_instances:
+            return []
 
-        # Send command to ALL agents (not just target) so they can collaborate
-        command_tasks = []
-        for agent_name, agent in self.agent_instances.items():
-            task = self._send_context_aware_command(agent_name, agent, command, phase_key)
-            command_tasks.append(task)
+        all_responses = []
+        max_wait_time = self.phase_delays.get(phase_key, 120)
 
-        # Wait for all agent responses
-        command_results = await asyncio.gather(*command_tasks, return_exceptions=True)
+        # Create tasks for all command-agent combinations
+        execution_tasks = []
+        for command in commands:
+            for agent_name, agent in self.agent_instances.items():
+                task = self._send_context_aware_command(agent_name, agent, command, phase_key)
+                execution_tasks.append((agent_name, command, task))
 
-        # Process results
-        for agent_name, result in zip(self.agent_instances.keys(), command_results):
-            if isinstance(result, Exception):
-                print(f"⚠️ Agent {agent_name} failed: {result}")
-                continue
+        # Execute all tasks with timeout
+        start_time = time.time()
+        completed_tasks = []
 
-            if result:
-                agent_responses.append({
-                    'agent': agent_name,
-                    'method': 'a2a_enhanced',
-                    'response': result,
-                    'phase': phase_key,
-                    'command': command
-                })
-                print(f"✅ Enhanced A2A response from {agent_name}")
+        # Use asyncio.gather with timeout handling
+        try:
+            results = await asyncio.gather(
+                *[task for _, _, task in execution_tasks],
+                return_exceptions=True
+            )
 
-        return agent_responses
+            # Process results
+            for (agent_name, command, _), result in zip(execution_tasks, results):
+                if isinstance(result, Exception):
+                    print(f"⚠️ Parallel execution failed for {agent_name}: {result}")
+                    continue
+
+                if result:
+                    response_data = {
+                        'agent': agent_name,
+                        'method': 'parallel_collaboration',
+                        'response': result,
+                        'phase': phase_key,
+                        'command': command,
+                        'execution_time': time.time() - start_time
+                    }
+                    all_responses.append(response_data)
+                    print(f"✅ Parallel response from {agent_name} for command: {command[:50]}...")
+
+        except asyncio.TimeoutError:
+            print(f"⏰ Parallel execution timed out after {max_wait_time}s")
+
+        # Sort responses by agent for consistent presentation
+        all_responses.sort(key=lambda x: x['agent'])
+
+        return all_responses
 
     async def _send_context_aware_command(self, agent_name: str, agent, command: str, phase_key: str) -> Optional[Dict[str, Any]]:
         """Send command to agent with full context awareness"""
@@ -827,7 +848,7 @@ class LiveWorkflowOrchestrator:
         return insights[:10]  # Limit total insights
 
     async def execute_phase_with_agents(self, phase_key: str, phase_title: str):
-        """Execute a phase using enhanced A2A protocol - agents share full workflow context and collaborate"""
+        """Execute a phase using ENHANCED PARALLEL COLLABORATION - agents share full workflow context and collaborate simultaneously"""
         if not self.channel:
             print(f"❌ No channel available for phase {phase_key}")
             return
@@ -835,91 +856,106 @@ class LiveWorkflowOrchestrator:
         general_channel = cast(discord.TextChannel, self.channel)
         self.current_phase = phase_key
 
-        # Announce phase start
-        await general_channel.send(f"\n{phase_title}")
-        await general_channel.send("─" * 50)
+        # Announce phase start with enthusiasm
+        await general_channel.send(f"\n🚀 **{phase_title.upper()} - LET'S HUNT FOR ALPHA!** 🚀")
+        await general_channel.send("─" * 60)
+        await general_channel.send("💥 **ALL AGENTS WORKING TOGETHER - FULL CONTEXT SHARED!**")
+        await general_channel.send("🎯 **EXCITED TO DISCOVER TRADING OPPORTUNITIES!**")
 
         commands = self.phase_commands.get(phase_key, [])
 
-        # ENHANCED CONTEXT SHARING: Share complete workflow context with all agents
+        # ENHANCED PARALLEL EXECUTION: Share complete workflow context with all agents
         await self._share_full_workflow_context(phase_key, phase_title)
 
         # POSITION AWARENESS: Include current position data in context
         await self._share_position_context()
 
-        for i, command in enumerate(commands, 1):
-            if not self.workflow_active:
-                return
+        # SEND ALL COMMANDS TO ALL AGENTS SIMULTANEOUSLY for maximum collaboration
+        agent_responses = await self._execute_commands_parallel(commands, phase_key)
 
-            # Send command to ALL agents with full context, not just target agent
-            agent_responses = await self._execute_command_with_full_context(command, phase_key)
+        # Announce parallel execution
+        await general_channel.send(f"🎯 **PARALLEL EXECUTION:** {len(commands)} commands sent to {len(self.agent_instances)} agents simultaneously!")
+        await general_channel.send("🤝 **Agents collaborating with full shared context - no silos!**")
 
-            # Announce command and show responses
-            await general_channel.send(f"📤 **Command {i}/{len(commands)}:** `{command}`")
+        # Format and display agent responses with enthusiasm
+        if agent_responses:
+            await self._present_agent_responses_enhanced(general_channel, agent_responses, phase_key)
+        else:
+            await general_channel.send("⏰ **No agent responses received** - but they're thinking hard! 🤔")
 
-            # Format and display agent responses
-            if agent_responses:
-                await self._present_agent_responses(general_channel, agent_responses, i)
-            else:
-                await general_channel.send("⏰ **No agent responses received**")
+        await general_channel.send(f"✅ **{phase_title} Complete! Alpha discovered!** 🎉")
+        await asyncio.sleep(2)  # Reduced from 3 to speed up
 
-        await general_channel.send(f"✅ **{phase_title} Complete!**")
-        await asyncio.sleep(3)
-
-    async def _present_agent_responses(self, channel: discord.TextChannel, responses: List[Dict[str, Any]], command_index: int):
-        """Present agent responses in a unified, readable format with proper Discord markdown"""
+    async def _present_agent_responses_enhanced(self, channel: discord.TextChannel, responses: List[Dict[str, Any]], phase_key: str):
+        """Present agent responses in an ENHANCED format with enthusiasm and collaboration highlights"""
         if not responses:
             return
 
         # Group responses by agent
-        agent_summaries = []
+        agent_summaries = {}
         detailed_responses = []
 
         for response_data in responses:
             agent_name = response_data['agent']
             response = response_data['response']
+            command = response_data.get('command', '')
+
+            # Initialize agent summary if not exists
+            if agent_name not in agent_summaries:
+                agent_summaries[agent_name] = []
 
             # SECURITY: Sanitize agent output before display
             sanitized_response = self._sanitize_agent_output(response)
 
-            # Create agent summary
+            # Create enthusiastic agent summary
             if isinstance(sanitized_response, dict):
                 # Handle structured agent responses
                 response_dict = cast(Dict[str, Any], sanitized_response)
                 if 'analysis_type' in response_dict:
-                    summary = f"**{agent_name.title()} Agent Analysis:** {response_dict.get('analysis_type', 'general')}"
+                    summary = f"🚀 **{agent_name.title()} Agent** crushing it with {response_dict.get('analysis_type', 'analysis')}!"
                     if 'confidence_level' in response_dict:
-                        summary += f" (Confidence: {response_dict['confidence_level']})"
+                        summary += f" (Confidence: {response_dict['confidence_level']}) 🔥"
                 elif 'error' in response_dict:
-                    summary = f"**{agent_name.title()} Agent:** Error - {response_dict['error']}"
+                    summary = f"⚠️ **{agent_name.title()} Agent:** Working through {response_dict['error']}"
                 else:
-                    summary = f"**{agent_name.title()} Agent:** Analysis complete"
+                    summary = f"💡 **{agent_name.title()} Agent:** Delivering insights!"
             else:
                 # Handle string responses
-                summary = f"**{agent_name.title()} Agent:** {str(sanitized_response)[:100]}..."
+                summary = f"🎯 **{agent_name.title()} Agent:** {str(sanitized_response)[:100]}..."
 
-            agent_summaries.append(summary)
+            agent_summaries[agent_name].append(summary)
 
-            # Prepare detailed response with proper formatting
+            # Prepare detailed response with enhanced formatting
             if isinstance(sanitized_response, dict):
-                detailed = f"🤖 **{agent_name.title()} Agent Details:**\n"
+                detailed = f"🤖 **{agent_name.title()} Agent - ALPHA DISCOVERY MODE!** 🔥\n"
+                detailed += f"💬 **Command:** {command[:100]}...\n"
                 for key, value in sanitized_response.items():
-                    if key not in ['timestamp', 'agent_role']:  # Skip metadata
+                    if key not in ['timestamp', 'agent_role']:
                         formatted_value = self._format_response_value(key, value)
-                        detailed += f"• **{key.replace('_', ' ').title()}:** {formatted_value}\n"
+                        emoji_map = {
+                            'trade_proposals': '📈',
+                            'confidence_level': '🎯',
+                            'risk_assessment': '⚠️',
+                            'analysis': '🔍',
+                            'recommendations': '💡'
+                        }
+                        emoji = emoji_map.get(key, '•')
+                        detailed += f"{emoji} **{key.replace('_', ' ').title()}:** {formatted_value}\n"
                 detailed_responses.append(detailed.rstrip())
             else:
-                # Format string responses with potential table/chart detection
+                # Format string responses with enthusiasm
                 formatted_response = self._format_text_response(str(sanitized_response))
-                detailed_responses.append(f"🤖 **{agent_name.title()} Agent:** {formatted_response}")
+                detailed_responses.append(f"🎉 **{agent_name.title()} Agent:** {formatted_response}")
 
-        # Send summary first
-        summary_text = f"📊 **Agent Responses Summary:**\n" + "\n".join(f"• {summary}" for summary in agent_summaries)
+        # Send enthusiastic summary first
+        summary_text = f"🚀 **COLLABORATIVE ALPHA STORM!** {len(responses)} responses from {len(agent_summaries)} agents!\n"
+        for agent_name, summaries in agent_summaries.items():
+            summary_text += f"• **{agent_name.title()}:** {len(summaries)} brilliant contributions!\n"
         await channel.send(summary_text)
 
-        # Send detailed responses with proper chunking
+        # Send detailed responses with collaboration highlights
         for detailed in detailed_responses:
-            # Split long messages if needed (Discord limit is 2000 chars)
+            # Split long messages if needed
             if len(detailed) > 1900:
                 chunks = self._smart_chunk_message(detailed, 1900)
                 for chunk in chunks:
@@ -931,18 +967,16 @@ class LiveWorkflowOrchestrator:
         for response_data in responses:
             response = response_data['response']
             if isinstance(response, dict):
-                # Check structured responses for trade content
                 response_text = str(response)
             else:
                 response_text = str(response)
-            
+
             if self.is_trade_related_message(response_text):
-                # Extract key trade information for alert
                 alert_content = self._extract_trade_alert_info(response_data)
                 if alert_content:
                     await self.send_trade_alert(alert_content, "trade")
 
-        await channel.send(f"✅ **Command {command_index} processing complete**")
+        await channel.send(f"🎯 **PARALLEL COLLABORATION COMPLETE!** Agents are fired up and ready for more alpha! 🔥")
 
     def _format_response_value(self, key: str, value: Any) -> str:
         """Format individual response values with appropriate Discord markdown"""
@@ -1070,15 +1104,15 @@ class LiveWorkflowOrchestrator:
         """Initialize the command sequences for each workflow phase with realistic data-driven tasks"""
         self.phase_commands = {
             'macro_foundation_data_collection': [
-                # Phase 0a: Data Collection (prerequisite for macro analysis)
-                "!d analyze Fetch current SPY, QQQ, IWM prices and calculate market breadth indicators (advancers/decliners, new highs/lows)",
-                "!d analyze Pull economic data: Fed Funds Rate, Treasury yields (2Y/10Y/30Y), VIX, USD index, oil/gold prices",
-                "!d analyze Calculate sector ETF performance: XLY, XLC, XLF, XLB, XLE, XLK, XLU, XLV, XLRE, XLP, XLI vs SPY"
+                # Phase 0a: Data Collection (RAPID FIRE!)
+                "!d 🔥 EXCITED TO HUNT ALPHA! Fetch current SPY, QQQ, IWM prices and calculate market breadth indicators (advancers/decliners, new highs/lows) - let's find the momentum!",
+                "!d 🚀 DATA AGENT POWER MODE: Pull economic data: Fed Funds Rate, Treasury yields (2Y/10Y/30Y), VIX, USD index, oil/gold prices - spot the regime shifts!",
+                "!d 💹 SECTOR SCOUTING MISSION: Calculate sector ETF performance: XLY, XLC, XLF, XLB, XLE, XLK, XLU, XLV, XLRE, XLP, XLI vs SPY - which sectors are screaming for attention?"
             ],
             'macro_foundation_analysis': [
-                # Phase 0b: Macro Analysis (using collected data)
-                "!m analyze Based on collected economic and market data, assess market regime: Identify if we're in risk-on/risk-off, trending/range-bound, bull/bear market. Generate 5 specific trade proposals based on macro regime (e.g., sector rotation, duration positioning, currency trades) with Probability of Profit (PoP) calculations. Consider current portfolio positions and risk constraints.",
-                "!m analyze Analyze sector performance data to generate top 5 sector opportunities based on relative strength, momentum, and risk-adjusted returns. For each sector, propose specific ETF or stock trades with entry/exit criteria and PoP estimates. Ensure proposals complement existing positions without excessive concentration."
+                # Phase 0b: Macro Analysis (EXCITING INSIGHTS!)
+                "!m 🎯 MACRO MASTERMIND ACTIVATED! Based on collected economic and market data, assess market regime: Identify if we're in risk-on/risk-off, trending/range-bound, bull/bear market. Generate 5 specific trade proposals based on macro regime (e.g., sector rotation, duration positioning, currency trades) with Probability of Profit (PoP) calculations. Consider current portfolio positions and risk constraints. LET'S FIND THE BIG MOVES!",
+                "!m 🌟 MACRO VISION QUEST: Analyze sector performance data to generate top 5 sector opportunities based on relative strength, momentum, and risk-adjusted returns. For each sector, propose specific ETF or stock trades with entry/exit criteria and PoP estimates derived from historical patterns. Ensure proposals complement existing positions without excessive concentration. WHICH SECTORS WILL LEAD THE CHARGE?"
             ],
 
             'intelligence_gathering': [
