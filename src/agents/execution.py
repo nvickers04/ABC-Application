@@ -14,8 +14,24 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 import numpy as np
 
-# Add IBKR connector import
-from integrations.ibkr_connector import get_ibkr_connector
+# Add IBKR connector import (lazy)
+IBKR_AVAILABLE = False
+get_ibkr_connector = None
+
+def _import_ibkr_connector():
+    """Lazy import IBKR connector"""
+    global IBKR_AVAILABLE, get_ibkr_connector
+    if IBKR_AVAILABLE:
+        return True
+    try:
+        from integrations.ibkr_connector import get_ibkr_connector
+        IBKR_AVAILABLE = True
+        logger.info("IBKR connector available for trading operations")
+        return True
+    except ImportError as e:
+        logger.warning(f"IBKR connector not available: {e}. Using simulation mode.")
+        IBKR_AVAILABLE = False
+        return False
 
 # Add TimingOptimizer import
 from src.utils.timing_optimizer import TimingOptimizer
@@ -38,8 +54,8 @@ class ExecutionAgent(BaseAgent):
         super().__init__(role="execution", config_paths=config_paths, prompt_paths=prompt_paths, a2a_protocol=a2a_protocol)
         self.historical_mode = historical_mode
         
-        # Initialize IBKR connector
-        self.ibkr_connector = get_ibkr_connector()
+        # Initialize IBKR connector (lazy)
+        self.ibkr_connector = None
         
         # Initialize TimingOptimizer
         self.timing_optimizer = TimingOptimizer()
@@ -52,6 +68,16 @@ class ExecutionAgent(BaseAgent):
         if not self.memory:
             self.memory = {"outcome_logs": [], "scaling_history": [], "delayed_orders": [], "scheduled_jobs": {}}
             self.save_memory()
+
+    def _get_ibkr_connector(self):
+        """Get IBKR connector with lazy initialization"""
+        if self.ibkr_connector is None:
+            if _import_ibkr_connector():
+                self.ibkr_connector = get_ibkr_connector()
+            else:
+                logger.warning("IBKR connector not available, using simulation mode")
+                return None
+        return self.ibkr_connector
     
     async def execute_trade(self, symbol: str, quantity: int, action: str = 'BUY', 
                            order_type: str = 'MKT', price: Optional[float] = None) -> Dict[str, Any]:
@@ -78,13 +104,15 @@ class ExecutionAgent(BaseAgent):
             market_data = {}
             try:
                 # Get VIX data for volatility assessment
-                vix_data = await self.ibkr_connector.get_market_data('VIX', bar_size='1 min', duration='1 D')
-                if vix_data and 'bars' in vix_data and vix_data['bars']:
-                    latest_vix = vix_data['bars'][-1]
-                    market_data['VIX'] = {
-                        'price': latest_vix.get('close', 18.0),
-                        'timestamp': latest_vix.get('timestamp')
-                    }
+                connector = self._get_ibkr_connector()
+                if connector:
+                    vix_data = await connector.get_market_data('VIX', bar_size='1 min', duration='1 D')
+                    if vix_data and 'bars' in vix_data and vix_data['bars']:
+                        latest_vix = vix_data['bars'][-1]
+                        market_data['VIX'] = {
+                            'price': latest_vix.get('close', 18.0),
+                            'timestamp': latest_vix.get('timestamp')
+                        }
             except Exception as e:
                 logger.warning(f"Could not get VIX data for timing optimization: {e}")
                 market_data['VIX'] = {'price': 18.0}  # Default moderate volatility
@@ -124,12 +152,15 @@ class ExecutionAgent(BaseAgent):
                 result = {}
             
             # Connect to IBKR if not connected
-            connected = await self.ibkr_connector.connect()
+            connector = self._get_ibkr_connector()
+            if not connector:
+                return {'error': 'IBKR connector not available', 'symbol': symbol}
+            connected = await connector.connect()
             if not connected:
                 return {'error': 'Failed to connect to IBKR', 'symbol': symbol}
             
             # Place the order
-            order_result = await self.ibkr_connector.place_order(
+            order_result = await connector.place_order(
                 symbol=symbol,
                 quantity=quantity,
                 order_type=order_type,
@@ -497,7 +528,16 @@ class ExecutionAgent(BaseAgent):
         """
         try:
             # Get current market data for liquidity assessment
-            market_data = await self.ibkr_connector.get_market_data(symbol, bar_size='1 min', duration='1 D')
+            connector = self._get_ibkr_connector()
+            if not connector:
+                # If no connector, assume optimal timing
+                return {
+                    'optimal_timing': True,
+                    'liquidity_score': 0.5,
+                    'reason': 'no_ibkr_connector_available'
+                }
+            
+            market_data = await connector.get_market_data(symbol, bar_size='1 min', duration='1 D')
             
             if not market_data or 'bars' not in market_data:
                 # If no real-time data, assume optimal timing
@@ -533,7 +573,7 @@ class ExecutionAgent(BaseAgent):
             avg_spread = sum(spreads) / len(spreads)
             
             # Check VIX for volatility (if available)
-            vix_data = await self.ibkr_connector.get_market_data('VIX', bar_size='1 min', duration='1 D')
+            vix_data = await connector.get_market_data('VIX', bar_size='1 min', duration='1 D')
             vix_level = 20  # Default moderate volatility
             if vix_data and 'bars' in vix_data and vix_data['bars']:
                 latest_vix = vix_data['bars'][-1].get('close', 20)
@@ -709,12 +749,16 @@ class ExecutionAgent(BaseAgent):
                     'total_value': 100000.0
                 }
             
-            connected = await self.ibkr_connector.connect()
+            connector = self._get_ibkr_connector()
+            if not connector:
+                return {'error': 'IBKR connector not available'}
+                
+            connected = await connector.connect()
             if not connected:
                 return {'error': 'Failed to connect to IBKR'}
             
-            account_summary = await self.ibkr_connector.get_account_summary()
-            positions = await self.ibkr_connector.get_positions()
+            account_summary = await connector.get_account_summary()
+            positions = await connector.get_positions()
             
             return {
                 'account_summary': account_summary,
