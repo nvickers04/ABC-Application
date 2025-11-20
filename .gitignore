@@ -226,3 +226,4 @@ continuous_trading.log
 # Vault large files
 tools/vault/vault.exe
 tools/vault/vault.zip
+vault.zip
