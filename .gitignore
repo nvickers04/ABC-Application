@@ -223,3 +223,6 @@ api_health_metrics.json
 *.bak
 # Continuous trading logs
 continuous_trading.log
+# Vault large files
+tools/vault/vault.exe
+tools/vault/vault.zip
