@@ -1,12 +1,12 @@
 {
   "namespace": "shared:verified_data_quality:^VIX",
   "safe_namespace": "shared_verified_data_quality_^VIX",
-  "timestamp": "2025-11-20T13:04:04.468258",
+  "timestamp": "2025-11-20T13:05:14.306354",
   "version": "1.0",
   "data": {
     "data": {
       "quality_assessments": {
-        "news": "{'analyzer': 'news', 'symbol': '^VIX', 'credibility_score': '0.5', 'relevance_score': '0.5', 'data_quality_score': '7.5', 'article_count': '0', 'sources_used': \"['alphavantage', 'rss_feeds', 'currentsapi', 'newsapi', 'twitter_trends']\", 'impact_distribution': '{}', 'timestamp': '2025-11-20T13:03:56.060277', 'llm_insights': \"{'sentiment': 'neutral', 'key_themes': ['Market stability', 'Earnings focus'], 'risk_level': 'moderate'}\"}"
+        "news": "{'analyzer': 'news', 'symbol': '^VIX', 'credibility_score': '0.5', 'relevance_score': '0.5', 'data_quality_score': '7.5', 'article_count': '0', 'sources_used': \"['alphavantage', 'newsapi', 'currentsapi', 'twitter_trends', 'rss_feeds']\", 'impact_distribution': '{}', 'timestamp': '2025-11-20T13:05:12.841836', 'llm_insights': \"{'sentiment': 'neutral', 'key_themes': ['Market stability', 'Earnings focus'], 'risk_level': 'moderate'}\"}"
       },
       "verification_result": {
         "symbol": "^VIX",
@@ -16,14 +16,14 @@
         "quality_distribution": "{'news': '0.5'}",
         "consensus_level": "high"
       },
-      "timestamp": "2025-11-20T13:04:04.258760"
+      "timestamp": "2025-11-20T13:05:14.071108"
     },
-    "timestamp": "2025-11-20T13:04:04.258760",
+    "timestamp": "2025-11-20T13:05:14.071108",
     "memory_type": "shared",
     "metadata": {
       "shared_by": "data",
       "namespace": "verified_data_quality",
-      "shared_at": "2025-11-20T13:04:04.258760",
+      "shared_at": "2025-11-20T13:05:14.071108",
       "access_level": "shared",
       "original_data_type": "dict"
     },
