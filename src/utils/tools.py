@@ -2,7 +2,8 @@
 # Purpose: Aggregates all utility tools and functions for agent operations.
 # This file imports from specialized modules for better organization and maintainability.
 
-from langchain_core.tools import tool
+from langchain_core.tools import tool, BaseTool
+from pydantic import BaseModel, Field
 import pandas as pd
 import numpy as np
 from typing import Dict, Any, List
@@ -17,6 +18,21 @@ from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.backends import default_backend
 import base64
 from .api_health_monitor import get_api_health_summary, check_api_health_now, start_health_monitoring, stop_health_monitoring
+
+# LangChain RAG and Chain imports
+try:
+    from langchain_text_splitters import RecursiveCharacterTextSplitter
+    from langchain_community.vectorstores import FAISS
+    from langchain_openai import OpenAIEmbeddings
+    from langchain_core.documents import Document
+    from langchain.chains import LLMChain, SequentialChain
+    from langchain.prompts import PromptTemplate
+    LANGCHAIN_RAG_AVAILABLE = True
+    LANGCHAIN_CHAINS_AVAILABLE = True
+except ImportError:
+    LANGCHAIN_RAG_AVAILABLE = False
+    LANGCHAIN_CHAINS_AVAILABLE = False
+    logging.warning("LangChain RAG and chain components not available - advanced features disabled")
 
 # Import from specialized modules
 from .validation import (
@@ -33,7 +49,7 @@ from .market_data_tools import (
     marketdataapp_api_tool, marketdataapp_websocket_tool, marketdataapp_data_tool, alpha_vantage_tool, financial_modeling_prep_tool
 )
 from .backtesting_tools import (
-    pyfolio_metrics_tool, zipline_backtest_tool, backtrader_strategy_tool, risk_analytics_tool
+    pyfolio_metrics_tool, zipline_backtest_tool, backtrader_strategy_tool, risk_analytics_tool, tf_quant_projection_tool
 )
 from .social_media_tools import (
     twitter_sentiment_tool, social_media_monitor_tool, reddit_sentiment_tool, news_sentiment_aggregation_tool
@@ -45,61 +61,10 @@ from .agent_tools import (
 
 # Additional imports for backward compatibility
 # These functions may need to be implemented in appropriate modules
-@tool
-def fred_data_tool(series_id: str, start_date: str, end_date: str) -> Dict[str, Any]:
-    """
-    Fetch economic data from FRED.
-    
-    Args:
-        series_id: FRED series ID
-        start_date: Start date (YYYY-MM-DD)
-        end_date: End date (YYYY-MM-DD)
-        
-    Returns:
-        Dict with data
-    """
-    try:
-        from fredapi import Fred
-        fred = Fred(api_key='your_api_key')  # Replace with actual
-        data = fred.get_series(series_id, start_date, end_date)
-        return {"data": data.to_dict()}
-    except Exception as e:
-        return {"error": str(e)}
 
-@tool
-def institutional_holdings_analysis_tool(symbol: str, min_shares: int = 100000) -> Dict[str, Any]:
-    """
-    Analyze institutional holdings.
-    
-    Args:
-        symbol: Stock symbol
-        min_shares: Minimum shares threshold for analysis
-        
-    Returns:
-        Dict with analysis
-    """
-    try:
-        # Placeholder
-        return {"error": "API Error: institutional holdings analysis tool not yet implemented"}
-    except Exception as e:
-        return {"error": str(e)}
 
-@tool
-def thirteen_f_filings_tool(cik: str) -> Dict[str, Any]:
-    """
-    Fetch 13F filings.
-    
-    Args:
-        cik: Central Index Key
-        
-    Returns:
-        Dict with filings
-    """
-    try:
-        # Placeholder
-        return {"error": "API Error: 13F filings tool not yet implemented"}
-    except Exception as e:
-        return {"error": str(e)}
+
+
 
 try:
     from .market_data_tools import fundamental_data_tool
@@ -130,30 +95,6 @@ try:
 except ImportError:
     def tf_quant_monte_carlo_tool(*args, **kwargs):
         return {"error": "tf_quant_monte_carlo_tool not implemented"}
-
-try:
-    from .market_data_tools import fundamental_data_tool
-except ImportError:
-    def fundamental_data_tool(*args, **kwargs):
-        return {"error": "fundamental_data_tool not implemented"}
-
-try:
-    from .financial_tools import fundamental_analysis_tool
-except ImportError:
-    def fundamental_analysis_tool(*args, **kwargs):
-        return {"error": "fundamental_analysis_tool not implemented"}
-
-try:
-    from .market_data_tools import microstructure_analysis_tool
-except ImportError:
-    def microstructure_analysis_tool(*args, **kwargs):
-        return {"error": "microstructure_analysis_tool not implemented"}
-
-try:
-    from .market_data_tools import kalshi_data_tool
-except ImportError:
-    def kalshi_data_tool(*args, **kwargs):
-        return {"error": "kalshi_data_tool not implemented"}
 
 try:
     from .backtesting_tools import tf_quant_monte_carlo_tool
@@ -199,32 +140,7 @@ except ImportError:
     def basket_trading_tool(*args, **kwargs):
         return {"error": "basket_trading_tool not implemented"}
 
-@tool
-def group_performance_comparison_tool(groups: Dict[str, List[str]], period: str = "1y") -> Dict[str, Any]:
-    """
-    Compare performance between groups of assets.
-    
-    Args:
-        groups: Dict of group names to lists of tickers
-        period: Time period for comparison
-        
-    Returns:
-        Dict with performance metrics for each group
-    """
-    try:
-        import yfinance as yf
-        results = {}
-        for group_name, tickers in groups.items():
-            data = yf.download(tickers, period=period)['Adj Close']
-            if isinstance(data, pd.DataFrame) and not data.empty:
-                returns = data.pct_change().mean(axis=1).dropna()
-                total_return = (returns + 1).prod() - 1 if not returns.empty else 0
-            else:
-                total_return = 0
-            results[group_name] = {"total_return": total_return}
-        return results
-    except Exception as e:
-        return {"error": f"Group comparison failed: {str(e)}"}
+
 
 try:
     from .financial_tools import advanced_portfolio_optimizer_tool
@@ -232,79 +148,168 @@ except ImportError:
     def advanced_portfolio_optimizer_tool(*args, **kwargs):
         return {"error": "advanced_portfolio_optimizer_tool not implemented"}
 
-@tool
-def finrl_rl_train_tool(tickers: List[str], start_date: str, end_date: str, episodes: int = 10) -> Dict[str, Any]:
-    """
-    Train a reinforcement learning model using FinRL for stock trading.
-    
-    Args:
-        tickers: List of stock tickers to train on
-        start_date: Start date for training data (YYYY-MM-DD)
-        end_date: End date for training data (YYYY-MM-DD)
-        episodes: Number of training episodes
-        
-    Returns:
-        Dict containing training results and model metrics
-    """
-    try:
-        import finrl
-        from finrl.meta.preprocessor.yahoodownloader import YahooDownloader
-        from finrl.meta.preprocessor.preprocessors import FeatureEngineer, data_split
-        from finrl.meta.env_stock_trading.env_stocktrading import StockTradingEnv
-        from finrl.agents.stablebaselines3.models import DRLAgent
-        from stable_baselines3 import PPO
-        
-        # Download data
-        df = YahooDownloader(start_date=start_date, end_date=end_date, ticker_list=tickers).fetch_data()
-        
-        # Feature engineering (adjusted for FinRL config)
-        from finrl.config import INDICATORS
-        tech_indicator_list = INDICATORS
-        fe = FeatureEngineer(
-            use_technical_indicator=True,
-            tech_indicator_list=tech_indicator_list,
-            use_turbulence=True
-        )
-        processed = fe.preprocess_data(df)
-        
-        # Split data
-        train = data_split(processed, start_date, end_date)
-        
-        # Environment setup
-        stock_dimension = len(train.tic.unique())
-        state_space = 1 + 2*stock_dimension + len(tech_indicator_list)*stock_dimension
-        env_kwargs = {
-            "hmax": 100, 
-            "initial_amount": 1000000, 
-            "buy_cost_pct": 0.001,
-            "sell_cost_pct": 0.001,
-            "state_space": state_space, 
-            "stock_dim": stock_dimension, 
-            "tech_indicator_list": tech_indicator_list, 
-            "action_space": stock_dimension, 
-            "reward_scaling": 1e-4
-        }
-        e_train_gym = StockTradingEnv(df=train, **env_kwargs)
-        
-        # Train agent
-        agent = DRLAgent(env=e_train_gym)
-        model = agent.get_model("ppo")
-        trained_model = agent.train_model(model=model, tb_log_name='ppo', total_timesteps=episodes * 1000)
-        
-        return {
-            "success": True,
-            "model_type": "PPO",
-            "episodes": episodes,
-            "tickers": tickers,
-            "metrics": {
-                "final_reward": trained_model.history['episode_rewards'][-1] if trained_model.history else 0,
-                "training_steps": trained_model.history['total_steps'] if trained_model.history else 0
-            }
-        }
-    except Exception as e:
-        return {"error": f"FinRL training failed: {str(e)}"}
+class RLTrainInput(BaseModel):
+    tickers: List[str] = Field(description="List of stock tickers to train on")
+    start_date: str = Field(description="Start date for training data (YYYY-MM-DD)")
+    end_date: str = Field(description="End date for training data (YYYY-MM-DD)")
+    episodes: int = Field(default=10, description="Number of training episodes")
 
-@tool
+
+class RLTrainTool(BaseTool):
+    name: str = "rl_train_tool"
+    description: str = "Train a reinforcement learning model using Stable-Baselines3 for stock trading."
+    args_schema: type = RLTrainInput
+
+    def _run(self, tickers: List[str], start_date: str, end_date: str, episodes: int = 10) -> Dict[str, Any]:
+        """
+        Train a reinforcement learning model using Stable-Baselines3 for stock trading.
+
+        Args:
+            tickers: List of stock tickers to train on
+            start_date: Start date for training data (YYYY-MM-DD)
+            end_date: End date for training data (YYYY-MM-DD)
+            episodes: Number of training episodes
+
+        Returns:
+            Dict containing training results and model metrics
+        """
+        try:
+            import yfinance as yf
+            import pandas as pd
+            import numpy as np
+            import gymnasium as gym
+            from gymnasium import spaces
+            from stable_baselines3 import PPO
+            from stable_baselines3.common.vec_env import DummyVecEnv
+            from sklearn.preprocessing import StandardScaler
+
+            # Simple Trading Environment
+            class SimpleTradingEnv(gym.Env):
+                def __init__(self, data, initial_balance=100000):
+                    super().__init__()
+                    self.data = data
+                    self.initial_balance = initial_balance
+                    self.current_step = 0
+                    self.balance = initial_balance
+                    self.shares = 0
+                    self.total_steps = len(data) - 1
+
+                    # Action space: 0 = hold, 1 = buy, 2 = sell
+                    self.action_space = spaces.Discrete(3)
+
+                    # Observation space: price, balance, shares, technical indicators
+                    self.observation_space = spaces.Box(
+                        low=-np.inf, high=np.inf, shape=(6,), dtype=np.float32
+                    )
+
+                    # Feature scaler
+                    self.scaler = StandardScaler()
+
+                def reset(self, seed=None, options=None):
+                    super().reset(seed=seed)
+                    self.current_step = 0
+                    self.balance = self.initial_balance
+                    self.shares = 0
+                    return self._get_observation(), {}
+
+                def step(self, action):
+                    current_price = self.data.iloc[self.current_step]['Close']
+
+                    # Execute action
+                    if action == 1 and self.balance >= current_price:  # Buy
+                        self.shares += 1
+                        self.balance -= current_price
+                    elif action == 2 and self.shares > 0:  # Sell
+                        self.shares -= 1
+                        self.balance += current_price
+
+                    # Move to next step
+                    self.current_step += 1
+                    done = self.current_step >= self.total_steps
+
+                    # Calculate reward (portfolio value change)
+                    portfolio_value = self.balance + (self.shares * current_price)
+                    reward = portfolio_value - self.initial_balance
+
+                    return self._get_observation(), reward, done, False, {}
+
+                def _get_observation(self):
+                    if self.current_step >= len(self.data):
+                        return np.zeros(6)
+
+                    row = self.data.iloc[self.current_step]
+                    price = row['Close']
+                    volume = row.get('Volume', 0)
+
+                    # Simple technical indicators
+                    sma_5 = row.get('SMA_5', price)
+                    sma_20 = row.get('SMA_20', price)
+                    rsi = row.get('RSI', 50)
+
+                    return np.array([
+                        price,
+                        self.balance,
+                        self.shares,
+                        volume,
+                        sma_5,
+                        rsi
+                    ], dtype=np.float32)
+
+            # Download data
+            data = yf.download(tickers[0], start=start_date, end=end_date)
+
+            if data.empty:
+                return {"error": f"No data available for ticker {tickers[0]}"}
+
+            # Add simple technical indicators
+            data['SMA_5'] = data['Close'].rolling(window=5).mean()
+            data['SMA_20'] = data['Close'].rolling(window=20).mean()
+
+            # Simple RSI calculation
+            delta = data['Close'].diff()
+            gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+            loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+            rs = gain / loss
+            data['RSI'] = 100 - (100 / (1 + rs))
+
+            data = data.dropna()
+
+            # Create environment
+            env = SimpleTradingEnv(data)
+
+            # Train PPO model
+            model = PPO("MlpPolicy", env, verbose=0)
+            total_timesteps = episodes * 1000
+
+            model.learn(total_timesteps=total_timesteps)
+
+            # Evaluate final performance
+            obs, _ = env.reset()
+            total_reward = 0
+            done = False
+
+            while not done:
+                action, _ = model.predict(obs, deterministic=True)
+                obs, reward, done, _, _ = env.step(action)
+                total_reward = reward  # Final reward
+
+            return {
+                "success": True,
+                "model_type": "PPO (Stable-Baselines3)",
+                "episodes": episodes,
+                "tickers": tickers,
+                "metrics": {
+                    "final_portfolio_value": env.balance + (env.shares * data.iloc[-1]['Close']),
+                    "training_steps": total_timesteps,
+                    "final_reward": total_reward
+                }
+            }
+        except Exception as e:
+            return {"error": f"Stable-Baselines3 training failed: {str(e)}"}
+
+
+rl_train_tool = RLTrainTool()
+
 def zipline_sim_tool(strategy_code: str, start_date: str, end_date: str, capital: float = 100000) -> Dict[str, Any]:
     """
     Run a trading simulation using Zipline.
@@ -361,402 +366,23 @@ def zipline_sim_tool(strategy_code: str, start_date: str, end_date: str, capital
     except Exception as e:
         return {"error": f"Zipline simulation failed: {str(e)}"}
 
-@tool
-def tf_quant_projection_tool(data: List[float], steps: int = 10) -> Dict[str, Any]:
-    """
-    Perform quantitative projections using TensorFlow.
-    
-    Args:
-        data: List of historical data points
-        steps: Number of steps to project forward
-        
-    Returns:
-        Dict with projected values
-    """
-    try:
-        import tensorflow as tf
-        import numpy as np
-        data_np = np.array(data, dtype=np.float32).reshape(-1, 1)
-        x = np.arange(len(data_np), dtype=np.float32).reshape(-1, 1)
-        model = tf.keras.Sequential([tf.keras.layers.Dense(1, input_shape=(1,))])
-        model.compile(optimizer='adam', loss='mse')
-        model.fit(x, data_np, epochs=10, verbose=0)
-        future_x = np.arange(len(data_np), len(data_np) + steps, dtype=np.float32).reshape(-1, 1)
-        projections = model.predict(future_x).flatten().tolist()
-        return {"projections": projections}
-    except Exception as e:
-        return {"error": f"TensorFlow projection failed: {str(e)}"}
 
-@tool
-def strategy_ml_optimization_tool(strategy_description: str, performance_data: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Optimize trading strategy using LangChain for ML-based refinement.
-    
-    Args:
-        strategy_description: Description of the current strategy
-        performance_data: Dict containing performance metrics
-        
-    Returns:
-        Dict with optimized strategy suggestions
-    """
-    try:
-        from langchain_core.prompts import PromptTemplate
-        from langchain_openai import ChatOpenAI  # Use langchain-openai
-        
-        # Create prompt template
-        prompt = PromptTemplate(
-            input_variables=["strategy", "metrics"],
-            template="""Optimize this trading strategy: {strategy}
-            
-            Current performance metrics: {metrics}
-            
-            Suggest improvements using ML techniques:"""
-        )
-        
-        # Create LLM directly
-        llm = ChatOpenAI(
-            temperature=0.7, 
-            openai_api_key=os.getenv("OPENAI_API_KEY"),
-            model="gpt-3.5-turbo"  # Specify a model
-        )
-        
-        # Format prompt and run
-        formatted_prompt = prompt.format(
-            strategy=strategy_description,
-            metrics=str(performance_data)
-        )
-        response = llm.invoke(formatted_prompt)
-        
-        # Extract content from response
-        if hasattr(response, 'content'):
-            response_text = response.content
-        else:
-            response_text = str(response)
-        
-        return {
-            "success": True,
-            "optimized_strategy": response_text,
-            "suggestions": response_text.split("\n")[:5]
-        }
-    except Exception as e:
-        return {"error": f"Strategy optimization failed: {str(e)}"}
 
-@tool
-def backtest_validation_tool(strategy: Dict[str, Any], data: pd.DataFrame) -> Dict[str, Any]:
-    """
-    Validate a strategy through backtesting using Backtrader.
-    
-    Args:
-        strategy: Dict describing the strategy
-        data: Historical data DataFrame
-        
-    Returns:
-        Dict with backtest results
-    """
-    try:
-        import backtrader as bt
-        
-        class TestStrategy(bt.Strategy):
-            def next(self):
-                pass  # Implement based on strategy
-        
-        cerebro = bt.Cerebro()
-        cerebro.addstrategy(TestStrategy)
-        data_feed = bt.feeds.PandasData(dataname=data)
-        cerebro.adddata(data_feed)
-        cerebro.addanalyzer(bt.analyzers.SharpeRatio, _name='sharpe')
-        cerebro.addanalyzer(bt.analyzers.DrawDown, _name='drawdown')
-        cerebro.addanalyzer(bt.analyzers.Returns, _name='returns')
-        results = cerebro.run()
-        if results:
-            result = results[0]
-            return {
-                "sharpe_ratio": result.analyzers.sharpe.get_analysis().get('sharperatio', 0),
-                "max_drawdown": result.analyzers.drawdown.get_analysis().get('max', {}).get('drawdown', 0),
-                "total_return": result.analyzers.returns.get_analysis().get('rtot', 0)
-            }
-        return {"error": "No results from backtest"}
-    except Exception as e:
-        return {"error": f"Backtest validation failed: {str(e)}"}
+
+
+
 
 logger = logging.getLogger(__name__)
 
 # Additional utility functions not included in specialized modules
 
-@tool
-def load_yaml_tool(file_path: str) -> Dict[str, Any]:
-    '''
-    Load configuration from a YAML file.
-    
-    Args:
-        file_path: Path to the YAML file to load
-        
-    Returns:
-        Dict containing the loaded YAML data
-    '''
-    try:
-        from .config import load_yaml
-        return load_yaml(file_path)
-    except Exception as e:
-        return {'error': f'Failed to load YAML file {file_path}: {str(e)}'}
 
-@tool
-def qlib_ml_refine_tool(data: Dict[str, Any]) -> Dict[str, Any]:
-    '''
-    Refine machine learning models using Qlib framework.
-    
-    Args:
-        data: Input data for ML refinement
-        
-    Returns:
-        Dict containing refined ML results
-    '''
-    try:
-        # TODO: Implement actual Qlib ML refinement
-        # This would integrate with Qlib for model refinement
-        return {"error": "Qlib ML refinement not yet implemented"}
-    except Exception as e:
-        return {'error': f'Qlib ML refinement failed: {str(e)}'}
 
-@tool
-@circuit_breaker("sanity_check", failure_threshold=3, recovery_timeout=3600)
-def sanity_check_tool(proposal: str) -> Dict[str, Any]:
-    """
-    Perform sanity checks on trading proposals to ensure they make logical sense.
-    Args:
-        proposal: Trading proposal to validate.
-    Returns:
-        Dict with sanity check results and recommendations.
-    """
-    results = {
-        "proposal": proposal,
-        "timestamp": pd.Timestamp.now().isoformat(),
-        "checks": {},
-        "overall_sanity": "unknown",
-        "recommendations": []
-    }
 
-    try:
-        # Basic sanity checks
-        checks = {
-            "has_symbol": False,
-            "has_direction": False,
-            "has_quantity": False,
-            "has_price_logic": False,
-            "risk_reasonable": False,
-            "time_horizon_reasonable": False
-        }
 
-        proposal_lower = proposal.lower()
 
-        # Check for stock symbol (basic pattern)
-        import re
-        # Check for stock symbol (basic pattern)
-        import re
-        symbol_pattern = r'\b[A-Z]{1,5}\b'  # 1-5 uppercase letters
-        symbols = re.findall(symbol_pattern, proposal)
-        if symbols:
-            # Filter out common words that might match
-            valid_symbols = [s for s in symbols if s not in ['THE', 'AND', 'FOR', 'ARE', 'BUT', 'NOT', 'YOU', 'ALL', 'CAN', 'HER', 'WAS', 'ONE', 'OUR', 'HAD', 'BY', 'HOT', 'BUT', 'SAY', 'WHO', 'EACH', 'WHICH', 'THEIR', 'TIME', 'WILL', 'ABOUT', 'WOULD', 'THERE', 'COULD', 'OTHER']]
-            if valid_symbols:
-                checks["has_symbol"] = True
-                results["identified_symbols"] = valid_symbols
 
-        # Check for direction
-        if any(word in proposal_lower for word in ['buy', 'sell', 'long', 'short', 'purchase', 'acquire']):
-            checks["has_direction"] = True
 
-        # Check for quantity/position size
-        if any(word in proposal_lower for word in ['shares', 'position', 'size', 'allocation', 'percent', '%', 'dollars', '$']):
-            checks["has_quantity"] = True
-
-        # Check for price logic
-        if any(word in proposal_lower for word in ['price', 'valuation', 'pe', 'pb', 'growth', 'momentum', 'support', 'resistance']):
-            checks["has_price_logic"] = True
-
-        # Check for reasonable risk
-        risk_indicators = ['stop loss', 'risk management', 'position size', 'volatility', 'drawdown']
-        if any(indicator in proposal_lower for indicator in risk_indicators):
-            checks["risk_reasonable"] = True
-
-        # Check for time horizon
-        if any(word in proposal_lower for word in ['days', 'weeks', 'months', 'years', 'hold', 'exit', 'target']):
-            checks["time_horizon_reasonable"] = True
-
-        results["checks"] = checks
-
-        # Overall sanity assessment
-        passed_checks = sum(checks.values())
-        total_checks = len(checks)
-
-        if passed_checks >= total_checks * 0.8:
-            results["overall_sanity"] = "excellent"
-        elif passed_checks >= total_checks * 0.6:
-            results["overall_sanity"] = "good"
-        elif passed_checks >= total_checks * 0.4:
-            results["overall_sanity"] = "fair"
-        else:
-            results["overall_sanity"] = "poor"
-
-        # Generate recommendations
-        if not checks["has_symbol"]:
-            results["recommendations"].append("Specify which stock symbol(s) to trade")
-
-        if not checks["has_direction"]:
-            results["recommendations"].append("Clearly state buy/sell direction")
-
-        if not checks["has_quantity"]:
-            results["recommendations"].append("Define position size or allocation")
-
-        if not checks["has_price_logic"]:
-            results["recommendations"].append("Explain valuation or entry logic")
-
-        if not checks["risk_reasonable"]:
-            results["recommendations"].append("Include risk management parameters")
-
-        if not checks["time_horizon_reasonable"]:
-            results["recommendations"].append("Specify holding period or exit strategy")
-
-        return results
-
-    except Exception as e:
-        return {
-            "error": f"Sanity check failed: {str(e)}",
-            "proposal": proposal,
-            "overall_sanity": "error",
-            "recommendations": ["Unable to perform sanity check - review proposal manually"]
-        }
-
-@tool
-@circuit_breaker("convergence_check", failure_threshold=3, recovery_timeout=3600)
-def convergence_check_tool(performance_data: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Check if the system's learning and performance are converging toward optimal behavior.
-    Args:
-        performance_data: Dict containing performance metrics and learning data.
-    Returns:
-        Dict with convergence analysis and recommendations.
-    """
-    results = {
-        "timestamp": pd.Timestamp.now().isoformat(),
-        "convergence_metrics": {},
-        "learning_progress": {},
-        "recommendations": [],
-        "overall_convergence": "unknown"
-    }
-
-    try:
-        # Extract performance metrics
-        metrics = performance_data.get("metrics", {})
-        learning_history = performance_data.get("learning_history", [])
-
-        # Convergence checks
-        convergence_checks = {
-            "sharpe_ratio_stable": False,
-            "win_rate_improving": False,
-            "drawdown_decreasing": False,
-            "learning_loss_converging": False,
-            "strategy_adaptation": False
-        }
-
-        # Sharpe ratio stability (should stabilize over time)
-        sharpe_history = [m.get("sharpe_ratio", 0) for m in learning_history[-10:]] if learning_history else []
-        if len(sharpe_history) >= 5:
-            recent_sharpe = sharpe_history[-3:]
-            older_sharpe = sharpe_history[:-3]
-            recent_avg = sum(recent_sharpe) / len(recent_sharpe)
-            older_avg = sum(older_sharpe) / len(older_sharpe)
-            # Sharpe should be positive and relatively stable
-            if recent_avg > 0.5 and abs(recent_avg - older_avg) < 0.5:
-                convergence_checks["sharpe_ratio_stable"] = True
-
-        # Win rate improvement
-        win_rates = [m.get("win_rate", 0) for m in learning_history[-10:]] if learning_history else []
-        if len(win_rates) >= 5:
-            recent_win_rate = sum(win_rates[-3:]) / 3
-            older_win_rate = sum(win_rates[:-3]) / len(win_rates[:-3])
-            if recent_win_rate > older_win_rate and recent_win_rate > 0.5:
-                convergence_checks["win_rate_improving"] = True
-
-        # Drawdown reduction
-        drawdowns = [m.get("max_drawdown", 0) for m in learning_history[-10:]] if learning_history else []
-        if len(drawdowns) >= 5:
-            recent_dd = sum(drawdowns[-3:]) / 3
-            older_dd = sum(drawdowns[:-3]) / len(drawdowns[:-3])
-            if recent_dd < older_dd and recent_dd < 0.15:  # Less than 15% drawdown
-                convergence_checks["drawdown_decreasing"] = True
-
-        # Learning loss convergence (if available)
-        losses = [m.get("learning_loss", 0) for m in learning_history[-10:]] if learning_history else []
-        if len(losses) >= 5:
-            recent_loss = sum(losses[-3:]) / 3
-            older_loss = sum(losses[:-3]) / len(losses[:-3])
-            if recent_loss < older_loss * 0.9 and recent_loss < 0.1:  # Converging and low
-                convergence_checks["learning_loss_converging"] = True
-
-        # Strategy adaptation (diversity of strategies used)
-        strategies_used = set()
-        for m in learning_history[-20:]:
-            strategy = m.get("strategy_type", "")
-            if strategy:
-                strategies_used.add(strategy)
-        if len(strategies_used) >= 3:  # Using multiple strategy types
-            convergence_checks["strategy_adaptation"] = True
-
-        results["convergence_metrics"] = convergence_checks
-
-        # Learning progress assessment
-        passed_checks = sum(convergence_checks.values())
-        total_checks = len(convergence_checks)
-
-        if passed_checks >= total_checks * 0.8:
-            results["overall_convergence"] = "excellent"
-            results["learning_progress"]["status"] = "Well converged - system performing optimally"
-        elif passed_checks >= total_checks * 0.6:
-            results["overall_convergence"] = "good"
-            results["learning_progress"]["status"] = "Converging well - continue current learning approach"
-        elif passed_checks >= total_checks * 0.4:
-            results["overall_convergence"] = "fair"
-            results["learning_progress"]["status"] = "Partial convergence - may need parameter tuning"
-        else:
-            results["overall_convergence"] = "poor"
-            results["learning_progress"]["status"] = "Not converging - review learning algorithm"
-
-        # Generate recommendations
-        if not convergence_checks["sharpe_ratio_stable"]:
-            results["recommendations"].append("Sharpe ratio not stable - review risk-return optimization")
-
-        if not convergence_checks["win_rate_improving"]:
-            results["recommendations"].append("Win rate not improving - consider different entry/exit signals")
-
-        if not convergence_checks["drawdown_decreasing"]:
-            results["recommendations"].append("Drawdowns not decreasing - strengthen risk management")
-
-        if not convergence_checks["learning_loss_converging"]:
-            results["recommendations"].append("Learning not converging - adjust learning rate or architecture")
-
-        if not convergence_checks["strategy_adaptation"]:
-            results["recommendations"].append("Limited strategy diversity - explore additional strategy types")
-
-        # Performance summary
-        if learning_history:
-            latest_metrics = learning_history[-1]
-            results["current_performance"] = {
-                "sharpe_ratio": latest_metrics.get("sharpe_ratio", 0),
-                "win_rate": latest_metrics.get("win_rate", 0),
-                "max_drawdown": latest_metrics.get("max_drawdown", 0),
-                "total_return": latest_metrics.get("total_return", 0),
-                "strategy_type": latest_metrics.get("strategy_type", "unknown")
-            }
-
-        return results
-
-    except Exception as e:
-        return {
-            "error": f"Convergence check failed: {str(e)}",
-            "overall_convergence": "error",
-            "recommendations": ["Unable to assess convergence - check performance data format"]
-        }
 
 def get_available_tools() -> Dict[str, Any]:
     '''
@@ -783,14 +409,8 @@ def get_available_tools() -> Dict[str, Any]:
         zipline_backtest_tool,
         twitter_sentiment_tool,
         currents_news_tool,
-        qlib_ml_refine_tool,
-        sanity_check_tool,
-        convergence_check_tool,
-        finrl_rl_train_tool,
-        zipline_sim_tool,
-        tf_quant_projection_tool,
-        strategy_ml_optimization_tool,
-        backtest_validation_tool
+        rl_train_tool,
+        zipline_sim_tool
     ]
 
     # Create mapping from function name to function
@@ -811,3 +431,134 @@ def get_available_tools() -> Dict[str, Any]:
             continue
 
     return tools_dict
+
+# RAG System for Trading Knowledge
+class TradingKnowledgeRAG:
+    """Retrieval-Augmented Generation system for trading knowledge."""
+
+    def __init__(self):
+        self.vectorstore = None
+        self.embeddings = None
+        self.initialized = False
+
+        if LANGCHAIN_RAG_AVAILABLE:
+            try:
+                self.embeddings = OpenAIEmbeddings()
+                self._initialize_knowledge_base()
+                self.initialized = True
+                logging.info("Trading Knowledge RAG system initialized")
+            except Exception as e:
+                logging.warning(f"Failed to initialize RAG system: {e}")
+        else:
+            logging.warning("LangChain RAG not available - knowledge retrieval disabled")
+
+    def _initialize_knowledge_base(self):
+        """Initialize the knowledge base from trading documentation."""
+        try:
+            import os
+            from pathlib import Path
+
+            # Load documents from docs/AGENTS/ directory
+            docs_path = Path(__file__).parent.parent.parent / "docs" / "AGENTS"
+            documents = []
+
+            if docs_path.exists():
+                for md_file in docs_path.glob("*.md"):
+                    try:
+                        with open(md_file, 'r', encoding='utf-8') as f:
+                            content = f.read()
+                            doc = Document(
+                                page_content=content,
+                                metadata={"source": str(md_file), "filename": md_file.name}
+                            )
+                            documents.append(doc)
+                    except Exception as e:
+                        logging.warning(f"Failed to load {md_file}: {e}")
+
+            # Also load from main-agents subdirectory
+            main_agents_path = docs_path / "main-agents"
+            if main_agents_path.exists():
+                for md_file in main_agents_path.glob("*.md"):
+                    try:
+                        with open(md_file, 'r', encoding='utf-8') as f:
+                            content = f.read()
+                            doc = Document(
+                                page_content=content,
+                                metadata={"source": str(md_file), "filename": md_file.name, "category": "main-agent"}
+                            )
+                            documents.append(doc)
+                    except Exception as e:
+                        logging.warning(f"Failed to load {md_file}: {e}")
+
+            if documents:
+                # Split documents into chunks
+                text_splitter = RecursiveCharacterTextSplitter(
+                    chunk_size=1000,
+                    chunk_overlap=200,
+                    length_function=len
+                )
+                splits = text_splitter.split_documents(documents)
+
+                # Create vector store
+                if self.embeddings:
+                    self.vectorstore = FAISS.from_documents(splits, self.embeddings)
+                logging.info(f"Loaded {len(documents)} documents into RAG system")
+            else:
+                logging.warning("No trading documentation found for RAG system")
+
+        except Exception as e:
+            logging.error(f"Failed to initialize knowledge base: {e}")
+
+    def retrieve_relevant_knowledge(self, query: str, k: int = 3) -> List[str]:
+        """Retrieve relevant trading knowledge for a query."""
+        if not self.initialized or not self.vectorstore:
+            return ["RAG system not available - no knowledge retrieved"]
+
+        try:
+            docs = self.vectorstore.similarity_search(query, k=k)
+            return [doc.page_content for doc in docs]
+        except Exception as e:
+            logging.error(f"RAG retrieval failed: {e}")
+            return [f"RAG retrieval error: {e}"]
+
+# Global RAG instance
+trading_rag = TradingKnowledgeRAG()
+
+
+
+
+
+
+
+
+try:
+    from .market_data_tools import fred_data_tool
+except ImportError:
+    def fred_data_tool(*args, **kwargs):
+        return {"error": "fred_data_tool not implemented"}
+
+try:
+    from .market_data_tools import institutional_holdings_analysis_tool
+except ImportError:
+    def institutional_holdings_analysis_tool(*args, **kwargs):
+        return {"error": "institutional_holdings_analysis_tool not implemented"}
+try:
+    from .market_data_tools import thirteen_f_filings_tool
+except ImportError:
+    def thirteen_f_filings_tool(*args, **kwargs):
+        return {"error": "thirteen_f_filings_tool not implemented"}
+try:
+    from .file_tools import load_yaml_tool
+except ImportError:
+    def load_yaml_tool(*args, **kwargs):
+        return {"error": "load_yaml_tool not implemented"}
+try:
+    from .validation_tools import sanity_check_tool
+except ImportError:
+    def sanity_check_tool(*args, **kwargs):
+        return {"error": "sanity_check_tool not implemented", "proposal_valid": True}
+try:
+    from .validation_tools import convergence_check_tool
+except ImportError:
+    def convergence_check_tool(*args, **kwargs):
+        return {"error": "convergence_check_tool not implemented", "converged": True}

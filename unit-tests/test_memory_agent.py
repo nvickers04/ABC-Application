@@ -59,6 +59,7 @@ class TestMemoryAgent:
     async def test_store_short_term_memory(self, memory_agent):
         """Test storing short-term memory."""
         request = {
+            'operation': 'store',
             'memory_type': 'session',
             'scope': 'short_term',
             'content': {'user_action': 'login', 'timestamp': datetime.now().isoformat()},

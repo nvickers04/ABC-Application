@@ -154,7 +154,7 @@ class TestA2AProtocol:
 
         # Verify all agents received the message
         for agent in agents:
-            received = await a2_protocol.receive_message(agent)
+            received = await a2a_protocol.receive_message(agent)
             assert received is not None
             assert received.id == message_id
 

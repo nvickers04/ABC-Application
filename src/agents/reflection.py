@@ -1,10 +1,9 @@
-# src/agents/reflection.py
-# Purpose: Implements the Reflection Agent, subclassing BaseAgent for outcome reviews and audits (e.g., polls for bonuses).
-# Handles mini-loops and escalations for sanity.
-# Structural Reasoning: Ties to reflection-agent-notes.md (e.g., Zipline/pyfolio tools) and configs (loaded fresh); backs funding with logged bonuses (e.g., "Awarded +10% POP for 28% estimate").
-# New: Async process_input for polls; reflect method for trend checks (e.g., on delta >5%).
-# For legacy wealth: Gamifies upside for ~15% lift without penalties, ensuring long-horizon stability.
-# Update: Dynamic path setup for imports; root-relative paths for configs/prompts.
+# [LABEL:AGENT:reflection] [LABEL:COMPONENT:audit] [LABEL:FRAMEWORK:pyfolio] [LABEL:FRAMEWORK:zipline] [LABEL:FRAMEWORK:asyncio]
+# [LABEL:AUTHOR:GitHub Copilot] [LABEL:UPDATED:2024-11-20] [LABEL:REVIEWED:yes]
+#
+# Purpose: Implements the Reflection Agent, subclassing BaseAgent for outcome reviews and audits (e.g., polls for bonuses). Handles mini-loops and escalations for sanity.
+# Dependencies: sys, pathlib, src.agents.base, logging, typing, numpy, pandas, datetime, asyncio, src.utils.tools
+# Related: docs/AGENTS/reflection-agent.md, config/base_prompt.txt
 
 import sys
 from pathlib import Path

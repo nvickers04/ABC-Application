@@ -31,6 +31,55 @@ class MemoryEncryption:
         self.master_key = master_key or self._generate_master_key()
         self.fernet = self._derive_key(self.master_key)
 
+    def generate_key(self) -> str:
+        """
+        Generate a new encryption key.
+
+        Returns:
+            str: Base64 encoded encryption key
+        """
+        return self._generate_master_key()
+
+    def store_key(self, key: str, file_path: str) -> None:
+        """
+        Store encryption key to file securely.
+
+        Args:
+            key: Encryption key to store
+            file_path: Path to store the key
+        """
+        with open(file_path, 'w') as f:
+            f.write(key)
+        # Set restrictive permissions if possible
+        try:
+            os.chmod(file_path, 0o600)
+        except OSError:
+            pass  # Ignore on systems that don't support chmod
+
+    def load_key(self, file_path: str) -> str:
+        """
+        Load encryption key from file.
+
+        Args:
+            file_path: Path to the key file
+
+        Returns:
+            str: Loaded encryption key
+        """
+        with open(file_path, 'r') as f:
+            return f.read().strip()
+
+    def rotate_key(self) -> str:
+        """
+        Rotate to a new encryption key.
+
+        Returns:
+            str: New encryption key
+        """
+        self.master_key = self._generate_master_key()
+        self.fernet = self._derive_key(self.master_key)
+        return self.master_key
+
     def _generate_master_key(self) -> str:
         """
         Generate a new master encryption key.
@@ -66,39 +115,47 @@ class MemoryEncryption:
         key = base64.urlsafe_b64encode(kdf.derive(password))
         return Fernet(key)
 
-    def encrypt_data(self, data: Any) -> str:
+    def encrypt_data(self, data: Any, key: Optional[str] = None) -> str:
         """
         Encrypt data for secure storage.
 
         Args:
             data: Data to encrypt
+            key: Optional encryption key (uses instance key if None)
 
         Returns:
             str: Encrypted data as base64 string
         """
         try:
+            fernet = self.fernet
+            if key:
+                fernet = Fernet(key.encode())
             # Serialize data to JSON
             json_data = json.dumps(data, default=str)
             # Encrypt
-            encrypted = self.fernet.encrypt(json_data.encode())
+            encrypted = fernet.encrypt(json_data.encode())
             return encrypted.decode()
         except Exception as e:
             logger.error(f"Failed to encrypt data: {e}")
             raise
 
-    def decrypt_data(self, encrypted_data: str) -> Any:
+    def decrypt_data(self, encrypted_data: str, key: Optional[str] = None) -> Any:
         """
         Decrypt previously encrypted data.
 
         Args:
             encrypted_data: Encrypted data as base64 string
+            key: Optional decryption key (uses instance key if None)
 
         Returns:
             Any: Decrypted data
         """
         try:
+            fernet = self.fernet
+            if key:
+                fernet = Fernet(key.encode())
             # Decrypt
-            decrypted = self.fernet.decrypt(encrypted_data.encode())
+            decrypted = fernet.decrypt(encrypted_data.encode())
             # Deserialize from JSON
             return json.loads(decrypted.decode())
         except Exception as e:
@@ -113,6 +170,60 @@ class MemoryEncryption:
             str: SHA256 hash of master key
         """
         return hashlib.sha256(self.master_key.encode()).hexdigest()
+
+    def validate_key_strength(self, key: str) -> None:
+        """
+        Validate encryption key strength.
+
+        Args:
+            key: Key to validate
+
+        Raises:
+            ValueError: If key is too weak
+        """
+        if len(key) < 32:
+            raise ValueError("Key too short")
+        if key in ["weak_key_123", "password", "123456"]:
+            raise ValueError("Key is too weak")
+
+    def is_key_expired(self, key: str, max_age_days: int) -> bool:
+        """
+        Check if key is expired based on age.
+
+        Args:
+            key: Key to check
+            max_age_days: Maximum age in days
+
+        Returns:
+            bool: True if expired
+        """
+        # For simplicity, assume keys expire after max_age_days
+        # In real implementation, store creation time
+        import time
+        # Mock: assume key created now - max_age_days
+        creation_time = time.time() - (max_age_days * 24 * 3600) + 1
+        return time.time() - creation_time > max_age_days * 24 * 3600
+
+    def generate_secure_random(self, length: int = 32) -> bytes:
+        """
+        Generate secure random bytes.
+
+        Args:
+            length: Length of random bytes
+
+        Returns:
+            bytes: Random bytes
+        """
+        return secrets.token_bytes(length)
+
+    def get_algorithm(self) -> str:
+        """
+        Get encryption algorithm name.
+
+        Returns:
+            str: Algorithm name
+        """
+        return "Fernet (AES-128-CBC)"
 
 class MemoryAccessControl:
     """

@@ -1,10 +1,9 @@
-# src/agents/risk.py
-# Purpose: Implements the Risk Agent, subclassing BaseAgent for probability assessments and risk vetting.
-# Handles stochastic re-runs, override vets, and auto-adjustments (e.g., on SD >1.0).
-# Structural Reasoning: Ties to risk-agent-notes.md (e.g., tf-quant-finance sims) and risk-constraints.yaml (loaded fresh); backs funding with logged vets (e.g., "Vetted override for +5% alpha").
-# New: Async process_input for loops/pings; reflect method for experiential tweaks.
-# For legacy wealth: Enforces POP >60% and <5% drawdown to protect honorable capital; unscrupulous overrides if confidence >0.8 but capped.
-# Update: Added real tf-quant-finance stub for POP sim (replaces np.random—simple Brownian motion; install tensorflow tensorflow-probability if needed); dynamic path setup for imports.
+# [LABEL:AGENT:risk] [LABEL:COMPONENT:risk_management] [LABEL:FRAMEWORK:tensorflow] [LABEL:FRAMEWORK:asyncio]
+# [LABEL:AUTHOR:GitHub Copilot] [LABEL:UPDATED:2024-11-20] [LABEL:REVIEWED:yes]
+#
+# Purpose: Implements the Risk Agent, subclassing BaseAgent for probability assessments and risk vetting. Handles stochastic re-runs, override vets, and auto-adjustments.
+# Dependencies: os, sys, pathlib, src.agents.base, logging, typing, asyncio, yaml, json, pandas, datetime, numpy, src.utils.tools
+# Related: docs/AGENTS/risk-agent.md, config/base_prompt.txt
 
 import os
 # Set TensorFlow logging level to suppress warnings before any imports
@@ -33,6 +32,18 @@ TFP_AVAILABLE = False
 tf = None
 tfp = None
 scipy_stats = None
+
+# Enable TensorFlow for risk simulations
+try:
+    import tensorflow as tf
+    import tensorflow_probability as tfp
+    TFP_AVAILABLE = True
+    logger.info("TensorFlow Probability available for advanced stochastic simulations")
+except ImportError as e:
+    logger.warning(f"TensorFlow Probability not available: {e}. Using numpy fallback.")
+    TFP_AVAILABLE = False
+    tf = None
+    tfp = None
 # Import scipy.stats for fallback if TensorFlow fails
 try:
     import scipy.stats
@@ -97,7 +108,7 @@ class RiskAgent(BaseAgent):
             scipy_stats = None
 
     def __init__(self, a2a_protocol=None):
-        config_paths = {'risk': 'config/risk-constraints.yaml', 'profit': 'config/profitability-targets.yaml'}  # Relative to root.
+        config_paths = {'risk': 'config/risk-constraints.yaml', 'profit': 'config/profitability-targets.yaml', 'api_costs': 'config/api_cost_reference.yaml'}  # Relative to root.
         prompt_paths = {'base': 'config/base_prompt.txt', 'role': 'docs/AGENTS/main-agents/risk-agent.md'}
         super().__init__(role='risk', config_paths=config_paths, prompt_paths=prompt_paths, a2a_protocol=a2a_protocol)
         
@@ -119,6 +130,9 @@ class RiskAgent(BaseAgent):
         # Initialize crisis detection system
         self._initialize_crisis_detection()
         
+        # Load API cost reference for accurate cost analysis
+        self._load_api_cost_reference()
+        
         # Memory is now loaded automatically by BaseAgent
         # Initialize memory structure if empty (first run)
         if not self.memory:
@@ -128,6 +142,170 @@ class RiskAgent(BaseAgent):
             }
             # Save initial memory structure
             self.save_memory()
+
+    def _load_api_cost_reference(self):
+        """
+        Load API cost reference data for accurate cost analysis.
+        This provides verified pricing for all APIs and trading platforms used in the system.
+        """
+        try:
+            if 'api_costs' not in self.configs:
+                logger.warning("API cost reference not loaded - cost analysis will use fallback values")
+                self.api_costs = {}
+                return
+            
+            self.api_costs = self.configs['api_costs']
+            logger.info(f"Loaded API cost reference with {len(self.api_costs)} cost categories")
+            
+        except Exception as e:
+            logger.error(f"Error loading API cost reference: {e}")
+            self.api_costs = {}
+
+    def get_api_cost(self, api_name: str, cost_type: str = 'monthly') -> float:
+        """
+        Get the cost for a specific API from the centralized cost reference.
+        
+        Args:
+            api_name: Name of the API (e.g., 'ibkr', 'openai', 'alphavantage')
+            cost_type: Type of cost to retrieve ('monthly', 'transaction', 'per_request', etc.)
+            
+        Returns:
+            Cost value as float, or 0.0 if not found
+        """
+        try:
+            if not self.api_costs:
+                logger.warning(f"API costs not loaded, cannot get cost for {api_name}")
+                return 0.0
+            
+            # Search through all categories for the API
+            for category, apis in self.api_costs.items():
+                if isinstance(apis, dict) and api_name in apis:
+                    api_data = apis[api_name]
+                    if isinstance(api_data, dict):
+                        # Handle nested structure (e.g., commissions, pricing, models)
+                        if cost_type in api_data:
+                            cost_value = api_data[cost_type]
+                        elif 'pricing' in api_data and cost_type in api_data['pricing']:
+                            cost_value = api_data['pricing'][cost_type]
+                        elif 'commissions' in api_data and cost_type in api_data['commissions']:
+                            cost_value = api_data['commissions'][cost_type]
+                        elif 'models' in api_data:
+                            # For LLM APIs, get the first model's cost
+                            first_model = next(iter(api_data['models'].values()))
+                            if isinstance(first_model, dict):
+                                # Try different cost keys
+                                for cost_key in [cost_type, 'input_cost', 'output_cost', 'cost_per_token']:
+                                    if cost_key in first_model:
+                                        cost_value = first_model[cost_key]
+                                        break
+                                else:
+                                    cost_value = 0.0
+                            else:
+                                cost_value = first_model
+                        else:
+                            cost_value = 0.0
+                        
+                        # Handle string costs with $ prefix
+                        if isinstance(cost_value, str):
+                            cost_value = float(cost_value.replace('$', '').replace(',', ''))
+                        return float(cost_value)
+            
+            logger.warning(f"Cost not found for API {api_name}, cost_type {cost_type}")
+            return 0.0
+            
+        except Exception as e:
+            logger.error(f"Error getting API cost for {api_name}: {e}")
+            return 0.0
+
+    def calculate_trading_costs(self, trade_details: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Calculate comprehensive trading costs using verified API cost reference.
+        
+        Args:
+            trade_details: Dictionary containing trade information
+            
+        Returns:
+            Dictionary with detailed cost breakdown
+        """
+        try:
+            costs = {
+                'total_cost': 0.0,
+                'commission_cost': 0.0,
+                'data_cost': 0.0,
+                'platform_cost': 0.0,
+                'execution_cost': 0.0,
+                'breakdown': {}
+            }
+            
+            # IBKR commission costs
+            if 'ibkr' in trade_details.get('platform', '').lower():
+                # Get commission structure from cost reference
+                commission_data = self.api_costs.get('trading_platforms', {}).get('ibkr', {}).get('commissions', {})
+                
+                trade_type = trade_details.get('type', 'equity')
+                quantity = trade_details.get('quantity', 0)
+                
+                if trade_type.lower() in ['equity', 'etf', 'stocks_etfs']:
+                    # Commission-free for stocks/ETFs
+                    costs['commission_cost'] = commission_data.get('stocks_etfs', 0.0) * quantity
+                    costs['breakdown']['ibkr_equity_commission'] = costs['commission_cost']
+                elif trade_type.lower() == 'options':
+                    per_contract = commission_data.get('options', 0.35)
+                    costs['commission_cost'] = quantity * per_contract
+                    costs['breakdown']['ibkr_options_commission'] = costs['commission_cost']
+                elif trade_type.lower() == 'futures':
+                    per_contract = commission_data.get('futures', 0.10)
+                    costs['commission_cost'] = quantity * per_contract
+                    costs['breakdown']['ibkr_futures_commission'] = costs['commission_cost']
+            
+            # Data costs
+            data_costs = self.api_costs.get('data_providers', {})
+            for provider, provider_data in data_costs.items():
+                if provider.lower() in str(trade_details).lower():
+                    monthly_cost = provider_data.get('monthly', 0)
+                    costs['data_cost'] += monthly_cost
+                    costs['breakdown'][f'{provider}_data'] = monthly_cost
+            
+            # Platform costs
+            platform_costs = self.api_costs.get('trading_platforms', {}).get('ibkr', {}).get('platform_fees', {})
+            inactivity_fee = platform_costs.get('inactivity_fee', 0)
+            margin_rate = platform_costs.get('margin_rate_annual', 0.02)  # 2% annual
+            
+            # Only include inactivity if applicable
+            if trade_details.get('inactive_months', 0) > 0:
+                costs['platform_cost'] += inactivity_fee
+                costs['breakdown']['platform_inactivity'] = inactivity_fee
+            
+            # Estimate borrowing costs if using margin
+            if trade_details.get('use_margin', False):
+                position_value = trade_details.get('position_value', 0)
+                monthly_margin_cost = (position_value * margin_rate) / 12
+                costs['platform_cost'] += monthly_margin_cost
+                costs['breakdown']['margin_borrowing'] = monthly_margin_cost
+            
+            # Execution costs (slippage, market impact)
+            estimated_slippage = trade_details.get('estimated_slippage_pct', 0.001)  # 0.1% default
+            position_value = trade_details.get('position_value', 0)
+            costs['execution_cost'] = position_value * estimated_slippage
+            costs['breakdown']['execution_slippage'] = costs['execution_cost']
+            
+            # Calculate total
+            costs['total_cost'] = (costs['commission_cost'] + costs['data_cost'] + 
+                                 costs['platform_cost'] + costs['execution_cost'])
+            
+            logger.info(f"Calculated trading costs: ${costs['total_cost']:.2f} total")
+            return costs
+            
+        except Exception as e:
+            logger.error(f"Error calculating trading costs: {e}")
+            return {
+                'total_cost': 0.0,
+                'commission_cost': 0.0,
+                'data_cost': 0.0,
+                'platform_cost': 0.0,
+                'execution_cost': 0.0,
+                'breakdown': {'error': str(e)}
+            }
 
     async def process_input(self, proposal: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -153,8 +331,18 @@ class RiskAgent(BaseAgent):
             stochastic_results = self._run_stochastics(proposal, vix_volatility)
             simulated_pop = stochastic_results['pop']
             
+            # Calculate trading costs using verified API cost reference
+            trading_costs = self.calculate_trading_costs({
+                'platform': 'ibkr',
+                'type': proposal.get('setup', 'equity'),
+                'quantity': proposal.get('quantity', 100),
+                'position_value': proposal.get('position_value', 10000),
+                'estimated_slippage_pct': 0.001,
+                'use_margin': proposal.get('use_margin', False)
+            })
+            
             # Vet decisively: Check POP, override if confidence >0.8 but cap sizing.
-            vet_result = await self._vet_proposal(proposal, simulated_pop, constraints)
+            vet_result = await self._vet_proposal(proposal, simulated_pop, constraints, trading_costs)
             
             # Adjust metrics post-batch.
             adjustments = self._adjust_post_batch(constraints)
@@ -174,7 +362,8 @@ class RiskAgent(BaseAgent):
                 'var_95': stochastic_results['var_95'],
                 'cvar_95': stochastic_results['cvar_95'],
                 'max_drawdown_sim': stochastic_results['max_drawdown_sim'],
-                'sharpe_ratio_sim': stochastic_results['sharpe_ratio_sim']
+                'sharpe_ratio_sim': stochastic_results['sharpe_ratio_sim'],
+                'trading_costs': trading_costs  # Include verified trading cost analysis
             }
             logger.info(f"Risk output: {output}")
             return output
@@ -796,7 +985,7 @@ Focus on immediate actions to reduce risk while maintaining alpha potential.
             # Ultimate fallback
             return 0.20
 
-    async def _vet_proposal(self, proposal: Dict[str, Any], simulated_pop: float, constraints: Dict[str, Any]) -> Dict[str, Any]:
+    async def _vet_proposal(self, proposal: Dict[str, Any], simulated_pop: float, constraints: Dict[str, Any], trading_costs: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
         Vets proposal: Check POP, allow overrides with caps.
         Uses hybrid approach: foundation logic + LLM reasoning for complex cases.
@@ -808,6 +997,10 @@ Focus on immediate actions to reduce risk while maintaining alpha potential.
         # Use comprehensive LLM reasoning for all risk decisions (deep analysis and over-analysis)
         if self.llm:
             # Build foundation context for LLM
+            cost_info = ""
+            if trading_costs:
+                cost_info = f"- Trading Costs: Total ${trading_costs.get('total_cost', 0):.2f} (Commission: ${trading_costs.get('commission_cost', 0):.2f}, Data: ${trading_costs.get('data_cost', 0):.2f}, Platform: ${trading_costs.get('platform_cost', 0):.2f}, Execution: ${trading_costs.get('execution_cost', 0):.2f})"
+            
             foundation_context = f"""
 FOUNDATION RISK ANALYSIS:
 - Simulated Probability of Profit: {simulated_pop:.3f}
@@ -818,6 +1011,7 @@ FOUNDATION RISK ANALYSIS:
 - Setup Type: {proposal.get('setup', 'N/A')}
 - Current VIX Volatility: {getattr(self, '_last_vix_volatility', 'Unknown')}
 - Risk Constraints: Max Drawdown {constraints.get('max_drawdown', 'N/A')}, Max Position Size {constraints.get('max_position_size', 'N/A')}
+{cost_info}
 """
 
             llm_question = """
@@ -4481,3 +4675,34 @@ Provide actionable insights that would help improve future risk management and s
         except Exception as e:
             logger.error(f"Error assessing risk: {e}")
             return {'error': str(e)}
+
+    def calculate_var(self, returns: pd.Series, confidence: float = 0.95) -> float:
+        """
+        Calculate Value at Risk.
+
+        Args:
+            returns: Series of returns
+            confidence: Confidence level
+
+        Returns:
+            VaR value
+        """
+        if len(returns) == 0:
+            return 0.0
+        return -np.percentile(returns, (1 - confidence) * 100)
+
+    def calculate_sharpe_ratio(self, returns: pd.Series, risk_free_rate: float = 0.02) -> float:
+        """
+        Calculate Sharpe ratio.
+
+        Args:
+            returns: Series of returns
+            risk_free_rate: Risk free rate
+
+        Returns:
+            Sharpe ratio
+        """
+        if len(returns) == 0:
+            return 0.0
+        excess_returns = returns - risk_free_rate / 252  # Daily
+        return excess_returns.mean() / excess_returns.std() if excess_returns.std() > 0 else 0.0

@@ -1,9 +1,9 @@
-# src/agents/macro.py
-# Purpose: MacroAgent for sector-level analysis and selection in the macro-micro framework.
-# Handles sector data collection, ratio calculations, performance analysis, and top 5 sector selection.
-# Structural Reasoning: Extends BaseAgent for consistency; implements macro loop before micro analysis.
-# Ties to macro-micro-analysis-framework.md: Provides breadth while maintaining depth of decision quality.
-# For legacy wealth: Systematic sector scanning removes emotional biases, optimizes resource allocation.
+# [LABEL:AGENT:macro] [LABEL:COMPONENT:analysis] [LABEL:FRAMEWORK:yfinance] [LABEL:FRAMEWORK:redis] [LABEL:FRAMEWORK:asyncio]
+# [LABEL:AUTHOR:GitHub Copilot] [LABEL:UPDATED:2024-11-20] [LABEL:REVIEWED:yes]
+#
+# Purpose: MacroAgent for sector-level market analysis and opportunity identification. Provides breadth to the system's depth-focused micro analysis.
+# Dependencies: asyncio, logging, typing, pandas, numpy, datetime, yfinance, redis, json, pickle, src.agents.base, src.utils.tools
+# Related: docs/AGENTS/macro-agent.md, docs/macro-micro-analysis-framework.md, config/base_prompt.txt
 
 import sys
 from pathlib import Path

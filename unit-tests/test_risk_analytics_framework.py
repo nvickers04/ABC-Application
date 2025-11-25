@@ -186,13 +186,13 @@ def test_risk_analytics_framework():
         print("Risk Analytics Framework Test Completed Successfully!")
         print("=" * 50)
 
-        return True
+        assert True
 
     except Exception as e:
         print(f"Error testing risk analytics framework: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        assert False, f"Risk analytics framework test failed: {e}"
 
 def test_risk_agent_integration():
     """Test the risk agent's integration with the analytics framework."""
@@ -243,13 +243,13 @@ def test_risk_agent_integration():
             print(f"  Risk Projections Generated: {len(projections)} metrics")
 
         print("Risk Agent Integration Test Completed Successfully!")
-        return True
+        assert True
 
     except Exception as e:
         print(f"Error testing risk agent integration: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        assert False, f"Risk agent integration test failed: {e}"
 
 if __name__ == "__main__":
     print("Risk Analytics Framework Test Suite")

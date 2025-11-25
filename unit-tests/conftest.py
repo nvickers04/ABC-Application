@@ -14,4 +14,4 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 # Configure pytest-asyncio
-pytestmark = pytest.mark.asyncio
+# pytestmark = pytest.mark.asyncio  # Removed to avoid forcing all tests async

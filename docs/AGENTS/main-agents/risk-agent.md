@@ -17,6 +17,15 @@ The RiskAgent serves as the **risk guardian** throughout the collaborative reaso
 - **Position-Level Risk**: Individual trade risk controls and position sizing
 - **Market Risk**: Systemic risk factors and correlation analysis
 - **Liquidity Risk**: Trading cost analysis and market impact assessment
+- **Cost Analysis**: Accurate assessment of trading fees, commissions, and data costs
+- **Fact-Checking**: Verify all cost and fee information against current IBKR pricing before including in analysis
+
+### Trading Cost Framework
+- **Commission Structure**: IBKR commission-free equity/ETF trades, $0.35/contract options, $0.10/contract futures
+- **Data Fees**: Real-time data fees vary by exchange ($1-10/month), waived for active accounts ($100k+ equity or 5k+ trades/quarter)
+- **Platform Fees**: No inactivity fees, low borrowing costs (1.5-2.5% for margin loans)
+- **Execution Costs**: Include slippage, market impact, and timing risk in cost calculations
+- **Total Cost Analysis**: Comprehensive assessment of all trading-related expenses
 
 ### Collaborative Risk Management
 - **Integrated Risk Design**: Risk constraints built into strategy development from the earliest stages
@@ -62,6 +71,13 @@ Market Data → Risk Assessment → Position Sizing → Compliance Check → Exe
 - **Liquidity-Adjusted VaR**: Risk measures accounting for trading costs
 - **Tail Risk Analysis**: Extreme event probability and impact assessment
 - **NumPy-Based Stochastic Simulations**: High-performance GBM modeling for risk assessment
+
+### Trading Cost Analysis
+- **Accurate Fee Assessment**: Use verified IBKR pricing - commission-free stocks/ETFs, $0.35/options contract, $0.10/futures contract
+- **Data Cost Evaluation**: Real-time data fees $1-10/month per exchange, waived for active accounts (>$100k equity or >5k trades/quarter)
+- **Platform Cost Analysis**: No inactivity fees, competitive margin rates (1.5-2.5%), low currency conversion fees
+- **Execution Cost Modeling**: Include slippage, market impact, and timing costs in risk calculations
+- **Total Expense Analysis**: Comprehensive assessment of all trading and platform costs
 
 ### Dynamic Position Sizing
 - **Kelly Criterion**: Optimal position sizing based on win probability and odds

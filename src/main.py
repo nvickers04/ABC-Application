@@ -27,16 +27,54 @@ from src.agents.execution import ExecutionAgent
 from src.agents.reflection import ReflectionAgent
 from src.agents.learning import LearningAgent
 from src.agents.macro import MacroAgent
+from src.agents.live_workflow_orchestrator import LiveWorkflowOrchestrator
 
 # Setup logging for traceability (full-cycle audits)
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+async def main_continuous_workflow() -> None:
+    """
+    Runs the continuous AI Portfolio Manager workflow with Discord integration.
+    This replaces the simple one-time StateGraph with a comprehensive workflow orchestrator.
+    """
+    logger.info("Starting continuous AI Portfolio Manager workflow with Discord integration")
+
+    # Start API health monitoring
+    logger.info("Starting API health monitoring...")
+    start_health_monitoring(check_interval=300)  # Check every 5 minutes
+
+    # Get initial health status
+    health_status = get_api_health_summary()
+    logger.info(f"Initial API health status: {health_status['summary']}")
+
+    # Initialize the Live Workflow Orchestrator (includes A2A protocol internally)
+    logger.info("Initializing Live Workflow Orchestrator...")
+    orchestrator = LiveWorkflowOrchestrator()
+
+    # Initialize agents asynchronously
+    await orchestrator.initialize_agents_async()
+
+    # Start Discord client and workflow
+    logger.info("Starting Discord integration and workflow...")
+    try:
+        await orchestrator.run_orchestrator()
+    except KeyboardInterrupt:
+        logger.info("Received shutdown signal, stopping orchestrator...")
+        if orchestrator.client:
+            await orchestrator.client.close()
+    except Exception as e:
+        logger.error(f"Orchestrator error: {e}")
+        if orchestrator.client:
+            await orchestrator.client.close()
+    finally:
+        logger.info("AI Portfolio Manager workflow completed")# Legacy function for backward compatibility (simple one-time run)
 async def main_loop() -> Dict[str, Any]:
     """
-    Runs the full agent orchestration loop using StateGraph.
+    Legacy function - runs a simple one-time StateGraph orchestration.
+    Use main_continuous_workflow() for the full system.
     """
-    logger.info("Starting main orchestration loop with StateGraph")
+    logger.warning("Using legacy main_loop() - consider using main_continuous_workflow() for full functionality")
 
     # Start API health monitoring
     logger.info("Starting API health monitoring...")
@@ -67,14 +105,17 @@ async def main_loop() -> Dict[str, Any]:
     a2a.register_agent("reflection", reflection_agent)
     a2a.register_agent("learning", learning_agent)
 
-    # Run orchestration
+    # Run orchestration once
     initial_data = {'symbols': ['SPY']}
     result = await a2a.run_orchestration(initial_data)
-    
-    logger.info(f"Orchestration completed: {result}")
+
+    logger.info(f"Legacy orchestration completed: {result}")
     return result
 
 # Entry point for tests (run python src/main.py)
 if __name__ == "__main__":
-    results = asyncio.run(main_loop())
-    print("End-to-End Test Results with A2A:", results)
+    # Use continuous workflow by default
+    asyncio.run(main_continuous_workflow())
+
+class TradingSystem:
+    pass

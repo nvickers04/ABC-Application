@@ -66,41 +66,83 @@ Once the orchestrator connects, use these commands in your Discord server:
 - Intervention logging
 - Progress tracking
 
-## 📋 Workflow Phases (Realistic Timing)
+## 📋 Workflow Phases (Enhanced Professional Framework)
 
-| Phase | Duration | What Happens |
-|-------|----------|--------------|
-| **Macro Foundation** | 10 min | Market regime assessment & opportunity identification |
-| **Intelligence Gathering** | 4 min | Multi-source data collection & validation |
-| **Strategy Development** | 5 min | Collaborative strategy formation |
-| **Multi-Agent Debate** | 6 min | Cross-domain challenge & refinement |
-| **Risk Assessment** | 4 min | Probabilistic analysis & constraints |
-| **Consensus Building** | 5 min | Conflict mediation & agreement |
-| **Execution Validation** | 4 min | Practical feasibility checks |
-| **Learning Integration** | 4 min | Continuous improvement |
-| **Executive Review** | 7 min | Elevated strategic oversight |
-| **Supreme Oversight** | 8 min | Final audit & veto authority |
+| Phase | Duration | Professional Description |
+|-------|----------|------------------------|
+| **Systematic Market Surveillance** | 3 min | Institutional-grade multi-asset surveillance for exploitable alpha opportunities |
+| **Multi-Strategy Opportunity Synthesis** | 2.5 min | Advanced cross-agent validation and conviction-weighted opportunity prioritization |
+| **Quantitative Opportunity Validation** | 2 min | Rigorous opportunity validation with risk decomposition and execution frameworks |
+| **Investment Committee Review** | 3 min | Efficient multi-criteria evaluation and trade structure optimization |
+| **Portfolio Implementation Planning** | 2 min | Professional capital allocation and risk management protocol establishment |
+| **Performance Analytics and Refinement** | 1.5 min | Systematic performance analysis and continuous improvement frameworks |
+| **Chief Investment Officer Oversight** | 4 min | Executive oversight with final investment decision authority |
 
-**Total Time: ~50-60 minutes** (depending on responses and interventions)
+**Total Time: ~18-20 minutes** (optimized for real-time alpha capture)
 
-## 📊 Workflow Structure
+## 📊 Enhanced Workflow Structure
 
-### Phase 0: Macro Foundation (10 min)
-- **MacroAgent** establishes market regime context
-- Identifies top 5 opportunities for analysis
-- Sets baseline risk parameters
-- **Split into:** Data collection (5 min) + Analysis (5 min)
+### Phase 1: Systematic Market Surveillance (3 min)
+**Institutional Multi-Asset Surveillance**
+- Systematic market regime analysis across equities, fixed income, commodities, and currencies
+- Advanced technical and quantitative anomaly detection
+- Macroeconomic impact assessment and geopolitical risk evaluation
+- Cross-sectional relative strength analysis and institutional order flow monitoring
+- Statistical modeling with outlier detection and predictive pattern recognition
 
-### Comprehensive Deliberation (30-35 min)
-8 phases with all agents participating in a single comprehensive reasoning process:
-1. **Intelligence Gathering** (4 min) - Multi-source data collection
-2. **Strategy Development** (5 min) - Collaborative strategy formation
-3. **Multi-Agent Debate** (6 min) - Cross-domain challenge and refinement
-4. **Risk Assessment** (4 min) - Probabilistic analysis and constraints
-5. **Consensus Building** (5 min) - Conflict mediation and agreement
-6. **Execution Validation** (4 min) - Practical feasibility checks
-7. **Learning Integration** (4 min) - Continuous improvement
-8. **Executive Review** (7 min) - Elevated strategic oversight with supreme oversight integration
+### Phase 2: Multi-Strategy Opportunity Synthesis (2.5 min)
+**Advanced Cross-Agent Intelligence Integration**
+- Multi-methodological signal validation and triangulation
+- Inter-agent data source cross-referencing and false positive elimination
+- Unified investment thesis synthesis from diverse analytical frameworks
+- Conviction-weighted opportunity ranking by alpha capture probability
+- Execution-focused trade structuring with cost and timing optimization
+- Collaborative knowledge base documentation and pattern recognition
+
+### Phase 3: Quantitative Opportunity Validation (2 min)
+**Rigorous Opportunity Validation Framework**
+- Comprehensive historical precedent analysis and current market condition assessment
+- Advanced risk decomposition with volatility and correlation stress testing
+- Quantitative expected value calculation with probabilistic return distributions
+- Institutional-grade execution planning with entry/exit criteria and position sizing
+- Market timing validation and liquidity microstructure assessment
+- Comprehensive opportunity documentation with risk memos and contingency protocols
+
+### Phase 4: Investment Committee Review (3 min)
+**Efficient Multi-Criteria Decision Framework**
+- Structured opportunity evaluation against established investment criteria
+- Market regime alignment validation and timing optimization assessment
+- Cross-framework signal validation (technical, fundamental, quantitative, risk-based)
+- Consensus-driven trade structure refinement and risk parameter optimization
+- Operational readiness validation and infrastructure capability confirmation
+- Decision framework documentation with analytical process audit trail
+
+### Phase 5: Portfolio Implementation Planning (2 min)
+**Professional Execution Readiness Protocol**
+- Optimal capital allocation modeling with portfolio impact assessment
+- Multi-layer risk management protocol establishment (stops, limits, volatility adjustments)
+- Precision execution timing optimization and algorithmic selection
+- Comprehensive execution playbook development with contingency planning
+- Complete infrastructure validation (connectivity, data feeds, market access)
+- Final pre-deployment review with parameter validation and approval protocols
+
+### Phase 6: Performance Analytics and Refinement (1.5 min)
+**Systematic Performance Analytics and Improvement**
+- Analytical process effectiveness evaluation and success pattern identification
+- Collaborative intelligence integration quality assessment
+- Predictive accuracy validation against market outcome benchmarks
+- Key insight documentation and process optimization recommendations
+- Framework enhancement development and analytical capability expansion
+- Continuous improvement protocol updates and future analysis optimization
+
+### Phase 7: Chief Investment Officer Oversight (4 min)
+**Executive Investment Decision Authority**
+- Comprehensive opportunity portfolio evaluation and quality assessment
+- Aggregate portfolio impact analysis with diversification and correlation modeling
+- Definitive execution decision framework (Execute/Hold/Restart) with detailed rationale
+- Precise trade parameter specification with risk management protocols
+- Comprehensive monitoring framework establishment with adjustment protocols
+- Executive decision documentation with evaluation criteria and oversight process
 
 ## 🛠️ Tools Usage
 

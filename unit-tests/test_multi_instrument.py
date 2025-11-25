@@ -1,8 +1,8 @@
 import sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent / 'src'))
+sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
 
-from src.agents.strategy_subs.multi_instrument_strategy_sub import MultiInstrumentStrategySub
+from src.agents.strategy_analyzers.multi_instrument_strategy_analyzer import MultiInstrumentStrategyAnalyzer
 import pandas as pd
 import numpy as np
 import asyncio
@@ -26,7 +26,7 @@ async def test_multi_instrument_strategy():
     }
 
     # Test the multi-instrument strategy subagent
-    agent = MultiInstrumentStrategySub()
+    agent = MultiInstrumentStrategyAnalyzer()
     result = await agent.process_input(input_data)
 
     print('Multi-instrument strategy result:')

@@ -11,11 +11,12 @@ from typing import Dict, Any, List, Optional
 import random
 
 from .validation import circuit_breaker, DataValidator
+from langchain_core.tools import tool
 
 logger = logging.getLogger(__name__)
 
 
-@circuit_breaker("agent_poll")
+@tool
 def audit_poll_tool(question: str, agents_to_poll: list = None) -> Dict[str, Any]:
     """
     Poll multiple agents for their opinions on a question.

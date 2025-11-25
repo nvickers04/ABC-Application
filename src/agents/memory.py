@@ -1,10 +1,9 @@
-# src/agents/memory.py
-# Purpose: Implements the Memory Agent, subclassing BaseAgent for comprehensive memory management.
-# Handles short-term, long-term, and multi-agent memory sharing with advanced position tracking.
-# Structural Reasoning: Ties to memory-management.md (e.g., Mem0/vector search, Redis/graph storage) and configs (loaded fresh); backs funding with auditable logs (e.g., "Memory decay: pruned 30% non-essential data").
-# New: Async memory operations for real-time sharing; decay mechanisms for efficiency.
-# For legacy wealth: Ensures 15-20% sustained growth through reliable memory systems, enabling consistent alpha generation.
-# Update: Dynamic path setup for imports; root-relative paths for configs/prompts.
+# [LABEL:AGENT:memory] [LABEL:COMPONENT:memory_management] [LABEL:FRAMEWORK:redis] [LABEL:FRAMEWORK:asyncio]
+# [LABEL:AUTHOR:GitHub Copilot] [LABEL:UPDATED:2024-11-20] [LABEL:REVIEWED:yes]
+#
+# Purpose: Implements the Memory Agent, subclassing BaseAgent for comprehensive memory management. Handles short-term, long-term, and multi-agent memory sharing with advanced position tracking.
+# Dependencies: sys, pathlib, src.agents.base, logging, typing, pandas, numpy, datetime, json, asyncio, src.utils.advanced_memory, src.utils.memory_persistence, src.utils.memory_security, src.utils.shared_memory
+# Related: docs/AGENTS/memory-agent.md, config/base_prompt.txt
 
 import sys
 from pathlib import Path
@@ -35,7 +34,7 @@ class MemoryAgent(BaseAgent):
 
     def __init__(self):
         config_paths = {'risk': 'config/risk-constraints.yaml', 'profit': 'config/profitability-targets.yaml'}  # Relative to root.
-        prompt_paths = {'base': 'config/base_prompt.txt', 'role': 'agents/memory-management.md'}  # Relative to root.
+        prompt_paths = {'base': 'config/base_prompt.txt', 'role': 'docs/AGENTS/main-agents/memory-agent.md'}  # Relative to root.
         super().__init__(role='memory', config_paths=config_paths, prompt_paths=prompt_paths)
 
         # Initialize memory management components

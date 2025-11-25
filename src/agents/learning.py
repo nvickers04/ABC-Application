@@ -1,7 +1,7 @@
 # src/agents/learning.py
 # Purpose: Implements the Learning Agent, subclassing BaseAgent for ML refinements and batch directives (e.g., prune on SD >1.0).
 # Handles parallel sims and convergence checks.
-# Structural Reasoning: (e.g., FinRL/tf-quant tools) and configs (loaded fresh); backs funding with logged directives (e.g., "Pruned for +1.2% ROI lift").
+# Structural Reasoning: (e.g., Stable-Baselines3/tf-quant tools) and configs (loaded fresh); backs funding with logged directives (e.g., "Pruned for +1.2% ROI lift").
 # New: Async process_input for sims; reflect method for fading (e.g., linear over 15 batches).
 # For legacy wealth: Accelerates proficiency without live risk, ensuring 15-20% sustained growth through experiential evolution.
 # Update: Dynamic path setup for imports; root-relative paths for configs/prompts.
@@ -23,10 +23,15 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
-# TensorFlow import disabled to prevent startup issues
-logger.warning("TensorFlow import disabled to prevent startup issues. Using numpy fallback for ML operations.")
-TENSORFLOW_AVAILABLE = False
-tf = None
+# Enable TensorFlow for ML operations
+try:
+    import tensorflow as tf
+    TENSORFLOW_AVAILABLE = True
+    logger.info("TensorFlow available for ML operations")
+except ImportError as e:
+    logger.warning(f"TensorFlow not available: {e}. Using numpy fallback.")
+    TENSORFLOW_AVAILABLE = False
+    tf = None
 
 # Try to import sklearn libraries (lazy import)
 SKLEARN_AVAILABLE = False
@@ -58,20 +63,28 @@ logger = logging.getLogger(__name__)
 
 # Try to import professional learning libraries
 try:
-    import finrl
-    from finrl import config
-    from finrl.meta.preprocessor.yahoodownloader import YahooDownloader
-    from finrl.meta.preprocessor.preprocessors import FeatureEngineer, data_split
-    from finrl.meta.env_stock_trading.env_stocktrading import StockTradingEnv
-    from finrl.agents.stablebaselines3.models import DRLAgent
+    import stable_baselines3 as sb3
+    from stable_baselines3 import PPO, A2C, DQN
     from stable_baselines3.common.logger import configure
-    from finrl.meta.data_processor import DataProcessor
-    FINRL_AVAILABLE = True
-    logger.info("FinRL library available for reinforcement learning")
+    from stable_baselines3.common.callbacks import BaseCallback
+    STABLE_BASELINES_AVAILABLE = True
+    logger.info("Stable-Baselines3 library available for reinforcement learning")
 except ImportError as e:
-    logger.warning(f"FinRL not available: {e}. Using fallback ML methods.")
-    FINRL_AVAILABLE = False
-    finrl = None
+    logger.warning(f"Stable-Baselines3 not available: {e}. Using fallback ML methods.")
+    STABLE_BASELINES_AVAILABLE = False
+    sb3 = None
+
+# Try to import LangChain memory components
+try:
+    from langchain.memory import ConversationBufferMemory
+    from langchain.chains import ConversationChain
+    LANGCHAIN_MEMORY_AVAILABLE = True
+    logger.info("LangChain memory available for agent conversations")
+except ImportError as e:
+    logger.warning(f"LangChain memory not available: {e}. Agent conversations will not persist.")
+    LANGCHAIN_MEMORY_AVAILABLE = False
+
+# FinRL removed - using Stable-Baselines3 directly for RL
 
 try:
     import backtrader as bt
@@ -105,16 +118,16 @@ class LearningAgent(BaseAgent):
         
         # Import role-specific tools
         from src.utils.tools import (
-            finrl_rl_train_tool,
+            rl_train_tool,
             zipline_sim_tool,
             tf_quant_projection_tool,
             strategy_ml_optimization_tool,
             backtest_validation_tool
         )
         
-        # Add role-specific tools/stubs (expand with Langchain/FinRL later).
+        # Add role-specific tools/stubs (expand with Langchain/Stable-Baselines3 later).
         self.tools.extend([
-            finrl_rl_train_tool,  # For RL updates.
+            rl_train_tool,  # For RL updates.
             zipline_sim_tool,  # For parallel sims.
             tf_quant_projection_tool,  # For stochastic projections.
             strategy_ml_optimization_tool,  # For ML-based strategy refinement.
@@ -141,8 +154,11 @@ class LearningAgent(BaseAgent):
             # Lazy import sklearn
             if not _import_sklearn():
                 logger.warning("Cannot initialize ML components - sklearn not available")
+                self.strategy_predictor = None
+                self.feature_scaler = None
+                self.ml_initialized = False
                 return
-            
+
             # Strategy performance prediction model
             self.strategy_predictor = RandomForestRegressor(
                 n_estimators=100,
@@ -150,19 +166,38 @@ class LearningAgent(BaseAgent):
                 random_state=42,
                 n_jobs=-1
             )
-            
+
             # Feature scaler
             self.feature_scaler = StandardScaler()
-            
+
             # Model training data
             self.training_features = []
             self.training_targets = []
-            
+
             # Model status
             self.model_trained = False
             self.model_last_trained = None
-            
+            self.ml_initialized = True
+
             logger.info("ML components initialized for strategy optimization")
+
+            # Initialize LangChain memory for agent conversations
+            if LANGCHAIN_MEMORY_AVAILABLE:
+                try:
+                    self.conversation_memory = ConversationBufferMemory(
+                        memory_key="chat_history",
+                        return_messages=True
+                    )
+                    self.memory_initialized = True
+                    logger.info("LangChain conversation memory initialized")
+                except Exception as e:
+                    logger.warning(f"Failed to initialize conversation memory: {e}")
+                    self.conversation_memory = None
+                    self.memory_initialized = False
+            else:
+                self.conversation_memory = None
+                self.memory_initialized = False
+                logger.info("LangChain memory not available - conversations will not persist")
             
         except Exception as e:
             logger.warning(f"Failed to initialize ML components: {e}")
@@ -204,6 +239,53 @@ class LearningAgent(BaseAgent):
         output = directives
         logger.info(f"Learning output shape: {output.shape}, SD variance: {self.memory.get('last_sd_variance', 0):.3f}, Converged: {convergence.get('converged', False)}")
         return output
+
+    def add_to_conversation_memory(self, user_input: str, agent_response: str):
+        """
+        Add a conversation turn to the LangChain memory for context preservation.
+
+        Args:
+            user_input: The input/query from the user or system
+            agent_response: The agent's response/output
+        """
+        if self.memory_initialized and self.conversation_memory:
+            try:
+                # Add the conversation to memory
+                self.conversation_memory.save_context(
+                    {"input": user_input},
+                    {"output": agent_response}
+                )
+                logger.debug("Added conversation to LangChain memory")
+            except Exception as e:
+                logger.warning(f"Failed to add to conversation memory: {e}")
+
+    def get_conversation_history(self) -> str:
+        """
+        Retrieve the conversation history from LangChain memory.
+
+        Returns:
+            Formatted string of conversation history
+        """
+        if self.memory_initialized and self.conversation_memory:
+            try:
+                history = self.conversation_memory.load_memory_variables({})
+                messages = history.get("chat_history", [])
+                if messages:
+                    # Format messages into readable history
+                    history_text = ""
+                    for msg in messages[-10:]:  # Last 10 messages
+                        if hasattr(msg, 'type'):
+                            if msg.type == 'human':
+                                history_text += f"Human: {msg.content}\n"
+                            elif msg.type == 'ai':
+                                history_text += f"Agent: {msg.content}\n"
+                    return history_text.strip()
+                return "No conversation history available"
+            except Exception as e:
+                logger.warning(f"Failed to retrieve conversation history: {e}")
+                return "Error retrieving conversation history"
+        else:
+            return "Conversation memory not available"
 
     def _calculate_convergence_metrics(self) -> Dict[str, Any]:
         """

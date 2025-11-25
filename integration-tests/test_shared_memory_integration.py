@@ -14,11 +14,11 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from src.utils.shared_memory import get_multi_agent_coordinator
-from src.agents.data_subs.yfinance_datasub import YfinanceDatasub
-from src.agents.data_subs.institutional_datasub import InstitutionalDatasub
-from src.agents.data_subs.microstructure_datasub import MicrostructureDatasub
-from src.agents.data_subs.marketdataapp_datasub import MarketDataAppDatasub
-from src.agents.strategy_subs.flow_strategy_sub import FlowStrategySub
+from src.agents.data_analyzers.yfinance_data_analyzer import YfinanceDataAnalyzer
+from src.agents.data_analyzers.institutional_data_analyzer import InstitutionalDataAnalyzer
+from src.agents.data_analyzers.microstructure_data_analyzer import MicrostructureDataAnalyzer
+from src.agents.data_analyzers.marketdataapp_data_analyzer import MarketDataAppDataAnalyzer
+from src.agents.strategy_analyzers.flow_strategy_analyzer import FlowStrategyAnalyzer
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -43,10 +43,10 @@ async def test_shared_memory_integration():
 
     # Initialize data subagents
     logger.info("Initializing data subagents...")
-    yfinance_agent = YfinanceDatasub()
-    institutional_agent = InstitutionalDatasub()
-    microstructure_agent = MicrostructureDatasub()
-    marketdataapp_agent = MarketDataAppDatasub()
+    yfinance_agent = YfinanceDataAnalyzer()
+    institutional_agent = InstitutionalDataAnalyzer()
+    microstructure_agent = MicrostructureDataAnalyzer()
+    marketdataapp_agent = MarketDataAppDataAnalyzer()
 
     # Test data collection and storage
     test_symbol = "AAPL"
@@ -75,7 +75,7 @@ async def test_shared_memory_integration():
 
     # Initialize strategy subagent
     logger.info("Initializing strategy subagent...")
-    flow_strategy = FlowStrategySub()
+    flow_strategy = FlowStrategyAnalyzer()
 
     # Test strategy analysis with shared data
     try:

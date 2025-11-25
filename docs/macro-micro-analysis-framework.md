@@ -355,11 +355,14 @@ The November 2025 system test demonstrated:
 
 ## Next Steps & Refinements
 
-### Phase 5: Optimization (In Progress)
-- [ ] **Performance Caching**: Add Redis caching for sector data to reduce API calls
-- [ ] **Algorithm Refinement**: Fine-tune composite scoring weights based on backtesting
-- [ ] **Error Recovery**: Enhanced handling for market data outages
-- [ ] **Real-time Updates**: Implement live sector performance monitoring
+### Phase 5: Optimization (Completed)
+- [x] **Performance Caching**: Added Redis caching for sector data to reduce API calls
+- [x] **Algorithm Refinement**: Fine-tuned composite scoring weights based on backtesting
+- [x] **Error Recovery**: Enhanced handling for market data outages
+- [x] **Real-time Updates**: Implemented live sector performance monitoring
+
+### Collaborative Selection
+Added debate_sector_selection feature allowing MacroAgent to collaborate with Strategy and Data agents for refined sector rankings using A2A protocol.
 
 ### Phase 6: Advanced Features
 - [ ] **Machine Learning Integration**: ML models for sector prediction and timing

@@ -5,16 +5,18 @@ Provides tools for Twitter sentiment analysis and social media monitoring.
 """
 
 import os
+import json
 import logging
 from typing import Dict, Any, Optional
 import requests
+from langchain_core.tools import tool
 
 from .validation import circuit_breaker, DataValidator
 
 logger = logging.getLogger(__name__)
 
 
-@circuit_breaker("twitter_sentiment")
+@tool
 def twitter_sentiment_tool(query: str, max_tweets: int = 100) -> Dict[str, Any]:
     """
     Analyze Twitter sentiment for a given query.

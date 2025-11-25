@@ -12,13 +12,15 @@
 
 import asyncio
 from collections import defaultdict
-from typing import Dict, Any, Callable, Optional, Annotated
+from typing import Dict, Any, Callable, Optional, Annotated, List
 from uuid import uuid4
 import logging
 from pydantic import BaseModel, ValidationError  # For schemas/validation (installed via requirements.txt).
 import os  # For path handling (Windows-friendly normpath).
 import datetime  # For timestamps
 from langgraph.graph import StateGraph, END
+
+import discord  # For Embed objects
 
 # Import reducer for handling multiple updates
 from langgraph.graph import add_messages
@@ -113,13 +115,43 @@ class A2AProtocol:
         
         self.graph.set_entry_point("macro")
 
-    async def log_to_discord(self, summary: str, details: Optional[Dict[str, Any]] = None) -> None:
+    async def _run_langchain_agent(self, langchain_agent: Any, input_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Log a one-line summary of A2A communication to Discord for monitoring.
+        Run a LangChain agent within the StateGraph context.
+
+        Args:
+            langchain_agent: LangChain agent instance (AgentExecutor or similar)
+            input_data: Input data for the agent
+
+        Returns:
+            Dict containing the agent result
+        """
+        try:
+            # Try to use the agent's invoke method (for AgentExecutor)
+            if hasattr(langchain_agent, 'ainvoke'):
+                result = await langchain_agent.ainvoke(input_data)
+                return result
+            # Fallback to regular invoke
+            elif hasattr(langchain_agent, 'invoke'):
+                result = langchain_agent.invoke(input_data)
+                return result
+            else:
+                # If no invoke methods, return error
+                return {"error": "LangChain agent has no invoke methods", "input": input_data}
+        except Exception as e:
+            self.logger.error(f"LangChain agent execution failed: {e}")
+            return {"error": str(e), "input": input_data}
+
+    async def log_to_discord(self, title: str, description: str, color: int = 0x3498db, fields: Optional[List[Dict[str, Any]]] = None, footer: Optional[str] = None) -> None:
+        """
+        Log structured workflow updates to Discord for easy reading.
         
         Args:
-            summary: One-line summary of the data exchange
-            details: Optional additional details for the embed
+            title: Embed title (e.g., "Workflow Step: Strategy Generation")
+            description: Detailed description of the update
+            color: Embed color (e.g., 0x00ff00 for success, 0xff0000 for error)
+            fields: List of fields with name and value for structured data
+            footer: Optional footer text (e.g., "Step 3/8")
         """
         if not self.discord_bot or not self.monitoring_channel_id:
             return  # Silently skip if Discord monitoring not configured
@@ -130,25 +162,26 @@ class A2AProtocol:
                 self.logger.warning(f"Could not find monitoring channel {self.monitoring_channel_id}")
                 return
                 
-            embed = {
-                "title": "🔄 A2A Data Exchange",
-                "description": summary,
-                "color": 0x3498db,  # Blue for monitoring
-                "timestamp": datetime.datetime.now().isoformat()
-            }
+            embed_obj = discord.Embed(
+                title=title,
+                description=description,
+                color=color,
+                timestamp=datetime.datetime.utcnow()
+            )
             
-            if details:
-                # Add key details as fields (limit to avoid embed limits)
-                for key, value in list(details.items())[:5]:  # Max 5 fields
-                    if isinstance(value, (str, int, float)):
-                        embed.setdefault("fields", []).append({
-                            "name": str(key).replace('_', ' ').title(),
-                            "value": str(value)[:200],  # Limit field value length
-                            "inline": True
-                        })
+            if fields:
+                for field in fields[:25]:  # Discord limit: 25 fields
+                    embed_obj.add_field(
+                        name=field["name"],
+                        value=field["value"],
+                        inline=field.get("inline", True)
+                    )
             
-            await channel.send(embed=embed)
-            self.logger.info(f"Logged A2A exchange to Discord: {summary}")
+            if footer:
+                embed_obj.set_footer(text=footer)
+            
+            await channel.send(embed=embed_obj)
+            self.logger.info(f"Logged to Discord: {title} - {description}")
             
         except Exception as e:
             self.logger.error(f"Failed to log to Discord: {e}")
@@ -172,9 +205,29 @@ class A2AProtocol:
                 'timeframes': ['1mo', '3mo', '6mo'],  # Standard macro analysis timeframes
                 'force_refresh': False
             }
-            result = await self.agents["macro"].process_input(macro_input)
+            agent = self.agents["macro"]
+            if hasattr(agent, 'langchain_agent') and agent.langchain_agent:
+                # Use LangChain agent
+                result = await self._run_langchain_agent(agent.langchain_agent, macro_input)
+            else:
+                # Use regular agent
+                result = await agent.process_input(macro_input)
             state.macro.update(result)
-            
+
+            # Log readable summary to Discord
+            sectors_found = len(result.get('selected_sectors', []))
+            await self.log_to_discord(
+                title="🌍 Macro Agent Complete",
+                description="Macroeconomic analysis and sector identification completed.",
+                color=0x3498db,  # Blue for macro
+                fields=[
+                    {"name": "Status", "value": "✅ Completed", "inline": True},
+                    {"name": "Sectors Identified", "value": str(sectors_found), "inline": True},
+                    {"name": "Market Regime", "value": result.get('regime', 'Unknown'), "inline": False}
+                ],
+                footer="Step 1/8: Macro → Data Collection"
+            )
+
             # Extract selected sectors for data agent to focus on
             selected_sectors = result.get('selected_sectors', [])
             if selected_sectors:
@@ -204,8 +257,29 @@ class A2AProtocol:
                 self.logger.info(f"Using default/initial symbols for data collection: {symbols}")
             
             initial_data = {"symbols": symbols, "period": "5d"}
-            result = await self.agents["data"].process_input(initial_data)
+            agent = self.agents["data"]
+            if hasattr(agent, 'langchain_agent') and agent.langchain_agent:
+                # Use LangChain agent
+                result = await self._run_langchain_agent(agent.langchain_agent, initial_data)
+            else:
+                # Use regular agent
+                result = await agent.process_input(initial_data)
             state.data.update(result)
+
+            # Log readable summary to Discord
+            data_points = result.get('data_points', 0)
+            await self.log_to_discord(
+                title="📊 Data Agent Complete",
+                description="Market data collection and validation completed.",
+                color=0xf39c12,  # Orange for data
+                fields=[
+                    {"name": "Status", "value": "✅ Completed", "inline": True},
+                    {"name": "Symbols Processed", "value": str(len(symbols)), "inline": True},
+                    {"name": "Data Points", "value": str(data_points), "inline": False}
+                ],
+                footer="Step 2/8: Data → Strategy Generation"
+            )
+
             # Don't set current_agent - let edges handle flow
         return state
 
@@ -216,36 +290,150 @@ class A2AProtocol:
             # Add learning directives if available from previous cycles
             if hasattr(state, 'learning') and state.learning.get('pyramiding_directives'):
                 strategy_input['learning_directives'] = state.learning['pyramiding_directives']
-            result = await self.agents["strategy"].process_input(strategy_input)
+
+            # Check if this is a LangChain agent (has langchain_agent attribute)
+            agent = self.agents["strategy"]
+            if hasattr(agent, 'langchain_agent') and agent.langchain_agent:
+                # Use LangChain agent
+                result = await self._run_langchain_agent(agent.langchain_agent, strategy_input)
+            else:
+                # Use regular agent
+                result = await agent.process_input(strategy_input)
+
             state.strategy.update(result)
+
+            # Log readable summary to Discord
+            await self.log_to_discord(
+                title="🔍 Strategy Agent Complete",
+                description="Strategy generation and risk integration completed.",
+                color=0x00ff00,  # Green for success
+                fields=[
+                    {"name": "Status", "value": "✅ Completed", "inline": True},
+                    {"name": "Key Insights", "value": result.get('summary', 'Strategy developed')[:200], "inline": False}
+                ],
+                footer="Step 3/8: Strategy → Risk Assessment"
+            )
+
             # Don't set current_agent - let edges handle flow
         return state
 
     async def _run_risk_agent(self, state: AgentState) -> AgentState:
         if "risk" in self.agents:
-            result = await self.agents["risk"].process_input(state.strategy)
+            agent = self.agents["risk"]
+            if hasattr(agent, 'langchain_agent') and agent.langchain_agent:
+                # Use LangChain agent
+                result = await self._run_langchain_agent(agent.langchain_agent, state.strategy)
+            else:
+                # Use regular agent
+                result = await agent.process_input(state.strategy)
             state.risk.update(result)
+
+            # Log readable summary to Discord
+            approved = result.get("approved", True)
+            color = 0x00ff00 if approved else 0xffa500  # Green if approved, orange if not
+            status_emoji = "✅" if approved else "⚠️"
+
+            await self.log_to_discord(
+                title="⚖️ Risk Assessment Complete",
+                description="Risk evaluation and approval decision made.",
+                color=color,
+                fields=[
+                    {"name": "Decision", "value": f"{status_emoji} {'Approved' if approved else 'Rejected'}", "inline": True},
+                    {"name": "Risk Level", "value": result.get('risk_level', 'Unknown'), "inline": True},
+                    {"name": "Key Concerns", "value": result.get('concerns', 'None')[:200], "inline": False}
+                ],
+                footer="Step 4/8: Risk → Execution (if approved)"
+            )
+
             # Don't set current_agent here - let the conditional edge handle routing
         return state
 
     async def _run_execution_agent(self, state: AgentState) -> AgentState:
         if "execution" in self.agents:
-            result = await self.agents["execution"].process_input(state.risk)
+            agent = self.agents["execution"]
+            if hasattr(agent, 'langchain_agent') and agent.langchain_agent:
+                # Use LangChain agent
+                result = await self._run_langchain_agent(agent.langchain_agent, state.risk)
+            else:
+                # Use regular agent
+                result = await agent.process_input(state.risk)
             state.execution.update(result)
+
+            # Log readable summary to Discord
+            executed = result.get("executed", False)
+            color = 0x00ff00 if executed else 0xff0000  # Green if executed, red if not
+            status_emoji = "✅" if executed else "❌"
+
+            await self.log_to_discord(
+                title="🚀 Execution Agent Complete",
+                description="Trade execution planning and validation completed.",
+                color=color,
+                fields=[
+                    {"name": "Status", "value": f"{status_emoji} {'Executed' if executed else 'Failed'}", "inline": True},
+                    {"name": "Trades Planned", "value": str(result.get('trade_count', 0)), "inline": True},
+                    {"name": "Execution Notes", "value": result.get('notes', 'None')[:200], "inline": False}
+                ],
+                footer="Step 5/8: Execution → Reflection"
+            )
+
             # Don't set current_agent - let edges handle flow
         return state
 
     async def _run_reflection_agent(self, state: AgentState) -> AgentState:
         if "reflection" in self.agents:
-            result = await self.agents["reflection"].process_input(state.execution)
+            agent = self.agents["reflection"]
+            if hasattr(agent, 'langchain_agent') and agent.langchain_agent:
+                # Use LangChain agent
+                result = await self._run_langchain_agent(agent.langchain_agent, state.execution)
+            else:
+                # Use regular agent
+                result = await agent.process_input(state.execution)
             state.reflection.update(result)
+
+            # Log readable summary to Discord
+            vetoed = result.get("veto", False)
+            color = 0xff0000 if vetoed else 0x00ff00  # Red if vetoed, green if approved
+            status_emoji = "🚫" if vetoed else "✅"
+
+            await self.log_to_discord(
+                title="🧠 Reflection Agent Complete",
+                description="System oversight and decision validation completed.",
+                color=color,
+                fields=[
+                    {"name": "Decision", "value": f"{status_emoji} {'Vetoed' if vetoed else 'Approved'}", "inline": True},
+                    {"name": "Confidence", "value": f"{result.get('confidence', 0)*100:.0f}%", "inline": True},
+                    {"name": "Key Insights", "value": result.get('insights', 'None')[:200], "inline": False}
+                ],
+                footer="Step 6/8: Reflection → Learning"
+            )
+
             # Don't set current_agent - let edges handle flow
         return state
 
     async def _run_learning_agent(self, state: AgentState) -> AgentState:
         if "learning" in self.agents:
-            result = await self.agents["learning"].process_input(state.reflection)
+            agent = self.agents["learning"]
+            if hasattr(agent, 'langchain_agent') and agent.langchain_agent:
+                # Use LangChain agent
+                result = await self._run_langchain_agent(agent.langchain_agent, state.reflection)
+            else:
+                # Use regular agent
+                result = await agent.process_input(state.reflection)
             state.learning.update(result)
+
+            # Log readable summary to Discord
+            await self.log_to_discord(
+                title="📚 Learning Agent Complete",
+                description="Performance analysis and model refinement completed.",
+                color=0x9b59b6,  # Purple for learning
+                fields=[
+                    {"name": "Status", "value": "✅ Completed", "inline": True},
+                    {"name": "Improvements", "value": str(result.get('improvement_count', 0)), "inline": True},
+                    {"name": "Next Cycle Directives", "value": f"{len(result.get('pyramiding_directives', []))} directives", "inline": False}
+                ],
+                footer="Step 7/8: Learning → Workflow Complete"
+            )
+
             # Don't modify status here - let the graph handle completion
             # state.status = "completed"
 
@@ -256,9 +444,15 @@ class A2AProtocol:
                 self.logger.info(f"Extracted {len(learning_directives)} learning directives for next cycle")
         return state
 
-    def register_agent(self, role: str, agent_instance: Any = None, callback: Optional[Callable] = None) -> bool:
+    def register_agent(self, role: str, agent_instance: Any = None, callback: Optional[Callable] = None, langchain_agent: Any = None) -> bool:
         """
         Registers an agent with a queue and instance.
+
+        Args:
+            role: Agent role identifier
+            agent_instance: BaseAgent instance (optional)
+            callback: Callback function (optional)
+            langchain_agent: LangChain agent instance (optional)
         """
         if len(self.agent_queues) >= self.max_agents:
             self.logger.error(f"Max agents {self.max_agents} reached—cannot register {role}")
@@ -266,18 +460,38 @@ class A2AProtocol:
         self.agent_queues[role] = asyncio.Queue()
         if agent_instance:
             self.agents[role] = agent_instance
+            # Attach LangChain agent if provided
+            if langchain_agent:
+                agent_instance.langchain_agent = langchain_agent
         if callback:
             self.agent_callbacks[role] = callback
-        self.logger.info(f"Registered agent: {role}")
+        self.logger.info(f"Registered agent: {role}" + (" with LangChain agent" if langchain_agent else ""))
         return True
 
-    async def run_orchestration(self, initial_data: Dict[str, Any]) -> AgentState:
+    async def run_orchestration(self, initial_data: Dict[str, Any]) -> Any:
         """
-        Run the StateGraph orchestration.
+        Run the StateGraph orchestration with Discord logging.
         """
         app = self.graph.compile()
         initial_state = AgentState(data=initial_data)
+
+        # Log workflow start
+        await self.log_to_discord(
+            title="🚀 Starting AI Trading Workflow",
+            description="Initiating complete 8-agent collaborative reasoning process",
+            color=0x3498db,
+            fields=[
+                {"name": "Steps", "value": "8 total", "inline": True},
+                {"name": "Agents", "value": "Macro, Data, Strategy, Risk, Execution, Reflection, Learning", "inline": False}
+            ],
+            footer="Step 1/8: Macro Analysis"
+        )
+
         result = await app.ainvoke(initial_state)
+
+        # Log comprehensive workflow summary
+        await self.log_workflow_summary(result)
+
         return result
 
     async def send_message(self, message: BaseMessage) -> str:
@@ -300,11 +514,16 @@ class A2AProtocol:
             summary = f"📤 {message.sender} → {message.receiver}: {message.type} ({data_size} chars)"
             
             # Log to Discord if configured
-            await self.log_to_discord(summary, {
-                "message_type": message.type,
-                "data_size": f"{data_size} chars",
-                "timestamp": message.timestamp
-            })
+            await self.log_to_discord(
+                title="📤 A2A Message Sent",
+                description=summary,
+                color=0x3498db,
+                fields=[
+                    {"name": "Type", "value": message.type, "inline": True},
+                    {"name": "Size", "value": f"{data_size} chars", "inline": True},
+                    {"name": "Time", "value": message.timestamp, "inline": True}
+                ]
+            )
             
             # Broadcast if receiver is list or "all"
             receivers = message.receiver if isinstance(message.receiver, list) else [message.receiver]
@@ -370,6 +589,171 @@ class A2AProtocol:
         Reasoning: Prep for graphs (expand with import langgraph; self.graph.add_edge(...)); ties to scale (routers for N>10 load-balance, from resource-mapping like Qlib pipelines).
         """
         self.logger.info(f"Stub: Added LangGraph edge from {from_role} to {to_role}—expand for full graphs with routers/escalations.")
+
+    # Discord Command Handlers for Workflow Control
+    async def handle_discord_command(self, command: str, args: List[str], user: str) -> str:
+        """
+        Handle Discord commands for workflow control and status.
+
+        Args:
+            command: The command (e.g., 'start_workflow')
+            args: Command arguments
+            user: Discord user who issued the command
+
+        Returns:
+            Response message for Discord
+        """
+        try:
+            if command == "start_workflow":
+                return await self._cmd_start_workflow(user)
+            elif command == "pause_workflow":
+                return await self._cmd_pause_workflow(user)
+            elif command == "resume_workflow":
+                return await self._cmd_resume_workflow(user)
+            elif command == "stop_workflow":
+                return await self._cmd_stop_workflow(user)
+            elif command == "workflow_status":
+                return await self._cmd_workflow_status(user)
+            elif command == "status":
+                return await self._cmd_system_status(user)
+            elif command == "analyze":
+                query = " ".join(args)
+                return await self._cmd_analyze(query, user)
+            else:
+                return f"❓ Unknown command: {command}. Try !help for available commands."
+        except Exception as e:
+            self.logger.error(f"Discord command error: {e}")
+            return f"❌ Error processing command: {str(e)}"
+
+    async def _cmd_start_workflow(self, user: str) -> str:
+        """Start the workflow."""
+        try:
+            # Check if workflow is already running
+            if hasattr(self, 'current_workflow') and self.current_workflow:
+                return "⚠️ Workflow already running. Use !stop_workflow first."
+
+            # Start workflow with initial data
+            initial_data = {"symbols": ["SPY"], "user": user}
+            self.current_workflow = await self.run_orchestration(initial_data)
+
+            await self.log_to_discord(
+                title="🚀 Workflow Started",
+                description=f"Workflow initiated by {user}",
+                color=0x00ff00,
+                fields=[{"name": "Status", "value": "Running", "inline": True}],
+                footer="Follow progress in this channel"
+            )
+
+            return "✅ Workflow started! Follow progress updates here."
+        except Exception as e:
+            return f"❌ Failed to start workflow: {str(e)}"
+
+    async def _cmd_pause_workflow(self, user: str) -> str:
+        """Pause the current workflow."""
+        # Implementation would depend on workflow state management
+        return "⏸️ Workflow pause not yet implemented."
+
+    async def _cmd_resume_workflow(self, user: str) -> str:
+        """Resume a paused workflow."""
+        return "▶️ Workflow resume not yet implemented."
+
+    async def _cmd_stop_workflow(self, user: str) -> str:
+        """Stop the current workflow."""
+        try:
+            self.current_workflow = None
+            await self.log_to_discord(
+                title="🛑 Workflow Stopped",
+                description=f"Workflow stopped by {user}",
+                color=0xff0000,
+                fields=[{"name": "Status", "value": "Stopped", "inline": True}]
+            )
+            return "🛑 Workflow stopped."
+        except Exception as e:
+            return f"❌ Failed to stop workflow: {str(e)}"
+
+    async def _cmd_workflow_status(self, user: str) -> str:
+        """Get current workflow status."""
+        if hasattr(self, 'current_workflow') and self.current_workflow:
+            status = self.current_workflow.status
+            return f"📊 Workflow Status: {status}"
+        else:
+            return "📊 No active workflow."
+
+    async def _cmd_system_status(self, user: str) -> str:
+        """Get system health status."""
+        agent_count = len(self.agents)
+        queue_count = len(self.agent_queues)
+        return f"🤖 System Status:\n• Agents: {agent_count}\n• Queues: {queue_count}\n• Health: Good"
+
+    async def _cmd_analyze(self, query: str, user: str) -> str:
+        """Request analysis from agents."""
+        try:
+            # Route to appropriate agent (simplified)
+            if "macro" in query.lower():
+                agent_name = "macro"
+            elif "risk" in query.lower():
+                agent_name = "risk"
+            elif "strategy" in query.lower():
+                agent_name = "strategy"
+            else:
+                agent_name = "data"
+
+            if agent_name in self.agents:
+                result = await self.agents[agent_name].process_input({"query": query, "user": user})
+                summary = result.get('summary', 'Analysis completed')[:500]
+                return f"📋 Analysis Result:\n{summary}"
+            else:
+                return f"❌ Agent {agent_name} not available."
+        except Exception as e:
+            return f"❌ Analysis failed: {str(e)}"
+
+    async def log_workflow_summary(self, final_state: Any) -> None:
+        """
+        Log a comprehensive workflow summary to Discord when complete.
+        Makes the entire workflow easy to read and understand.
+        """
+        try:
+            # Extract key information from final state
+            macro_summary = final_state.macro.get('summary', 'Macro analysis completed')
+            data_symbols = len(final_state.data.get('symbols', []))
+            strategy_status = "✅ Generated" if final_state.strategy else "❌ Failed"
+            risk_decision = "✅ Approved" if final_state.risk.get('approved', True) else "❌ Rejected"
+            execution_status = "✅ Executed" if final_state.execution.get('executed', False) else "❌ Failed"
+            reflection_decision = "✅ Approved" if not final_state.reflection.get('veto', False) else "🚫 Vetoed"
+            learning_improvements = final_state.learning.get('improvement_count', 0)
+
+            # Create comprehensive summary embed
+            if not self.discord_bot or not self.monitoring_channel_id:
+                return  # Skip if not configured
+            
+            embed_obj = discord.Embed(
+                title="🎯 Workflow Complete - Full Summary",
+                description="Complete 8-step AI trading workflow finished. Review results below:",
+                color=0x00ff00 if final_state.status == "completed" else 0xffa500,
+                timestamp=datetime.datetime.utcnow()
+            )
+            fields_list = [
+                {"name": "🌍 Macro Analysis", "value": macro_summary[:100] + "..." if len(macro_summary) > 100 else macro_summary, "inline": False},
+                {"name": "📊 Data Collection", "value": f"Processed {data_symbols} symbols", "inline": True},
+                {"name": "🔍 Strategy Generation", "value": strategy_status, "inline": True},
+                {"name": "⚖️ Risk Assessment", "value": risk_decision, "inline": True},
+                {"name": "🚀 Trade Execution", "value": execution_status, "inline": True},
+                {"name": "🧠 Reflection Review", "value": reflection_decision, "inline": True},
+                {"name": "📚 Learning Updates", "value": f"{learning_improvements} improvements made", "inline": True},
+                {"name": "📈 Final Status", "value": final_state.status.upper(), "inline": False}
+            ]
+            for field in fields_list:
+                embed_obj.add_field(name=field["name"], value=field["value"], inline=field["inline"])
+            embed_obj.set_footer(text="Workflow completed successfully - Ready for next cycle")
+            
+            channel = self.discord_bot.get_channel(int(self.monitoring_channel_id))
+            if channel:
+                await channel.send(embed=embed_obj)
+            else:
+                self.logger.warning(f"Could not find monitoring channel {self.monitoring_channel_id}")
+
+        except Exception as e:
+            self.logger.error(f"Error logging workflow summary: {e}")
 
 # Example Usage/Test (run python src/utils/a2a_protocol.py to verify)
 if __name__ == "__main__":

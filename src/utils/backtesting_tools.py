@@ -10,16 +10,17 @@ from typing import Dict, Any, Optional, List
 import pandas as pd
 
 from .validation import circuit_breaker, DataValidator
+from langchain_core.tools import tool
 
 logger = logging.getLogger(__name__)
 
 
-@circuit_breaker("pyfolio_analysis")
-def pyfolio_metrics_tool(data: str, benchmark_symbol: str = "SPY") -> Dict[str, Any]:
+@tool
+def pyfolio_metrics_tool(portfolio_returns: str, benchmark_symbol: str = "SPY") -> Dict[str, Any]:
     """
     Calculate portfolio performance metrics using pyfolio.
     Args:
-        data: Portfolio returns data as CSV string
+        portfolio_returns: Portfolio returns data as CSV string
         benchmark_symbol: Benchmark symbol for comparison
     Returns:
         dict: Performance metrics
@@ -28,7 +29,7 @@ def pyfolio_metrics_tool(data: str, benchmark_symbol: str = "SPY") -> Dict[str, 
         import io
 
         # Parse portfolio data
-        df = pd.read_csv(io.StringIO(data))
+        df = pd.read_csv(io.StringIO(portfolio_returns))
 
         if df.empty or 'returns' not in df.columns:
             return {"error": "Invalid portfolio data format. Expected CSV with 'returns' column."}
@@ -84,7 +85,7 @@ def pyfolio_metrics_tool(data: str, benchmark_symbol: str = "SPY") -> Dict[str, 
         return {"error": f"Pyfolio metrics calculation failed: {str(e)}"}
 
 
-@circuit_breaker("zipline_backtest")
+@tool
 def zipline_backtest_tool(strategy_code: str, start_date: str, end_date: str, capital: float = 100000, symbol: str = "SPY") -> Dict[str, Any]:
     """
     Run a backtest using Zipline (if available) or simulate basic backtesting.
@@ -102,6 +103,11 @@ def zipline_backtest_tool(strategy_code: str, start_date: str, end_date: str, ca
         strategy_code = DataValidator.sanitize_text_input(strategy_code)
         if not strategy_code:
             return {"error": "No strategy code provided"}
+
+        # Check if strategy file exists (only for absolute paths)
+        if strategy_code.endswith('.py') and os.path.isabs(strategy_code):
+            if not os.path.exists(strategy_code):
+                return {"error": f"Strategy file not found: {strategy_code}"}
 
         # Parse dates
         start = pd.to_datetime(start_date)
@@ -152,7 +158,7 @@ def zipline_backtest_tool(strategy_code: str, start_date: str, end_date: str, ca
     except Exception as e:
         return {"error": f"Zipline backtest failed: {str(e)}"}
 
-
+@tool
 def backtrader_strategy_tool(strategy_config: Dict[str, Any], data: str) -> Dict[str, Any]:
     """
     Run a strategy using Backtrader framework.
@@ -206,7 +212,7 @@ def backtrader_strategy_tool(strategy_config: Dict[str, Any], data: str) -> Dict
     except Exception as e:
         return {"error": f"Backtrader strategy failed: {str(e)}"}
 
-
+@tool
 def risk_analytics_tool(portfolio_data: str, risk_model: str = "historical") -> Dict[str, Any]:
     """
     Perform risk analytics on portfolio data.
@@ -265,7 +271,7 @@ def risk_analytics_tool(portfolio_data: str, risk_model: str = "historical") -> 
     except Exception as e:
         return {"error": f"Risk analytics failed: {str(e)}"}
 
-
+@tool
 def tf_quant_monte_carlo_tool(returns: List[float], simulations: int = 1000, periods: int = 252) -> Dict[str, Any]:
     """
     Perform Monte Carlo simulation using TensorFlow for quantitative projections.
@@ -301,5 +307,17 @@ def tf_quant_monte_carlo_tool(returns: List[float], simulations: int = 1000, per
         }
     except Exception as e:
         return {"error": str(e)}
+
+
+@tool
+def tf_quant_projection_tool(query: str) -> str:
+    """
+    Stub tool for TensorFlow quantitative projections.
+    Args:
+        query: The projection query
+    Returns:
+        str: Projected result
+    """
+    return f"Projected result for {query}: Not implemented"
 
 # end of file

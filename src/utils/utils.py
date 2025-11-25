@@ -7,8 +7,8 @@
 
 import os
 import yaml
-from langchain_core.prompts import PromptTemplate  # Using LangChain PromptTemplate for advanced templating
 import logging
+from string import Template  # Use Python's built-in Template instead of langchain_core
 
 # Setup logging for traceability (output to console/file for audits)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -49,16 +49,16 @@ def load_prompt_template(role: str, base_path: str = '../config/base_prompt.txt'
     try:
         with open(base_path, 'r', encoding='utf-8') as base_file:
             base_prompt = base_file.read()
-        
-        # First, format the base prompt using PromptTemplate
-        base_template = PromptTemplate(template=base_prompt, input_variables=["agent_role", "goal_weights", "roi_targets", "sd_value"])
-        base_formatted = base_template.format(
+
+        # Use Python's built-in Template for simple string substitution
+        base_template = Template(base_prompt)
+        base_formatted = base_template.safe_substitute(
             agent_role=role.capitalize(),
             goal_weights='profit:0.60, time:0.20, risk:0.20',
             roi_targets='10-20% monthly',
             sd_value='1.1'
         )
-        
+
         full_prompt = base_formatted
         if role_path:
             with open(role_path, 'r', encoding='utf-8') as role_file:

@@ -4,6 +4,8 @@
 
 The Discord Agent Integration System creates a collaborative environment where your sophisticated unified A2A orchestrator can interact with human users through Discord. This system enables real-time human oversight and participation in the 8-agent collaborative reasoning workflow.
 
+**Important Note**: As of November 2025, there is only one orchestrator in Discord. This documentation has been updated to reflect the current single-orchestrator architecture.
+
 ## Key Features
 
 ### 🤖 **Unified Agent Orchestration**

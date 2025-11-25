@@ -1,7 +1,10 @@
+# [LABEL:AGENT:strategy]
+# [LABEL:MODULE:agents]
+# [LABEL:VERSION:1.0]
 # src/agents/strategy.py
 # Purpose: Implements the Strategy Agent, subclassing BaseAgent for macro-micro proposal generation (e.g., options setups with pyramiding).
 # Handles train-of-thought and loop negotiations for alpha maximization.
-# Structural Reasoning: Ties to strategy-agent-notes.md (e.g., backtrader/Qlib tools) and configs (loaded fresh); backs funding with logged estimates (e.g., "Proposed 28% ROI for +5% lift").
+# Structural Reasoning: Ties to docs/AGENTS/strategy-agent.md (e.g., backtrader/Qlib tools) and configs (loaded fresh); backs funding with logged estimates (e.g., "Proposed 28% ROI for +5% lift").
 # New: Async process_input for bidirectional loops; reflect method for pruning (e.g., on SD >1.0).
 # For legacy wealth: Drives >20% ambition with diversification to build substantial growth without naked risk.
 # Update: Added import pandas as pd for DataFrame input (fixes NameError); dynamic path setup for imports; root-relative paths for configs/prompts.
@@ -196,7 +199,10 @@ class StrategyAgent(BaseAgent):
         config_paths = {'risk': 'config/risk-constraints.yaml', 'profit': 'config/profitability-targets.yaml'}  # Relative to root.
         prompt_paths = {'base': 'config/base_prompt.txt', 'role': 'docs/AGENTS/main-agents/strategy-agent.md'}  # Relative to root.
         super().__init__(role='strategy', config_paths=config_paths, prompt_paths=prompt_paths, a2a_protocol=a2a_protocol)
-        
+
+        # Initialize background tasks set
+        self._background_tasks = set()
+
         # Initialize strategy analyzers with lazy loading
         self.options_analyzer = None
         self.flow_analyzer = None

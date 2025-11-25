@@ -505,6 +505,10 @@ class DataAgent(BaseAgent):
                 'learning_insights': {}
             }
 
+    async def process_data(self, input_data: Any) -> Dict[str, Any]:
+        """Alias for process_input."""
+        return await self.process_input(input_data)
+
     async def process_input(self, input_data: Any) -> Dict[str, Any]:
         """
         Process input data for the Data Agent.
@@ -1019,7 +1023,8 @@ VERIFIED DATA QUALITY ASSESSMENT:
                 'market_microstructure': microstructure,
                 'prediction_market_sentiment': kalshi,
                 'enhanced_subagent_analysis': subagent_llm_analysis if enhanced_analysis_available else {},
-                'verified_quality_assessment': quality_context
+                'verified_quality_assessment': quality_context,
+                'premarket_analysis': self._analyze_premarket_data(dataframe, symbol)
             }
             
             # Use optimized LLM prompt (leverages enhanced subagent analysis when available)
@@ -1030,18 +1035,24 @@ VERIFIED DATA QUALITY ASSESSMENT:
                 ENHANCED SUBAGENT ANALYSIS:
                 {data_context['enhanced_subagent_analysis']}
 
+                PREMARKET ANALYSIS:
+                {data_context['premarket_analysis']}
+                
                 TECHNICAL: {data_context['technical_data']}
                 SENTIMENT: {data_context['sentiment_analysis']}
                 NEWS: {data_context['news_summary']}
                 ECONOMIC: {data_context['economic_indicators']}
 
                 Synthesize all enhanced analysis for superior predictions.
-                Return JSON: {{"direction": "bullish/bearish/neutral", "trend": "up/down/sideways", "regime": "bullish/bearish/volatile/neutral", "confidence": 0.0-1.0, "key_levels": "support/resistance", "enhanced_insights": "key takeaways from subagent analysis"}}
+                Return JSON: {{"direction": "bullish/bearish/neutral", "trend": "up/down/sideways", "regime": "bullish/bearish/volatile/neutral", "confidence": 0.0-1.0, "key_levels": "support/resistance", "enhanced_insights": "key takeaways from subagent analysis and premarket data"}}
                 """
             else:
                 predictive_prompt = f"""
                 Analyze {symbol} market data and provide concise predictions:
 
+                PREMARKET ANALYSIS:
+                {data_context['premarket_analysis']}
+                
                 TECHNICAL: {data_context['technical_data']}
                 SENTIMENT: {data_context['sentiment_analysis']}
                 NEWS: {data_context['news_summary']}
@@ -1283,6 +1294,92 @@ VERIFIED DATA QUALITY ASSESSMENT:
             
         except Exception as e:
             return f"News analysis error: {str(e)}"
+
+    def _analyze_premarket_data(self, dataframe: pd.DataFrame, symbol: str) -> Dict[str, Any]:
+        """Analyze premarket data for trading insights."""
+        try:
+            if dataframe is None or dataframe.empty:
+                return {'available': False, 'analysis': 'No data available for premarket analysis'}
+            
+            # Check if we have premarket data (times before 9:30 AM)
+            premarket_data = dataframe[dataframe.index.time < pd.Timestamp('09:30:00').time()]
+            
+            if premarket_data.empty:
+                return {'available': False, 'analysis': 'No premarket data available'}
+            
+            # Analyze premarket price action
+            premarket_open = premarket_data['Open'].iloc[0] if not premarket_data.empty else None
+            premarket_high = premarket_data['High'].max() if not premarket_data.empty else None
+            premarket_low = premarket_data['Low'].min() if not premarket_data.empty else None
+            premarket_close = premarket_data['Close'].iloc[-1] if not premarket_data.empty else None
+            premarket_volume = premarket_data['Volume'].sum() if not premarket_data.empty else 0
+            
+            # Get regular market open for comparison
+            regular_data = dataframe[dataframe.index.time >= pd.Timestamp('09:30:00').time()]
+            regular_open = regular_data['Open'].iloc[0] if not regular_data.empty else None
+            
+            analysis = {
+                'available': True,
+                'premarket_range': f"${premarket_low:.2f} - ${premarket_high:.2f}" if premarket_low and premarket_high else 'N/A',
+                'premarket_volume': int(premarket_volume),
+                'premarket_direction': 'neutral'
+            }
+            
+            # Determine premarket direction
+            if premarket_close and premarket_open:
+                change = premarket_close - premarket_open
+                change_pct = (change / premarket_open) * 100
+                analysis['premarket_change'] = f"{change_pct:+.2f}%"
+                
+                if change_pct > 0.5:
+                    analysis['premarket_direction'] = 'bullish'
+                    analysis['premarket_strength'] = 'strong' if change_pct > 1.0 else 'moderate'
+                elif change_pct < -0.5:
+                    analysis['premarket_direction'] = 'bearish'
+                    analysis['premarket_strength'] = 'strong' if change_pct < -1.0 else 'moderate'
+                else:
+                    analysis['premarket_direction'] = 'neutral'
+                    analysis['premarket_strength'] = 'weak'
+            
+            # Gap analysis compared to previous close
+            if len(dataframe) > 1:
+                previous_close = dataframe['Close'].iloc[-2] if len(dataframe) > 1 else None
+                if previous_close and premarket_open:
+                    gap = premarket_open - previous_close
+                    gap_pct = (gap / previous_close) * 100
+                    analysis['gap_analysis'] = {
+                        'gap_size': f"{gap_pct:+.2f}%",
+                        'gap_type': 'up' if gap > 0 else 'down' if gap < 0 else 'none',
+                        'gap_magnitude': 'large' if abs(gap_pct) > 1.0 else 'moderate' if abs(gap_pct) > 0.5 else 'small'
+                    }
+            
+            # Volume analysis
+            avg_volume = dataframe['Volume'].tail(20).mean() if len(dataframe) >= 20 else dataframe['Volume'].mean()
+            if avg_volume and avg_volume > 0:
+                volume_ratio = premarket_volume / avg_volume
+                analysis['volume_analysis'] = {
+                    'volume_ratio': f"{volume_ratio:.1f}x",
+                    'volume_significance': 'high' if volume_ratio > 1.5 else 'moderate' if volume_ratio > 1.0 else 'low'
+                }
+            
+            # Trading implications
+            implications = []
+            if analysis.get('premarket_direction') == 'bullish':
+                implications.append("Premarket shows bullish momentum that may carry into regular session")
+            elif analysis.get('premarket_direction') == 'bearish':
+                implications.append("Premarket shows bearish pressure that may influence opening")
+            
+            gap_info = analysis.get('gap_analysis', {})
+            if gap_info.get('gap_type') != 'none':
+                implications.append(f"Gap {gap_info.get('gap_type')} of {gap_info.get('gap_size')} suggests potential {gap_info.get('gap_type')}ward momentum")
+            
+            analysis['trading_implications'] = implications
+            
+            return analysis
+            
+        except Exception as e:
+            logger.error(f"Error analyzing premarket data for {symbol}: {e}")
+            return {'available': False, 'analysis': f'Premarket analysis failed: {str(e)}'}
 
     def _get_cached_predictive(self, cache_key: str) -> Dict[str, Any]:
         """Get cached predictive analytics result if valid."""

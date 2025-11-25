@@ -8,7 +8,7 @@ Choose from these xAI/Grok models for agent integration:
 
 ### Production Models
 - **grok-code-fast-1**: 256K context, 2M TPM • 480 RPM, $0.20 input • $1.50 output
-- **grok-4-fast-reasoning**: 2M context, 4M TPM • 480 RPM, $0.20 input • $0.50 output  
+- **grok-4-1-fast-reasoning**: 2M context, 4M TPM • 480 RPM, $0.20 input • $0.50 output  
 - **grok-4-fast-non-reasoning**: 2M context, 4M TPM • 480 RPM, $0.20 input • $0.50 output
 - **grok-4-0709**: 256K context, 2M TPM • 480 RPM, $3.00 input • $15.00 output
 - **grok-3-mini**: 131K context, 480 RPM, $0.30 input • $0.50 output
@@ -18,8 +18,8 @@ Choose from these xAI/Grok models for agent integration:
 ### DataAgent
 **Purpose**: Market data collection and sentiment analysis
 **Assigned Models**:
-- **Primary LLM**: grok-4-fast-reasoning
-- **Sentiment Analysis**: grok-4-fast-reasoning (via sentiment_analysis_tool)
+- **Primary LLM**: grok-4-1-fast-reasoning
+- **Sentiment Analysis**: grok-4-1-fast-reasoning (via sentiment_analysis_tool)
 - **APIs**: Massive (REST + WebSocket), Twitter/X (sentiment)
 
 **Current Status**: ✅ Twitter API configured, ✅ Massive API configured
@@ -27,8 +27,8 @@ Choose from these xAI/Grok models for agent integration:
 ### StrategyAgent
 **Purpose**: Trading strategy generation and proposal creation
 **Assigned Models**:
-- **Primary LLM**: grok-4-fast-reasoning
-- **Strategy Reasoning**: grok-4-fast-reasoning
+- **Primary LLM**: grok-4-1-fast-reasoning
+- **Strategy Reasoning**: grok-4-1-fast-reasoning
 - **APIs**: Massive (market data), yfinance (historical)
 
 **Current Status**: ✅ LLM integrated, ✅ Algorithmic strategies
@@ -36,8 +36,8 @@ Choose from these xAI/Grok models for agent integration:
 ### RiskAgent
 **Purpose**: Risk assessment and position sizing
 **Assigned Models**:
-- **Primary LLM**: grok-4-fast-reasoning
-- **Risk Analysis**: grok-4-fast-reasoning
+- **Primary LLM**: grok-4-1-fast-reasoning
+- **Risk Analysis**: grok-4-1-fast-reasoning
 - **APIs**: Massive (volatility data), IBKR (position data)
 
 **Current Status**: ✅ LLM integrated, ✅ Risk calculations
@@ -45,8 +45,8 @@ Choose from these xAI/Grok models for agent integration:
 ### ExecutionAgent
 **Purpose**: Order execution and IBKR integration
 **Assigned Models**:
-- **Primary LLM**: grok-4-fast-reasoning
-- **Execution Logic**: grok-4-fast-reasoning
+- **Primary LLM**: grok-4-1-fast-reasoning
+- **Execution Logic**: grok-4-1-fast-reasoning
 - **APIs**: IBKR (trading), Massive (real-time quotes)
 
 **Current Status**: ✅ IBKR integration, ✅ LLM integrated
@@ -54,8 +54,8 @@ Choose from these xAI/Grok models for agent integration:
 ### LearningAgent
 **Purpose**: Performance analysis and strategy adaptation
 **Assigned Models**:
-- **Primary LLM**: grok-4-fast-reasoning
-- **Learning Analysis**: grok-4-fast-reasoning
+- **Primary LLM**: grok-4-1-fast-reasoning
+- **Learning Analysis**: grok-4-1-fast-reasoning
 - **APIs**: Massive (performance data), yfinance (backtesting)
 
 **Current Status**: ✅ LLM integrated, ✅ Performance metrics
@@ -63,8 +63,8 @@ Choose from these xAI/Grok models for agent integration:
 ### ReflectionAgent
 **Purpose**: System self-assessment and improvement
 **Assigned Models**:
-- **Primary LLM**: grok-4-fast-reasoning
-- **Reflective Reasoning**: grok-4-fast-reasoning
+- **Primary LLM**: grok-4-1-fast-reasoning
+- **Reflective Reasoning**: grok-4-1-fast-reasoning
 - **APIs**: All agent data (A2A protocol)
 
 **Current Status**: ✅ LLM integrated, ✅ Audit polling
@@ -162,7 +162,7 @@ Choose from these xAI/Grok models for agent integration:
 ## Model Usage Guidelines
 
 ### When to Use Each Model
-- **grok-4-fast-reasoning**: Complex reasoning, strategy development, sentiment analysis, learning tasks (2M context, high TPM)
+- **grok-4-1-fast-reasoning**: Complex reasoning, strategy development, sentiment analysis, learning tasks (2M context, high TPM)
 - **grok-4-fast-non-reasoning**: Fast execution tasks, real-time decisions, high-volume processing (2M context, high TPM)
 - **grok-code-fast-1**: Code generation, technical analysis, programming tasks (256K context, balanced pricing)
 - **grok-4-0709**: High-quality reasoning when cost is not a concern (256K context, premium pricing)

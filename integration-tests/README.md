@@ -23,12 +23,27 @@ This folder contains comprehensive integration and system testing scripts for th
 - `test_ibkr_historical.py` - IBKR historical data provider testing
 - `test_ibkr_paper_trading.py` - IBKR paper trading connection and functionality
 - `test_paper_trade.py` - Paper trade execution validation
+- `test_live_trading_integration.py` - Live trading integration with safeguards
 
 ### Agent Integration Tests
 - `test_data_integration.py` - Data agent integration testing
 - `test_shared_memory_integration.py` - Shared memory system integration
 - `test_server_access.py` - Discord server access integration
 - `test_startup.py` - Application startup integration testing
+- `test_enhanced_orchestrator.py` - Enhanced orchestrator functionality
+
+### Failover & Recovery Tests
+- `test_failover_recovery.py` - System recovery from failures (agent crashes, network issues, IBKR disconnects)
+
+### End-to-End Trading Workflow Tests
+- `test_e2e_trading_workflow.py` - Complete trading workflows from data to execution
+
+### Optimization Regression Tests
+- `test_optimization_regression.py` - Regression testing for optimization proposals
+
+### Edge Cases & Rare Events Tests
+- `test_edge_cases.py` - Coverage for extreme volatility, API rate limits, multi-agent conflicts, timeout handling
+- `test_long_timeout.py` - Extended timeout handling for IBKR connections
 
 ### Diagnostic and Simulation Tools
 - `diagnose_ibkr.py` - IBKR connectivity diagnostic tool

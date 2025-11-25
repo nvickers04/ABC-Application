@@ -658,7 +658,7 @@ class BaseAgent(abc.ABC):
 
         # Get LLM configuration for primary and fallback models
         llm_config = self.configs.get('system', {}).get('llm', {})
-        primary_model = llm_config.get('primary_model', 'grok-4-fast-reasoning')
+        primary_model = llm_config.get('primary_model', 'grok-4-1-fast-reasoning')
         fallback_models = llm_config.get('fallback_models', [])
 
         if xai_api_key:
@@ -695,7 +695,7 @@ class BaseAgent(abc.ABC):
             logger.warning("No LLM strategies configured, using fallback defaults")
             if xai_api_key:
                 strategies.extend([
-                    ("ChatXAI_grok4", lambda: self._try_initialize_xai(xai_api_key, "grok-4-fast-reasoning")),
+                    ("ChatXAI_grok4", lambda: self._try_initialize_xai(xai_api_key, "grok-4-1-fast-reasoning")),
                 ])
 
             if openai_api_key:

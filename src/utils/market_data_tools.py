@@ -13,175 +13,201 @@ from datetime import datetime, timedelta
 import websockets
 import requests
 
-from langchain_core.tools import tool
+from langchain_core.tools import BaseTool, tool
+from pydantic import BaseModel, Field
 from .validation import circuit_breaker, DataValidator
 from .vault_client import get_vault_secret
 
 logger = logging.getLogger(__name__)
 
 
-@circuit_breaker("marketdataapp_api")
-def marketdataapp_api_tool(symbol: str, data_type: str = "quotes") -> Dict[str, Any]:
-    """
-    Fetch market data from MarketDataApp API.
-    Args:
-        symbol: Stock symbol
-        data_type: Type of data ('quotes', 'historical', etc.)
-    Returns:
-        dict: Market data
-    """
-    api_key = get_vault_secret('MARKETDATAAPP_API_KEY')
-    if not api_key:
-        return {"error": "MarketDataApp API key not found in Vault."}
+class MarketDataAppAPIToolInput(BaseModel):
+    symbol: str = Field(description="Stock symbol")
+    data_type: str = Field(default="quotes", description="Type of data ('quotes', 'historical', etc.)")
 
-    try:
-        base_url = "https://api.marketdataapp.com/v1"
 
-        if data_type == "quotes":
-            url = f"{base_url}/stocks/quotes"
-            params = {"symbols": symbol, "apikey": api_key}
+class MarketDataAppAPITool(BaseTool):
+    name: str = "marketdataapp_api_tool"
+    description: str = "Fetch market data from MarketDataApp API."
+    args_schema: type = MarketDataAppAPIToolInput
 
-        elif data_type == "historical":
-            url = f"{base_url}/stocks/candles"
-            # Use dynamic date range (last 2 years)
-            end_date = datetime.now()
-            start_date = end_date - timedelta(days=730)  # 2 years
-            params = {
-                "symbols": symbol,
-                "resolution": "D",
-                "from": start_date.strftime("%Y-%m-%d"),
-                "to": end_date.strftime("%Y-%m-%d"),
-                "apikey": api_key
-            }
-        else:
-            return {"error": f"Unsupported data type: {data_type}"}
+    def _run(self, symbol: str, data_type: str = "quotes") -> Dict[str, Any]:
+        """
+        Fetch market data from MarketDataApp API.
+        Args:
+            symbol: Stock symbol
+            data_type: Type of data ('quotes', 'historical', etc.)
+        Returns:
+            dict: Market data
+        """
+        api_key = get_vault_secret('MARKETDATAAPP_API_KEY')
+        if not api_key:
+            return {"error": "MarketDataApp API key not found in Vault."}
 
-        response = requests.get(url, params=params, timeout=30)
-        response.raise_for_status()
-
-        data = response.json()
-
-        if not data or not isinstance(data, dict):
-            return {"error": "Invalid response from MarketDataApp API"}
-
-        # Process and validate data
-        if symbol in data:
-            symbol_data = data[symbol]
+        try:
+            base_url = "https://api.marketdataapp.com/v1"
 
             if data_type == "quotes":
-                return {
-                    "symbol": symbol,
-                    "price": symbol_data.get("last", 0),
-                    "change": symbol_data.get("change", 0),
-                    "change_percent": symbol_data.get("changepct", 0),
-                    "volume": symbol_data.get("volume", 0),
-                    "source": "marketdataapp",
-                    "data_type": "quotes"
+                url = f"{base_url}/stocks/quotes"
+                params = {"symbols": symbol, "apikey": api_key}
+
+            elif data_type == "historical":
+                url = f"{base_url}/stocks/candles"
+                # Use dynamic date range (last 2 years)
+                end_date = datetime.now()
+                start_date = end_date - timedelta(days=730)  # 2 years
+                params = {
+                    "symbols": symbol,
+                    "resolution": "D",
+                    "from": start_date.strftime("%Y-%m-%d"),
+                    "to": end_date.strftime("%Y-%m-%d"),
+                    "apikey": api_key
                 }
             else:
-                # Historical data processing
-                candles = symbol_data.get("candles", [])
-                processed_data = []
-                for candle in candles:
-                    processed_data.append({
-                        "timestamp": candle.get("t", 0),
-                        "open": candle.get("o", 0),
-                        "high": candle.get("h", 0),
-                        "low": candle.get("l", 0),
-                        "close": candle.get("c", 0),
-                        "volume": candle.get("v", 0)
-                    })
+                return {"error": f"Unsupported data type: {data_type}"}
 
+            response = requests.get(url, params=params, timeout=30)
+            response.raise_for_status()
+
+            data = response.json()
+
+            if not data or not isinstance(data, dict):
+                return {"error": "Invalid response from MarketDataApp API"}
+
+            # Process and validate data
+            if symbol in data:
+                symbol_data = data[symbol]
+
+                if data_type == "quotes":
+                    return {
+                        "symbol": symbol,
+                        "price": symbol_data.get("last", 0),
+                        "change": symbol_data.get("change", 0),
+                        "change_percent": symbol_data.get("changepct", 0),
+                        "volume": symbol_data.get("volume", 0),
+                        "source": "marketdataapp",
+                        "data_type": "quotes"
+                    }
+                else:
+                    # Historical data processing
+                    candles = symbol_data.get("candles", [])
+                    processed_data = []
+                    for candle in candles:
+                        processed_data.append({
+                            "timestamp": candle.get("t", 0),
+                            "open": candle.get("o", 0),
+                            "high": candle.get("h", 0),
+                            "low": candle.get("l", 0),
+                            "close": candle.get("c", 0),
+                            "volume": candle.get("v", 0)
+                        })
+
+                    return {
+                        "symbol": symbol,
+                        "data": processed_data,
+                        "count": len(processed_data),
+                        "source": "marketdataapp",
+                        "data_type": "historical"
+                    }
+
+            return {"error": f"No data found for symbol {symbol}"}
+
+        except (requests.RequestException, json.JSONDecodeError, ValueError, KeyError) as e:
+            return {"error": f"MarketDataApp API failed: {str(e)}"}
+
+
+marketdataapp_api_tool = MarketDataAppAPITool()
+
+
+class MarketDataAppWebSocketToolInput(BaseModel):
+    symbol: str = Field(description="Stock symbol")
+    data_type: str = Field(default="quotes", description="Type of data")
+    duration_seconds: int = Field(default=30, description="How long to collect data")
+
+
+class MarketDataAppWebSocketTool(BaseTool):
+    name: str = "marketdataapp_websocket_tool"
+    description: str = "Connect to MarketDataApp WebSocket for real-time data."
+    args_schema: type = MarketDataAppWebSocketToolInput
+
+    def _run(self, symbol: str, data_type: str = "quotes", duration_seconds: int = 30) -> Dict[str, Any]:
+        """
+        Connect to MarketDataApp WebSocket for real-time data.
+        Args:
+            symbol: Stock symbol
+            data_type: Type of data
+            duration_seconds: How long to collect data
+        Returns:
+            dict: Collected real-time data
+        """
+        api_key = get_vault_secret('MARKETDATAAPP_API_KEY')
+        if not api_key:
+            return {"error": "MarketDataApp API key not found in Vault."}
+
+        async def collect_data():
+            """Async function to collect WebSocket data."""
+            try:
+                uri = f"wss://api.marketdataapp.com/v1/stocks/quotes?symbols={symbol}&apikey={api_key}"
+
+                collected_data = []
+                start_time = asyncio.get_event_loop().time()
+
+                async with websockets.connect(uri) as websocket:
+                    while asyncio.get_event_loop().time() - start_time < duration_seconds:
+                        try:
+                            message = await asyncio.wait_for(websocket.recv(), timeout=1.0)
+                            data = json.loads(message)
+
+                            if symbol in data:
+                                symbol_data = data[symbol]
+                                collected_data.append({
+                                    "timestamp": asyncio.get_event_loop().time(),
+                                    "price": symbol_data.get("last", 0),
+                                    "change": symbol_data.get("change", 0),
+                                    "volume": symbol_data.get("volume", 0)
+                                })
+
+                                # Limit to last 100 data points
+                                if len(collected_data) > 100:
+                                    collected_data = collected_data[-100:]
+
+                        except asyncio.TimeoutError:
+                            continue
+                        except json.JSONDecodeError:
+                            continue
+
+                return collected_data
+
+            except Exception as e:
+                return {"error": f"WebSocket connection failed: {str(e)}"}
+
+        try:
+            # Run async function
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            result = loop.run_until_complete(collect_data())
+            loop.close()
+
+            if isinstance(result, list):
                 return {
                     "symbol": symbol,
-                    "data": processed_data,
-                    "count": len(processed_data),
-                    "source": "marketdataapp",
-                    "data_type": "historical"
+                    "data_points": len(result),
+                    "data": result,
+                    "duration_seconds": duration_seconds,
+                    "source": "marketdataapp_websocket",
+                    "status": "success"
                 }
-
-        return {"error": f"No data found for symbol {symbol}"}
-
-    except (requests.RequestException, json.JSONDecodeError, ValueError, KeyError) as e:
-        return {"error": f"MarketDataApp API failed: {str(e)}"}
-
-
-@circuit_breaker("marketdataapp_websocket")
-def marketdataapp_websocket_tool(symbol: str, data_type: str = "quotes", duration_seconds: int = 30) -> Dict[str, Any]:
-    """
-    Connect to MarketDataApp WebSocket for real-time data.
-    Args:
-        symbol: Stock symbol
-        data_type: Type of data
-        duration_seconds: How long to collect data
-    Returns:
-        dict: Collected real-time data
-    """
-    api_key = get_vault_secret('MARKETDATAAPP_API_KEY')
-    if not api_key:
-        return {"error": "MarketDataApp API key not found in Vault."}
-
-    async def collect_data():
-        """Async function to collect WebSocket data."""
-        try:
-            uri = f"wss://api.marketdataapp.com/v1/stocks/quotes?symbols={symbol}&apikey={api_key}"
-
-            collected_data = []
-            start_time = asyncio.get_event_loop().time()
-
-            async with websockets.connect(uri) as websocket:
-                while asyncio.get_event_loop().time() - start_time < duration_seconds:
-                    try:
-                        message = await asyncio.wait_for(websocket.recv(), timeout=1.0)
-                        data = json.loads(message)
-
-                        if symbol in data:
-                            symbol_data = data[symbol]
-                            collected_data.append({
-                                "timestamp": asyncio.get_event_loop().time(),
-                                "price": symbol_data.get("last", 0),
-                                "change": symbol_data.get("change", 0),
-                                "volume": symbol_data.get("volume", 0)
-                            })
-
-                            # Limit to last 100 data points
-                            if len(collected_data) > 100:
-                                collected_data = collected_data[-100:]
-
-                    except asyncio.TimeoutError:
-                        continue
-                    except json.JSONDecodeError:
-                        continue
-
-            return collected_data
+            else:
+                return result
 
         except Exception as e:
-            return {"error": f"WebSocket connection failed: {str(e)}"}
-
-    try:
-        # Run async function
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        result = loop.run_until_complete(collect_data())
-        loop.close()
-
-        if isinstance(result, list):
-            return {
-                "symbol": symbol,
-                "data_points": len(result),
-                "data": result,
-                "duration_seconds": duration_seconds,
-                "source": "marketdataapp_websocket",
-                "status": "success"
-            }
-        else:
-            return result
-
-    except Exception as e:
-        return {"error": f"WebSocket tool failed: {str(e)}"}
+            return {"error": f"WebSocket tool failed: {str(e)}"}
 
 
-@circuit_breaker("alpha_vantage")
+marketdataapp_websocket_tool = MarketDataAppWebSocketTool()
+
+
+@tool
 def alpha_vantage_tool(symbol: str, function: str = "TIME_SERIES_DAILY") -> Dict[str, Any]:
     """
     Fetch data from Alpha Vantage API.
@@ -246,7 +272,7 @@ def alpha_vantage_tool(symbol: str, function: str = "TIME_SERIES_DAILY") -> Dict
         return {"error": f"Alpha Vantage API failed: {str(e)}"}
 
 
-@circuit_breaker("financial_modeling_prep")
+@tool
 def financial_modeling_prep_tool(symbol: str, data_type: str = "quote") -> Dict[str, Any]:
     """
     Fetch data from Financial Modeling Prep API.
@@ -441,7 +467,7 @@ def circuit_breaker_status_tool() -> Dict[str, Any]:
         return {"error": str(e)}
 
 
-@circuit_breaker("marketdataapp_data")
+@tool
 def marketdataapp_data_tool(symbol: str) -> Dict[str, Any]:
     """
     Fetch basic market data from MarketDataApp.

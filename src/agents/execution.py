@@ -62,22 +62,134 @@ class ExecutionAgent(BaseAgent):
         
         # Initialize task scheduler for delayed executions
         self.scheduler = AsyncIOScheduler()
-        self.scheduler.start()
+        # Don't start scheduler here - will be started when needed
         
         # Initialize memory
         if not self.memory:
             self.memory = {"outcome_logs": [], "scaling_history": [], "delayed_orders": [], "scheduled_jobs": {}}
             self.save_memory()
 
+    def _ensure_scheduler_running(self):
+        """Ensure the task scheduler is running"""
+        if not self.scheduler.running:
+            try:
+                self.scheduler.start()
+                logger.info("Task scheduler started successfully")
+            except RuntimeError as e:
+                if "already started" in str(e) or "running" in str(e):
+                    logger.debug("Scheduler already running")
+                else:
+                    logger.warning(f"Could not start scheduler: {e}")
+            except Exception as e:
+                logger.warning(f"Scheduler start failed: {e}")
+
     def _get_ibkr_connector(self):
         """Get IBKR connector with lazy initialization"""
         if self.ibkr_connector is None:
-            if _import_ibkr_connector():
+            try:
+                from integrations.ibkr_connector import get_ibkr_connector
                 self.ibkr_connector = get_ibkr_connector()
-            else:
-                logger.warning("IBKR connector not available, using simulation mode")
+                logger.info("IBKR connector initialized successfully")
+            except ImportError as e:
+                logger.warning(f"IBKR connector not available: {e}. Using simulation mode.")
                 return None
         return self.ibkr_connector
+    
+    async def _check_ibkr_tws_status(self) -> Dict[str, Any]:
+        """Check IBKR TWS connection status."""
+        try:
+            if self.historical_mode:
+                return {
+                    'connected': True,
+                    'simulated': True,
+                    'status': 'simulated_connection',
+                    'timestamp': datetime.now().isoformat()
+                }
+            
+            connector = self._get_ibkr_connector()
+            if not connector:
+                return {
+                    'connected': False,
+                    'error': 'IBKR connector not available',
+                    'timestamp': datetime.now().isoformat()
+                }
+            
+            # Try to connect and check status
+            try:
+                connected = await connector.connect()
+                
+                if connected:
+                    return {
+                        'connected': True,
+                        'status': 'connected',
+                        'last_checked': datetime.now().isoformat()
+                    }
+                else:
+                    return {
+                        'connected': False,
+                        'error': 'TWS connection failed',
+                        'last_checked': datetime.now().isoformat(),
+                        'status': 'disconnected'
+                    }
+            except Exception as conn_e:
+                return {
+                    'connected': False,
+                    'error': f'TWS connection error: {str(conn_e)}',
+                    'last_checked': datetime.now().isoformat(),
+                    'status': 'error'
+                }
+                
+        except Exception as e:
+            logger.error(f"Error checking IBKR TWS status: {e}")
+            return {
+                'connected': False,
+                'error': str(e),
+                'last_checked': datetime.now().isoformat(),
+                'status': 'error'
+            }
+    
+    async def _post_to_trade_alerts(self, trade_result: Dict[str, Any]) -> None:
+        """Post trade execution results to the trade alerts Discord channel."""
+        try:
+            # Import the live workflow orchestrator to access Discord functionality
+            from src.agents.live_workflow_orchestrator import LiveWorkflowOrchestrator
+            
+            # Create orchestrator instance to access Discord methods
+            orchestrator = LiveWorkflowOrchestrator()
+            
+            # Format trade info for Discord posting
+            symbol = trade_result.get('symbol', 'Unknown')
+            action = trade_result.get('action', 'Unknown')
+            quantity = trade_result.get('quantity', 0)
+            price = trade_result.get('price', 'Market')
+            timestamp = trade_result.get('timestamp', datetime.now().isoformat())
+            success = trade_result.get('success', False)
+            simulated = trade_result.get('simulated', False)
+            order_id = trade_result.get('order_id', 'N/A')
+            
+            # Create formatted trade message
+            status_emoji = "✅" if success else "❌"
+            sim_indicator = " (SIMULATED)" if simulated else ""
+            
+            trade_message = f"{status_emoji} **TRADE EXECUTED** {status_emoji}{sim_indicator}\n"
+            trade_message += f"• **Symbol:** {symbol}\n"
+            trade_message += f"• **Action:** {action.upper()}\n"
+            trade_message += f"• **Quantity:** {quantity}\n"
+            trade_message += f"• **Price:** {price}\n"
+            trade_message += f"• **Order ID:** {order_id}\n"
+            trade_message += f"• **Time:** {timestamp}\n"
+            
+            if not success:
+                error = trade_result.get('error', 'Unknown error')
+                trade_message += f"• **Error:** {error}\n"
+            
+            # Post to trade alerts channel
+            await orchestrator.send_trade_alert(trade_message, "execution")
+            logger.info(f"Posted trade to trade alerts channel: {symbol} {action} {quantity}")
+            
+        except Exception as e:
+            logger.error(f"Error posting to trade alerts channel: {e}")
+            # Don't fail the trade execution if Discord posting fails
     
     async def execute_trade(self, symbol: str, quantity: int, action: str = 'BUY', 
                            order_type: str = 'MKT', price: Optional[float] = None) -> Dict[str, Any]:
@@ -97,52 +209,27 @@ class ExecutionAgent(BaseAgent):
                     'timestamp': datetime.now().isoformat()
                 }
                 logger.info(f"Simulated trade: {result}")
+                
+                # Post to trade alerts channel if available
+                await self._post_to_trade_alerts(result)
                 return result
             
-            # ===== TIMING OPTIMIZATION CHECK =====
-            # Get market data for timing optimization
-            market_data = {}
-            try:
-                # Get VIX data for volatility assessment
-                connector = self._get_ibkr_connector()
-                if connector:
-                    vix_data = await connector.get_market_data('VIX', bar_size='1 min', duration='1 D')
-                    if vix_data and 'bars' in vix_data and vix_data['bars']:
-                        latest_vix = vix_data['bars'][-1]
-                        market_data['VIX'] = {
-                            'price': latest_vix.get('close', 18.0),
-                            'timestamp': latest_vix.get('timestamp')
-                        }
-            except Exception as e:
-                logger.warning(f"Could not get VIX data for timing optimization: {e}")
-                market_data['VIX'] = {'price': 18.0}  # Default moderate volatility
+            # Check TWS status before executing
+            tws_status = await self._check_ibkr_tws_status()
+            if not tws_status.get('connected', False):
+                logger.error(f"Cannot execute trade - TWS not connected: {tws_status}")
+                return {
+                    'success': False,
+                    'error': 'TWS not connected',
+                    'tws_status': tws_status,
+                    'timestamp': datetime.now().isoformat()
+                }
             
-            # Optimize execution timing
-            timing_optimization = await self.timing_optimizer.optimize_execution_timing(
-                symbol, 
-                {'quantity': quantity, 'action': action, 'order_type': order_type}, 
-                market_data
-            )
+            connector = self._get_ibkr_connector()
+            if not connector:
+                return {'error': 'IBKR connector not available'}
             
-            # Check if execution should be delayed or avoided
-            if not timing_optimization.get('should_execute_now', True):
-                delay_minutes = timing_optimization.get('recommended_delay', 0)
-                if delay_minutes >= 60:  # Extreme delay indicates avoidance
-                    return {
-                        'success': False,
-                        'delayed': True,
-                        'reason': 'extreme_volatility_avoidance',
-                        'recommended_delay': delay_minutes,
-                        'timing_optimization': timing_optimization,
-                        'timestamp': datetime.now().isoformat()
-                    }
-                else:
-                    # Schedule delayed execution
-                    return await self._schedule_delayed_execution(
-                        symbol, quantity, action, order_type, price, delay_minutes, timing_optimization
-                    )
-            
-            # Apply timing optimization: check liquidity before execution
+            # Apply timing optimization before execution
             timing_check = await self._check_execution_timing(symbol)
             if not timing_check.get('optimal_timing', True):
                 logger.warning(f"Suboptimal timing detected for {symbol}: {timing_check.get('reason', 'Unknown')}")
@@ -151,48 +238,18 @@ class ExecutionAgent(BaseAgent):
             else:
                 result = {}
             
-            # Connect to IBKR if not connected
-            connector = self._get_ibkr_connector()
-            if not connector:
-                return {'error': 'IBKR connector not available', 'symbol': symbol}
-            connected = await connector.connect()
-            if not connected:
-                return {'error': 'Failed to connect to IBKR', 'symbol': symbol}
+            # Execute the trade
+            trade_result = await connector.place_order(symbol, quantity, order_type, action, price)
             
-            # Place the order
-            order_result = await connector.place_order(
-                symbol=symbol,
-                quantity=quantity,
-                order_type=order_type,
-                action=action,
-                price=price
-            )
+            # Post to trade alerts channel
+            await self._post_to_trade_alerts(trade_result)
             
-            if 'error' in order_result:
-                logger.error(f"IBKR order failed: {order_result['error']}")
-                return order_result
-            
-            # Log the execution with timing info
-            execution_log = {
-                'timestamp': datetime.now().isoformat(),
-                'symbol': symbol,
-                'action': action,
-                'quantity': quantity,
-                'order_type': order_type,
-                'price': price,
-                'order_result': order_result,
-                'timing_check': timing_check,
-                'timing_optimization': timing_optimization
-            }
-            self.memory['outcome_logs'].append(execution_log)
-            self.save_memory()
-            
-            logger.info(f"Trade executed successfully: {order_result}")
-            return {**result, **order_result}
+            logger.info(f"Trade executed: {trade_result}")
+            return {**result, **trade_result}
             
         except Exception as e:
             logger.error(f"Error executing trade: {e}")
-            return {'error': str(e), 'symbol': symbol, 'action': action}
+            return {'error': str(e)}
 
     async def _schedule_delayed_execution(self, symbol: str, quantity: int, action: str, 
                                         order_type: str, price: Optional[float], 
@@ -214,6 +271,9 @@ class ExecutionAgent(BaseAgent):
         """
         try:
             logger.info(f"Scheduling delayed execution for {symbol}: {action} {quantity} in {delay_minutes} minutes")
+            
+            # Ensure scheduler is running
+            self._ensure_scheduler_running()
             
             # Calculate execution time
             execution_time = datetime.now() + timedelta(minutes=delay_minutes)
@@ -345,6 +405,9 @@ class ExecutionAgent(BaseAgent):
             Dict containing scheduled orders information
         """
         try:
+            # Ensure scheduler is running to get active jobs
+            self._ensure_scheduler_running()
+            
             scheduled_jobs = self.memory.get('scheduled_jobs', {})
             delayed_orders = self.memory.get('delayed_orders', [])
             
@@ -411,6 +474,9 @@ class ExecutionAgent(BaseAgent):
             Dict with cancellation result
         """
         try:
+            # Ensure scheduler is running
+            self._ensure_scheduler_running()
+            
             # Remove from scheduler
             if self.scheduler.get_job(job_id):
                 self.scheduler.remove_job(job_id)
@@ -723,11 +789,24 @@ class ExecutionAgent(BaseAgent):
     async def process_input(self, proposal: Dict[str, Any]) -> Dict[str, Any]:
         """Process execution proposals."""
         try:
+            # Check IBKR TWS status first
+            tws_status = await self._check_ibkr_tws_status()
+            
+            if not tws_status.get('connected', False):
+                logger.warning(f"IBKR TWS not connected: {tws_status}")
+                return {
+                    'success': False,
+                    'error': 'IBKR TWS not connected',
+                    'tws_status': tws_status,
+                    'timestamp': datetime.now().isoformat()
+                }
+            
             # Basic processing logic for execution proposals
             return {
                 'success': True,
                 'processed': True,
                 'proposal_type': proposal.get('type', 'unknown'),
+                'tws_status': tws_status,
                 'timestamp': datetime.now().isoformat()
             }
         except Exception as e:

@@ -8,6 +8,11 @@ Enhanced to support both Discord-based operation and direct agent method calls
 for improved reliability, testing, and integration with BaseAgent architecture.
 """
 
+import sys
+from pathlib import Path
+project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(project_root))
+
 import asyncio
 import discord
 import os
@@ -17,17 +22,23 @@ import re
 from datetime import datetime
 from typing import Dict, List, Any, Optional, cast
 from dotenv import load_dotenv
+from cryptography.fernet import Fernet
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
+import pytz  # For timezone handling
 
 # Import BaseAgent and agent classes for direct integration
 from src.agents.base import BaseAgent
+
+# Import agent scope definitions for intelligent command routing
+from src.agents.agent_scopes import get_agent_scope_definitions
 
 # Try to import agents, fallback to None if not available
 try:
     from src.agents.macro import MacroAgent
     from src.agents.data import DataAgent
     from src.agents.strategy import StrategyAgent
-    # Temporarily skip RiskAgent due to TensorFlow import issues
-    # from src.agents.risk import RiskAgent
+    from src.agents.risk import RiskAgent
     from src.agents.reflection import ReflectionAgent
     from src.agents.execution import ExecutionAgent
     from src.agents.learning import LearningAgent
@@ -39,7 +50,7 @@ except ImportError as e:
     MacroAgent = None
     DataAgent = None
     StrategyAgent = None
-    RiskAgent = None  # Explicitly set to None
+    RiskAgent = None
     ReflectionAgent = None
     ExecutionAgent = None
     LearningAgent = None
@@ -61,7 +72,11 @@ class LiveWorkflowOrchestrator:
         self.client = None
         self.channel = None  # General channel for summaries
         self.alerts_channel = None  # Dedicated channel for trade alerts
+        self.ranked_trades_channel = None  # Dedicated channel for ranked trade proposals
         self.agent_channels = {}  # Map agent types to their channels
+        
+        # Discord readiness synchronization
+        self.discord_ready = asyncio.Event()
         
         # Direct agent integration
         self.a2a_protocol = A2AProtocol(max_agents=50)
@@ -80,20 +95,23 @@ class LiveWorkflowOrchestrator:
         self.monitoring_active = False
         self.monitoring_log = []
         self.monitoring_responses = []
+        self.scheduler = AsyncIOScheduler(timezone='America/New_York')  # Use ET timezone
         
-        # Phase timing configuration - REDUCED for faster alpha discovery
+        # Phase timing configuration - NO TIMEOUTS (VERY LONG WAIT TIMES)
         self.phase_delays = {
-            'macro_foundation_data_collection': 120,  # Reduced from 300s to 2min for rapid data gathering
-            'macro_foundation_analysis': 120,  # Reduced from 300s to 2min for quick macro insights
-            'intelligence_gathering': 90,  # Reduced from 240s to 1.5min per command
-            'strategy_development': 120,  # Reduced from 300s to 2min for strategy development
-            'debate': 180,  # Reduced from 360s to 3min for debates
-            'risk_assessment': 90,  # Reduced from 240s to 1.5min for risk assessment
-            'consensus': 120,  # Reduced from 300s to 2min for consensus building
-            'execution_validation': 90,  # Reduced from 240s to 1.5min for execution validation
-            'learning': 90,  # Reduced from 240s to 1.5min for learning
-            'executive_review': 210,  # Reduced from 420s to 3.5min for enhanced iteration 2 analysis
-            'supreme_oversight': 240  # Reduced from 480s to 4min for final decisions
+            'systematic_market_surveillance': 300,  # 5 minutes
+            'multi_strategy_opportunity_synthesis': 300,
+            'quantitative_opportunity_validation': 300,
+            'investment_committee_review': 300,
+            'portfolio_implementation_planning': 300,
+            'performance_analytics_and_refinement': 300,
+            'chief_investment_officer_oversight': 300,
+            'pre_market_readiness_assessment': 300,
+            'opening_bell_execution': 300,
+            'position_surveillance_initialization': 300,
+            'active_position_management': 300,
+            'dynamic_portfolio_adjustment': 300,
+            'execution_of_portfolio_changes': 300
         }
 
         self._initialize_workflow_commands()
@@ -175,7 +193,7 @@ class LiveWorkflowOrchestrator:
         pass
 
     async def initialize_agents_async(self):
-        """Asynchronously initialize direct agent instances for enhanced integration"""
+        """Asynchronously initialize direct agent instances for enhanced integration with retries"""
         if not AGENTS_AVAILABLE:
             print("⚠️ Agent classes not available - running in Discord-only mode")
             return
@@ -183,13 +201,16 @@ class LiveWorkflowOrchestrator:
         print("🤖 Starting agent initialization (this may take 20-30 seconds)...")
         start_time = time.time()
             
+        max_retries = 3
+        retry_delay = 5  # seconds
+            
         try:
             # Initialize each agent with A2A protocol
             agent_classes = {
                 'macro': MacroAgent,
                 'data': DataAgent,
                 'strategy': StrategyAgent,
-                # 'risk': RiskAgent,  # Temporarily disabled due to TensorFlow issues
+                'risk': RiskAgent,
                 'reflection': ReflectionAgent,
                 'execution': ExecutionAgent,
                 'learning': LearningAgent
@@ -200,18 +221,30 @@ class LiveWorkflowOrchestrator:
                     print(f"⚠️ Skipping {agent_key} agent - class not available")
                     continue
                     
-                try:
-                    print(f"🔧 Initializing {agent_key} agent...")
-                    agent_instance = agent_class(a2a_protocol=self.a2a_protocol)
+                success = False
+                for attempt in range(max_retries):
+                    try:
+                        print(f"🔧 Initializing {agent_key} agent (attempt {attempt + 1}/{max_retries})...")
+                        agent_instance = agent_class(a2a_protocol=self.a2a_protocol)
+                        
+                        # Initialize LLM asynchronously
+                        await agent_instance.async_initialize_llm()
+                        
+                        self.agent_instances[agent_key] = agent_instance
+                        self.a2a_protocol.register_agent(agent_key, agent_instance)
+                        print(f"✅ Initialized {agent_key} agent with A2A protocol")
+                        success = True
+                        break
+                    except Exception as e:
+                        print(f"⚠️ Failed to initialize {agent_key} agent (attempt {attempt + 1}): {e}")
+                        if attempt < max_retries - 1:
+                            print(f"Retrying in {retry_delay} seconds...")
+                            await asyncio.sleep(retry_delay)
+                        else:
+                            print(f"❌ Giving up on {agent_key} agent after {max_retries} attempts")
                     
-                    # Initialize LLM asynchronously
-                    await agent_instance.async_initialize_llm()
-                    
-                    self.agent_instances[agent_key] = agent_instance
-                    self.a2a_protocol.register_agent(agent_key, agent_instance)
-                    print(f"✅ Initialized {agent_key} agent with A2A protocol")
-                except Exception as e:
-                    print(f"⚠️ Failed to initialize {agent_key} agent: {e}")
+                if not success:
+                    print(f"⚠️ Proceeding without {agent_key} agent")
                     
         except Exception as e:
             print(f"⚠️ Agent initialization failed: {e}")
@@ -222,94 +255,171 @@ class LiveWorkflowOrchestrator:
         self._initialize_agents()
 
     def get_command_channel(self, command: str) -> Optional[discord.TextChannel]:
-        """Get the appropriate channel for a command based on agent type"""
-        # Map command prefixes to agent types
-        prefix_to_agent = {
-            '!m': 'macro',
-            '!d': 'data',
-            '!s': 'strategy', 
-            '!r': 'risk',
-            '!ref': 'reflection',
-            '!exec': 'execution',
-            '!l': 'learning'
-        }
-        
-        # Extract prefix from command
-        prefix = command.split()[0].lower() if command.split() else ''
-        agent_type = prefix_to_agent.get(prefix)
-        
-        # Special handling for debate commands
-        if 'debate' in command.lower():
-            if 'debates' in self.agent_channels:
-                return self.agent_channels['debates']
-        
-        # Return agent-specific channel if available, otherwise general channel
-        if agent_type and agent_type in self.agent_channels:
-            return self.agent_channels[agent_type]
-        else:
-            return self.channel
+        """Route commands to appropriate channels based on content and workflow phase"""
+        command_lower = command.lower()
+
+        # Route ACTUAL trade execution commands to alerts channel (not planning/analysis)
+        if any(keyword in command_lower for keyword in [
+            'execute trade', 'place order', 'buy signal', 'sell signal',
+            'trade alert', 'execution validation', 'order placed', 'order filled'
+        ]):
+            if self.alerts_channel:
+                print(f"🚨 Routing to alerts channel: {command[:50]}...")
+                return self.alerts_channel
+
+        # Route ACTUAL trade proposals and ranking RESULTS to ranked trades channel (not analysis/evaluation)
+        if any(keyword in command_lower for keyword in [
+            'rank opportunities', 'prioritize actions', 'trade proposal',
+            'top ranked trades', 'ranked trade list', 'trade ranking results'
+        ]):
+            if self.ranked_trades_channel:
+                print(f"📊 Routing to ranked trades channel: {command[:50]}...")
+                return self.ranked_trades_channel
+
+        # Default to general channel for analysis and coordination
+        print(f"💬 Using general channel: {command[:50]}...")
+        return self.channel
 
     async def send_trade_alert(self, alert_message: str, alert_type: str = "trade"):
-        """Send a trade alert to the dedicated alerts channel"""
-        if not self.alerts_channel:
-            print(f"⚠️ Alerts channel not available, sending to general channel")
-            if self.channel:
-                await self.channel.send(f"🚨 **TRADE ALERT** 🚨\n{alert_message}")
-            return
+        """Send a trade alert to the dedicated alerts channel with retries"""
+        max_retries = 2
+        retry_delay = 1  # seconds
 
-        try:
-            # Format alert with appropriate emoji based on type
-            emoji_map = {
-                "trade": "🚨",
-                "execution": "✅",
-                "risk": "⚠️",
-                "error": "❌",
-                "success": "🎯"
-            }
-            emoji = emoji_map.get(alert_type, "🚨")
-            
-            formatted_alert = f"{emoji} **TRADE ALERT** {emoji}\n{alert_message}"
-            await self.alerts_channel.send(formatted_alert)
-            print(f"✅ Trade alert sent to alerts channel: {alert_type}")
-        except Exception as e:
-            print(f"⚠️ Failed to send trade alert: {e}")
-            # Fallback to general channel
-            if self.channel:
-                await self.channel.send(f"🚨 **TRADE ALERT** 🚨\n{alert_message}")
+        for attempt in range(max_retries + 1):
+            try:
+                if not self.alerts_channel:
+                    print(f"⚠️ Alerts channel not available, sending to general channel")
+                    if self.channel and hasattr(self.channel, 'send'):
+                        general_channel = cast(discord.TextChannel, self.channel)
+                        await general_channel.send(f"🚨 **TRADE ALERT** 🚨\n{alert_message}")
+                    return
+
+                # Format alert with appropriate emoji based on type
+                emoji_map = {
+                    "trade": "🚨",
+                    "execution": "✅",
+                    "risk": "⚠️",
+                    "error": "❌",
+                    "success": "🎯"
+                }
+                emoji = emoji_map.get(alert_type, "🚨")
+
+                alerts_channel = cast(discord.TextChannel, self.alerts_channel)
+                formatted_alert = f"{emoji} **TRADE ALERT** {emoji}\n{alert_message}"
+                await alerts_channel.send(formatted_alert)
+                print(f"✅ Trade alert sent to alerts channel: {alert_type}")
+                return  # Success, exit
+
+            except Exception as e:
+                print(f"⚠️ Failed to send trade alert (attempt {attempt + 1}/{max_retries + 1}): {e}")
+                if attempt < max_retries:
+                    await asyncio.sleep(retry_delay)
+                else:
+                    # Final fallback to general channel
+                    print("❌ All retries failed, falling back to general channel")
+                    if self.channel and hasattr(self.channel, 'send'):
+                        general_channel = cast(discord.TextChannel, self.channel)
+                        await general_channel.send(f"🚨 **TRADE ALERT** 🚨\n{alert_message}")
+
+    async def send_ranked_trade_info(self, trade_message: str, trade_type: str = "proposal"):
+        """Send ranked trade information to the dedicated ranked trades channel with retries"""
+        max_retries = 2
+        retry_delay = 1  # seconds
+
+        for attempt in range(max_retries + 1):
+            try:
+                if not self.ranked_trades_channel:
+                    print(f"⚠️ Ranked trades channel not available, sending to general channel")
+                    if self.channel and hasattr(self.channel, 'send'):
+                        general_channel = cast(discord.TextChannel, self.channel)
+                        await general_channel.send(f"📊 **RANKED TRADE {trade_type.upper()}** 📊\n{trade_message}")
+                    return
+
+                # Format trade info with appropriate emoji based on type
+                emoji_map = {
+                    "proposal": "📈",
+                    "ranking": "🏆",
+                    "analysis": "🔍",
+                    "summary": "📊",
+                    "update": "🔄"
+                }
+                emoji = emoji_map.get(trade_type, "📊")
+
+                ranked_channel = cast(discord.TextChannel, self.ranked_trades_channel)
+                formatted_trade = f"{emoji} **RANKED TRADE {trade_type.upper()}** {emoji}\n{trade_message}"
+                await ranked_channel.send(formatted_trade)
+                print(f"✅ Ranked trade info sent to ranked trades channel: {trade_type}")
+                return  # Success, exit
+
+            except Exception as e:
+                print(f"⚠️ Failed to send ranked trade info (attempt {attempt + 1}/{max_retries + 1}): {e}")
+                if attempt < max_retries:
+                    await asyncio.sleep(retry_delay)
+                else:
+                    # Final fallback to general channel
+                    print("❌ All retries failed, falling back to general channel")
+                    if self.channel and hasattr(self.channel, 'send'):
+                        general_channel = cast(discord.TextChannel, self.channel)
+                        await general_channel.send(f"📊 **RANKED TRADE {trade_type.upper()}** 📊\n{trade_message}")
 
     def is_trade_related_message(self, message: str) -> bool:
         """Determine if a message contains trade-related content that should go to alerts"""
         trade_keywords = [
             'trade proposal', 'trade execution', 'buy signal', 'sell signal',
-            'entry point', 'exit point', 'position sizing', 'stop loss',
-            'take profit', 'order placed', 'order filled', 'trade alert',
-            'execution validation', 'trade recommendation'
+            'order placed', 'order filled', 'trade alert', 'execution validation',
+            'trade recommendation', 'position opened', 'position closed'
         ]
         
         message_lower = message.lower()
         return any(keyword in message_lower for keyword in trade_keywords)
 
+    def rank_trade_proposals(self, proposals: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Rank trade proposals by confidence (descending) and expected return"""
+        if not proposals:
+            return proposals
+
+        # Sort by confidence (descending), then by expected_return if available
+        def sort_key(proposal):
+            confidence = proposal.get('confidence', 0)
+            if isinstance(confidence, str):
+                # Try to parse as float
+                try:
+                    confidence = float(confidence)
+                except ValueError:
+                    confidence = 0
+            expected_return = proposal.get('expected_return', 0)
+            if isinstance(expected_return, str):
+                try:
+                    expected_return = float(expected_return)
+                except ValueError:
+                    expected_return = 0
+            return (-confidence, -expected_return)  # Negative for descending
+
+        return sorted(proposals, key=sort_key)
+
     def _extract_trade_alert_info(self, response_data: Dict[str, Any]) -> Optional[str]:
-        """Extract key trade information from agent response for alerts"""
+        """Extract key trade information from agent response for alerts, with enhanced string parsing"""
         try:
             agent_name = response_data.get('agent', 'Unknown')
             response = response_data.get('response', {})
-            
+
             alert_parts = []
-            
+
             if isinstance(response, dict):
                 # Look for trade proposals in structured responses
                 if 'trade_proposals' in response:
                     proposals = response['trade_proposals']
                     if isinstance(proposals, list) and proposals:
-                        alert_parts.append(f"**{agent_name.title()} Agent** generated {len(proposals)} trade proposal(s):")
-                        for i, proposal in enumerate(proposals[:3], 1):  # Limit to 3 proposals
+                        # Rank proposals before alerting
+                        ranked_proposals = self.rank_trade_proposals(proposals)
+                        alert_parts.append(f"**{agent_name.title()} Agent** generated {len(ranked_proposals)} ranked trade proposal(s):")
+                        for i, proposal in enumerate(ranked_proposals[:3], 1):  # Limit to 3 proposals
                             if isinstance(proposal, dict):
                                 instrument = proposal.get('instrument', 'Unknown')
                                 action = proposal.get('action', 'Unknown')
                                 confidence = proposal.get('confidence', 'Unknown')
-                                alert_parts.append(f"• {action.upper()} {instrument} (Confidence: {confidence})")
-                
+                                alert_parts.append(f"• #{i} {action.upper()} {instrument} (Confidence: {confidence})")
+
                 # Look for execution validation
                 elif 'execution_plan' in response:
                     plan = response['execution_plan']
@@ -319,7 +429,7 @@ class LiveWorkflowOrchestrator:
                         alert_parts.append(f"**{agent_name.title()} Agent** validated execution:")
                         alert_parts.append(f"• Instrument: {instrument}")
                         alert_parts.append(f"• Quantity: {quantity}")
-                
+
                 # Look for risk assessment
                 elif 'risk_assessment' in response:
                     assessment = response['risk_assessment']
@@ -327,20 +437,31 @@ class LiveWorkflowOrchestrator:
                         risk_level = assessment.get('overall_risk', 'Unknown')
                         alert_parts.append(f"**{agent_name.title()} Agent** risk assessment:")
                         alert_parts.append(f"• Risk Level: {risk_level.upper()}")
-            
+
             else:
-                # For string responses, extract key trade info
-                response_str = str(response)
-                if 'trade proposal' in response_str.lower():
+                # Enhanced parsing for string responses
+                response_str = str(response).lower()
+                import re
+
+                # Look for trade proposals in text (e.g., "BUY AAPL Confidence: 0.8")
+                proposal_pattern = r'(buy|sell|hold)\s+(\w+)\s+confidence:\s*([\d.]+)'
+                matches = re.findall(proposal_pattern, response_str, re.IGNORECASE)
+                if matches:
+                    alert_parts.append(f"**{agent_name.title()} Agent** has {len(matches)} trade proposal(s) in text:")
+                    for action, instrument, confidence in matches[:3]:
+                        alert_parts.append(f"• {action.upper()} {instrument} (Confidence: {confidence})")
+
+                # Fallback to keyword detection
+                elif 'trade proposal' in response_str:
                     alert_parts.append(f"**{agent_name.title()} Agent** has trade proposals ready for review")
-                elif 'execution' in response_str.lower():
+                elif 'execution' in response_str:
                     alert_parts.append(f"**{agent_name.title()} Agent** provided execution guidance")
-            
+
             if alert_parts:
                 return "\n".join(alert_parts)
             else:
                 return None
-                
+
         except Exception as e:
             print(f"⚠️ Error extracting trade alert info: {e}")
             return None
@@ -394,7 +515,7 @@ class LiveWorkflowOrchestrator:
 
     async def send_direct_agent_command(self, agent_name: str, command: str, 
                                       data: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
-        """Send command directly to agent using BaseAgent methods via A2A"""
+        """Send command directly to agent using BaseAgent methods via A2A - SIMPLIFIED for full context sharing"""
         if agent_name not in self.agent_instances:
             print(f"⚠️ Agent {agent_name} not available for direct command")
             return None
@@ -406,32 +527,13 @@ class LiveWorkflowOrchestrator:
             if 'debate' in command.lower():
                 return await self._handle_debate_command(agent, command, data)
             
-            # Strip agent prefix for generic analysis
-            stripped_command = command
-            prefixes = ["!d ", "!m ", "!s ", "!ref ", "!exec ", "!l "]
-            for prefix in prefixes:
-                if stripped_command.startswith(prefix):
-                    stripped_command = stripped_command[len(prefix):]
-                    break
-            
-            # Parse command for direct agent method calls
-            if stripped_command.startswith('!analyze') or stripped_command.startswith('analyze'):
-                # Extract analysis query
-                query = stripped_command.replace('!analyze', '').replace('analyze', '').strip()
-                if data:
-                    query += f" {data}"
-                    
-                result = await agent.analyze(query)
-                return result
+            # No more prefix stripping - agents respond based on content
+            analysis_query = command
+            if data:
+                analysis_query += f" {data}"
                 
-            elif stripped_command.startswith('!status') or stripped_command.startswith('status'):
-                result = await agent.get_status()
-                return result
-                
-            else:
-                # For other commands, use generic analyze method
-                result = await agent.analyze(stripped_command)
-                return result
+            result = await agent.analyze(analysis_query)
+            return result
                 
         except Exception as e:
             print(f"⚠️ Direct agent command failed for {agent_name}: {e}")
@@ -665,11 +767,29 @@ class LiveWorkflowOrchestrator:
         print(f"✅ Shared position context with {len(self.agent_instances)} agents")
 
     async def _get_current_positions(self) -> Dict[str, Any]:
-        """Get current position data from trading platform"""
+        """Get current position data from trading platform with error handling"""
         try:
-            # This would integrate with your IBKR or other trading platform
-            raise NotImplementedError("Real trading platform integration required - no mock position data allowed in production")
-
+            # Integrate with IBKR
+            from integrations.ibkr_connector import get_ibkr_connector
+            ibkr_connector = get_ibkr_connector()
+            
+            positions = await ibkr_connector.get_positions()
+            cash_balance = await ibkr_connector.get_cash_balance()  # Assuming this method exists
+            
+            return {
+                'timestamp': datetime.now().isoformat(),
+                'positions': positions,
+                'cash_balance': cash_balance
+            }
+            
+        except ImportError as e:
+            print(f"⚠️ IBKR integration not available: {e}")
+            return {
+                'error': 'IBKR integration missing',
+                'timestamp': datetime.now().isoformat(),
+                'positions': [],
+                'cash_balance': 0.0
+            }
         except Exception as e:
             print(f"⚠️ Failed to get position data: {e}")
             return {
@@ -680,56 +800,107 @@ class LiveWorkflowOrchestrator:
             }
 
     async def _execute_commands_parallel(self, commands: List[str], phase_key: str) -> List[Dict[str, Any]]:
-        """Execute all commands in parallel across all agents for maximum collaboration"""
+        """Execute all commands in parallel across agents using INTELLIGENT SCOPE-AWARE ROUTING with rate limiting"""
         if not self.agent_instances:
             return []
 
         all_responses = []
-        max_wait_time = self.phase_delays.get(phase_key, 120)
+        max_wait_time = self.phase_delays.get(phase_key, 86400)
 
-        # Create tasks for all command-agent combinations
+        # Get agent scope definitions for intelligent routing
+        scope_definitions = get_agent_scope_definitions()
+
+        # Create tasks for command-agent combinations with intelligent filtering
         execution_tasks = []
+
         for command in commands:
-            for agent_name, agent in self.agent_instances.items():
-                task = self._send_context_aware_command(agent_name, agent, command, phase_key)
-                execution_tasks.append((agent_name, command, task))
+            # Determine which agents should process this command based on scope
+            relevant_agents = self._filter_agents_by_command_scope(command, scope_definitions)
 
-        # Execute all tasks with timeout
-        start_time = time.time()
-        completed_tasks = []
+            for agent_name in relevant_agents:
+                if agent_name in self.agent_instances:
+                    agent = self.agent_instances[agent_name]
+                    task = self._send_context_aware_command(agent_name, agent, command, phase_key)
+                    execution_tasks.append((agent_name, command, task))
 
-        # Use asyncio.gather with timeout handling
-        try:
-            results = await asyncio.gather(
-                *[task for _, _, task in execution_tasks],
-                return_exceptions=True
-            )
+        # If no agents were deemed relevant, fall back to sending to all agents (with low confidence)
+        if not execution_tasks:
+            print(f"⚠️ No agents deemed relevant for commands, falling back to universal broadcast")
+            for command in commands:
+                for agent_name, agent in self.agent_instances.items():
+                    task = self._send_context_aware_command(agent_name, agent, command, phase_key)
+                    execution_tasks.append((agent_name, command, task))
 
-            # Process results
-            for (agent_name, command, _), result in zip(execution_tasks, results):
-                if isinstance(result, Exception):
-                    print(f"⚠️ Parallel execution failed for {agent_name}: {result}")
-                    continue
+        # Execute tasks in batches to prevent overwhelming resources (rate limiting)
+        batch_size = 5  # Process 5 tasks at a time
+        for i in range(0, len(execution_tasks), batch_size):
+            batch = execution_tasks[i:i + batch_size]
+            
+            # Execute batch with timeout
+            start_time = time.time()
+            
+            try:
+                results = await asyncio.gather(
+                    *[task for _, _, task in batch],
+                    return_exceptions=True
+                )
 
-                if result:
-                    response_data = {
-                        'agent': agent_name,
-                        'method': 'parallel_collaboration',
-                        'response': result,
-                        'phase': phase_key,
-                        'command': command,
-                        'execution_time': time.time() - start_time
-                    }
-                    all_responses.append(response_data)
-                    print(f"✅ Parallel response from {agent_name} for command: {command[:50]}...")
+                # Process results
+                for (agent_name, command, _), result in zip(batch, results):
+                    if isinstance(result, Exception):
+                        print(f"⚠️ Parallel execution failed for {agent_name}: {result}")
+                        continue
 
-        except asyncio.TimeoutError:
-            print(f"⏰ Parallel execution timed out after {max_wait_time}s")
+                    if result:
+                        response_data = {
+                            'agent': agent_name,
+                            'method': 'intelligent_scope_routing',
+                            'response': result,
+                            'phase': phase_key,
+                            'command': command,
+                            'execution_time': time.time() - start_time
+                        }
+                        all_responses.append(response_data)
+                        print(f"✅ Intelligent response from {agent_name} for command: {command[:50]}...")
+
+            except asyncio.TimeoutError:
+                print(f"⏰ Intelligent parallel execution timed out after {max_wait_time}s")
+
+            # Brief delay between batches for rate limiting
+            await asyncio.sleep(1)
 
         # Sort responses by agent for consistent presentation
         all_responses.sort(key=lambda x: x['agent'])
 
         return all_responses
+
+    def _filter_agents_by_command_scope(self, command: str, scope_definitions) -> List[str]:
+        """
+        Intelligently filter which agents should process a command based on scope definitions.
+        Enables hive mind collaboration while maintaining boundaries.
+        """
+        relevant_agents = []
+
+        for agent_name in self.agent_instances.keys():
+            # Use the scope system's command filtering logic
+            decision = scope_definitions.should_agent_process_command(agent_name, command)
+
+            if decision['should_process']:
+                relevant_agents.append(agent_name)
+                print(f"🎯 Agent {agent_name} deemed relevant for command (confidence: {decision['confidence']:.2f})")
+            elif decision['action'] == 'delegate':
+                # Allow delegation - the agent can still see the command and delegate to others
+                relevant_agents.append(agent_name)
+                print(f"👥 Agent {agent_name} will receive command for delegation to {decision['delegate_to']}")
+            else:
+                print(f"🚫 Agent {agent_name} filtered out for command (action: {decision['action']})")
+
+        # Ensure at least some agents get the command (fallback for edge cases)
+        if not relevant_agents:
+            print("⚠️ No agents deemed relevant, enabling all agents for maximum collaboration")
+            relevant_agents = list(self.agent_instances.keys())
+
+        return relevant_agents
 
     async def _send_context_aware_command(self, agent_name: str, agent, command: str, phase_key: str) -> Optional[Dict[str, Any]]:
         """Send command to agent with full context awareness"""
@@ -856,11 +1027,9 @@ class LiveWorkflowOrchestrator:
         general_channel = cast(discord.TextChannel, self.channel)
         self.current_phase = phase_key
 
-        # Announce phase start with enthusiasm
-        await general_channel.send(f"\n🚀 **{phase_title.upper()} - LET'S HUNT FOR ALPHA!** 🚀")
-        await general_channel.send("─" * 60)
-        await general_channel.send("💥 **ALL AGENTS WORKING TOGETHER - FULL CONTEXT SHARED!**")
-        await general_channel.send("🎯 **EXCITED TO DISCOVER TRADING OPPORTUNITIES!**")
+        # Announce phase start in general channel
+        await general_channel.send(f"\n{phase_title}")
+        await general_channel.send("─" * 50)
 
         commands = self.phase_commands.get(phase_key, [])
 
@@ -872,22 +1041,23 @@ class LiveWorkflowOrchestrator:
 
         # SEND ALL COMMANDS TO ALL AGENTS SIMULTANEOUSLY for maximum collaboration
         agent_responses = await self._execute_commands_parallel(commands, phase_key)
+        self.responses_collected.extend(agent_responses)
 
-        # Announce parallel execution
-        await general_channel.send(f"🎯 **PARALLEL EXECUTION:** {len(commands)} commands sent to {len(self.agent_instances)} agents simultaneously!")
+        # Announce parallel execution with clear separation
+        await general_channel.send(f"\n🎯 **PARALLEL EXECUTION:** {len(commands)} commands sent to {len(self.agent_instances)} agents simultaneously!")
         await general_channel.send("🤝 **Agents collaborating with full shared context - no silos!**")
 
-        # Format and display agent responses with enthusiasm
+        # Format and display agent responses with enhanced readability
         if agent_responses:
             await self._present_agent_responses_enhanced(general_channel, agent_responses, phase_key)
         else:
-            await general_channel.send("⏰ **No agent responses received** - but they're thinking hard! 🤔")
+            await general_channel.send("\n⏰ **No agent responses received** - but they're thinking hard! 🤔")
 
-        await general_channel.send(f"✅ **{phase_title} Complete! Alpha discovered!** 🎉")
+        await general_channel.send(f"\n✅ **{phase_title} Complete! Alpha discovered!** 🎉")
         await asyncio.sleep(2)  # Reduced from 3 to speed up
 
     async def _present_agent_responses_enhanced(self, channel: discord.TextChannel, responses: List[Dict[str, Any]], phase_key: str):
-        """Present agent responses in an ENHANCED format with enthusiasm and collaboration highlights"""
+        """Present agent responses in a professional format with logical segmentation"""
         if not responses:
             return
 
@@ -907,28 +1077,28 @@ class LiveWorkflowOrchestrator:
             # SECURITY: Sanitize agent output before display
             sanitized_response = self._sanitize_agent_output(response)
 
-            # Create enthusiastic agent summary
+            # Create professional agent summary
             if isinstance(sanitized_response, dict):
                 # Handle structured agent responses
                 response_dict = cast(Dict[str, Any], sanitized_response)
                 if 'analysis_type' in response_dict:
-                    summary = f"🚀 **{agent_name.title()} Agent** crushing it with {response_dict.get('analysis_type', 'analysis')}!"
+                    summary = f"{agent_name.title()} Agent: {response_dict.get('analysis_type', 'analysis')} analysis"
                     if 'confidence_level' in response_dict:
-                        summary += f" (Confidence: {response_dict['confidence_level']}) 🔥"
+                        summary += f" (Confidence: {response_dict['confidence_level']})"
                 elif 'error' in response_dict:
-                    summary = f"⚠️ **{agent_name.title()} Agent:** Working through {response_dict['error']}"
+                    summary = f"{agent_name.title()} Agent: Working through {response_dict['error']}"
                 else:
-                    summary = f"💡 **{agent_name.title()} Agent:** Delivering insights!"
+                    summary = f"{agent_name.title()} Agent: Analysis complete"
             else:
                 # Handle string responses
-                summary = f"🎯 **{agent_name.title()} Agent:** {str(sanitized_response)[:100]}..."
+                summary = f"{agent_name.title()} Agent: {str(sanitized_response)[:100]}..."
 
             agent_summaries[agent_name].append(summary)
 
-            # Prepare detailed response with enhanced formatting
+            # Prepare detailed response with professional formatting and logical segmentation
             if isinstance(sanitized_response, dict):
-                detailed = f"🤖 **{agent_name.title()} Agent - ALPHA DISCOVERY MODE!** 🔥\n"
-                detailed += f"💬 **Command:** {command[:100]}...\n"
+                detailed = f"**{agent_name.title()} Agent Analysis**\n"
+                detailed += f"Command: {command}\n"
                 for key, value in sanitized_response.items():
                     if key not in ['timestamp', 'agent_role']:
                         formatted_value = self._format_response_value(key, value)
@@ -943,25 +1113,25 @@ class LiveWorkflowOrchestrator:
                         detailed += f"{emoji} **{key.replace('_', ' ').title()}:** {formatted_value}\n"
                 detailed_responses.append(detailed.rstrip())
             else:
-                # Format string responses with enthusiasm
-                formatted_response = self._format_text_response(str(sanitized_response))
-                detailed_responses.append(f"🎉 **{agent_name.title()} Agent:** {formatted_response}")
+                # Format string responses with logical segmentation
+                formatted_response = self._format_text_response_professionally(str(sanitized_response))
+                detailed_responses.append(f"**{agent_name.title()} Agent:** {formatted_response}")
 
-        # Send enthusiastic summary first
-        summary_text = f"🚀 **COLLABORATIVE ALPHA STORM!** {len(responses)} responses from {len(agent_summaries)} agents!\n"
+        # Send professional summary first
+        summary_text = f"Collaborative analysis complete: {len(responses)} responses from {len(agent_summaries)} agents\n"
         for agent_name, summaries in agent_summaries.items():
-            summary_text += f"• **{agent_name.title()}:** {len(summaries)} brilliant contributions!\n"
+            summary_text += f"• **{agent_name.title()}:** {len(summaries)} contributions\n"
         await channel.send(summary_text)
+        await asyncio.sleep(1)  # Rate limit prevention
 
-        # Send detailed responses with collaboration highlights
+        # Send detailed responses with logical segmentation
         for detailed in detailed_responses:
-            # Split long messages if needed
-            if len(detailed) > 1900:
-                chunks = self._smart_chunk_message(detailed, 1900)
-                for chunk in chunks:
-                    await channel.send(chunk)
-            else:
-                await channel.send(detailed)
+            # Break into logical segments instead of hard character limits
+            segments = self._break_into_logical_segments(detailed)
+            for segment in segments:
+                if segment.strip():  # Only send non-empty segments
+                    await channel.send(segment)
+                    await asyncio.sleep(1)  # Rate limit prevention
 
         # Check for trade-related content and send alerts
         for response_data in responses:
@@ -976,7 +1146,34 @@ class LiveWorkflowOrchestrator:
                 if alert_content:
                     await self.send_trade_alert(alert_content, "trade")
 
-        await channel.send(f"🎯 **PARALLEL COLLABORATION COMPLETE!** Agents are fired up and ready for more alpha! 🔥")
+        # Check for ranked trade proposals and send to dedicated channel
+        for response_data in responses:
+            response = response_data['response']
+            agent_name = response_data.get('agent', 'Unknown')
+
+            if isinstance(response, dict):
+                # Look for trade proposals in structured responses
+                if 'trade_proposals' in response:
+                    proposals = response['trade_proposals']
+                    if isinstance(proposals, list) and proposals:
+                        # Rank proposals before displaying
+                        ranked_proposals = self.rank_trade_proposals(proposals)
+                        ranked_trade_message = f"**{agent_name.title()} Agent** presented {len(ranked_proposals)} ranked trade proposal(s):\n\n"
+                        for i, proposal in enumerate(ranked_proposals[:5], 1):  # Limit to 5 proposals
+                            if isinstance(proposal, dict):
+                                instrument = proposal.get('instrument', 'Unknown')
+                                action = proposal.get('action', 'Unknown')
+                                confidence = proposal.get('confidence', 'Unknown')
+                                reasoning = proposal.get('reasoning', 'No reasoning provided')
+
+                                ranked_trade_message += f"**#{i} {action.upper()} {instrument}**\n"
+                                ranked_trade_message += f"• Confidence: {confidence}\n"
+                                ranked_trade_message += f"• Reasoning: {reasoning[:200]}...\n\n"
+
+                        await self.send_ranked_trade_info(ranked_trade_message, "proposal")
+
+        await channel.send("Parallel collaboration complete.")
+        await asyncio.sleep(1)  # Rate limit prevention
 
     def _format_response_value(self, key: str, value: Any) -> str:
         """Format individual response values with appropriate Discord markdown"""
@@ -1100,135 +1297,321 @@ class LiveWorkflowOrchestrator:
 
         return chunks
 
+    def _break_into_logical_segments(self, text: str) -> List[str]:
+        """Break text into logical segments for better readability"""
+        if not text or not text.strip():
+            return []
+
+        segments = []
+        lines = text.split('\n')
+        current_segment = []
+
+        for line in lines:
+            line = line.strip()
+            if not line:
+                # Empty line - check if we should end current segment
+                if current_segment:
+                    segments.append('\n'.join(current_segment))
+                    current_segment = []
+                continue
+
+            # Check for segment break indicators
+            is_new_segment = False
+
+            # Numbered steps (1., 2., (1), (2), etc.)
+            if re.match(r'^\d+\.|\(\d+\)|\d+\)', line):
+                is_new_segment = True
+
+            # Bullet points (-, •, *, +, etc.)
+            elif re.match(r'^[-•*+]\s', line):
+                is_new_segment = True
+
+            # Headings (**, ##, etc.)
+            elif line.startswith(('**', '##', '###', '####')):
+                is_new_segment = True
+
+            # Analysis keywords that indicate new thinking
+            elif any(keyword in line.lower() for keyword in [
+                'firstly', 'secondly', 'thirdly', 'next', 'then', 'furthermore',
+                'however', 'therefore', 'consequently', 'additionally',
+                'analysis:', 'assessment:', 'evaluation:', 'conclusion:',
+                'recommendation:', 'summary:', 'key points:', 'findings:'
+            ]):
+                is_new_segment = True
+
+            # Section headers in agent responses
+            elif ':' in line and len(line.split(':')[0]) < 30 and line[0].isupper():
+                is_new_segment = True
+
+            if is_new_segment and current_segment:
+                # End current segment and start new one
+                segments.append('\n'.join(current_segment))
+                current_segment = [line]
+            else:
+                # Continue current segment
+                current_segment.append(line)
+
+        # Add final segment if any
+        if current_segment:
+            segments.append('\n'.join(current_segment))
+
+        # Filter out empty segments and ensure minimum length for readability
+        filtered_segments = []
+        for segment in segments:
+            segment = segment.strip()
+            if segment and len(segment) > 10:  # Minimum 10 chars to be meaningful
+                filtered_segments.append(segment)
+
+        # If no logical segments found, fall back to paragraph-based splitting
+        if len(filtered_segments) <= 1:
+            paragraphs = [p.strip() for p in text.split('\n\n') if p.strip()]
+            if len(paragraphs) > 1:
+                return paragraphs
+            else:
+                # Last resort: return as single segment
+                return [text] if text else []
+
+        return filtered_segments
+
+    def _format_text_response_professionally(self, text: str) -> str:
+        """Format text response for professional segment-based presentation"""
+        # Basic formatting - remove excessive whitespace but preserve structure
+        formatted = text.strip()
+
+        # Ensure proper line endings
+        formatted = re.sub(r'\n{3,}', '\n\n', formatted)
+
+        # Return as clean text without excessive emojis or styling
+        return formatted
+
     def _initialize_workflow_commands(self):
-        """Initialize the command sequences for each workflow phase with realistic data-driven tasks"""
+        """Initialize the INSTITUTIONAL ALPHA DISCOVERY FRAMEWORK - Professional multi-agent trading analysis framework"""
         self.phase_commands = {
-            'macro_foundation_data_collection': [
-                # Phase 0a: Data Collection (RAPID FIRE!)
-                "!d 🔥 EXCITED TO HUNT ALPHA! Fetch current SPY, QQQ, IWM prices and calculate market breadth indicators (advancers/decliners, new highs/lows) - let's find the momentum!",
-                "!d 🚀 DATA AGENT POWER MODE: Pull economic data: Fed Funds Rate, Treasury yields (2Y/10Y/30Y), VIX, USD index, oil/gold prices - spot the regime shifts!",
-                "!d 💹 SECTOR SCOUTING MISSION: Calculate sector ETF performance: XLY, XLC, XLF, XLB, XLE, XLK, XLU, XLV, XLRE, XLP, XLI vs SPY - which sectors are screaming for attention?"
+            'systematic_market_surveillance': [
+                # Comprehensive market scanning for institutional-grade alpha opportunities
+                "Conduct systematic multi-asset class market surveillance. Identify anomalous price movements, unusual volume patterns, emerging momentum trends, and potential regime shifts across equities, fixed income, commodities, and currencies that may represent exploitable alpha opportunities.",
+                
+                "Apply advanced technical analysis and quantitative signal processing. Evaluate momentum divergences, volatility regime changes, statistical arbitrage opportunities, and machine learning-based pattern recognition for predictive trading edges.",
+                
+                "Perform macroeconomic regime analysis and impact assessment. Evaluate central bank policy implications, economic data surprises, geopolitical risk developments, and their cascading effects on asset valuations and market correlations.",
+                
+                "Execute cross-sectional relative strength analysis. Compare sector performance, style factor exposures, geographic market leadership, and identify convergence/divergence patterns that signal potential alpha generation opportunities.",
+                
+                "Monitor institutional order flow and positioning. Analyze unusual accumulation/distribution patterns, large trader activity, and positioning data that may indicate informed trading or potential market impact events.",
+                
+                "Implement statistical modeling and anomaly detection. Apply time-series analysis, cointegration testing, and outlier identification to uncover non-obvious trading opportunities with quantifiable edge."
             ],
-            'macro_foundation_analysis': [
-                # Phase 0b: Macro Analysis (EXCITING INSIGHTS!)
-                "!m 🎯 MACRO MASTERMIND ACTIVATED! Based on collected economic and market data, assess market regime: Identify if we're in risk-on/risk-off, trending/range-bound, bull/bear market. Generate 5 specific trade proposals based on macro regime (e.g., sector rotation, duration positioning, currency trades) with Probability of Profit (PoP) calculations. Consider current portfolio positions and risk constraints. LET'S FIND THE BIG MOVES!",
-                "!m 🌟 MACRO VISION QUEST: Analyze sector performance data to generate top 5 sector opportunities based on relative strength, momentum, and risk-adjusted returns. For each sector, propose specific ETF or stock trades with entry/exit criteria and PoP estimates derived from historical patterns. Ensure proposals complement existing positions without excessive concentration. WHICH SECTORS WILL LEAD THE CHARGE?"
+            
+            'multi_strategy_opportunity_synthesis': [
+                # Advanced cross-agent validation and signal integration
+                "Perform comprehensive inter-methodological signal validation. Compare and contrast findings from technical, fundamental, quantitative, and sentiment-based approaches to identify reinforcing signals and potential methodological biases.",
+                
+                "Conduct multi-dimensional data source triangulation. Cross-reference signals across Bloomberg, Reuters, proprietary datasets, and alternative data sources to establish signal robustness and eliminate false positives.",
+                
+                "Synthesize unified investment theses from diverse analytical perspectives. Combine macro regime analysis with micro opportunity identification to construct coherent, well-supported trading hypotheses.",
+                
+                "Implement conviction-weighted opportunity prioritization. Rank potential trades by expected alpha capture probability, considering signal strength, historical precedent validation, and risk-adjusted return potential.",
+                
+                "Optimize trade structuring for execution efficiency. Develop position sizing frameworks that account for slippage costs, market impact, timing considerations, and portfolio-level risk constraints.",
+                
+                "Establish comprehensive knowledge base documentation. Record collaborative insights, successful analytical patterns, and decision frameworks for continuous learning and process improvement."
             ],
-
-            'intelligence_gathering': [
-                "!d analyze Pull detailed data for top 5 sectors: price action, volume, technical indicators (RSI, MACD, moving averages). Identify 5 specific trade setups with support/resistance levels, momentum signals, and Probability of Profit (PoP) calculations based on historical patterns.",
-                "!d analyze Fetch institutional holdings data for sector leaders (13F filings, ETF flows, options positioning). Generate 5 trade proposals based on institutional accumulation/distribution patterns with PoP estimates derived from institutional activity correlations.",
-                "!d analyze Gather news sentiment and social media metrics for market-moving events and sector catalysts. Propose 5 trades based on sentiment extremes or breaking news developments with PoP calculations considering sentiment impact history.",
-                "!d analyze Calculate volatility metrics and options data (put/call ratios, VIX term structure, gamma exposure). Develop 5 volatility-based trade proposals (straddles, spreads, directional bets) with PoP assessments based on volatility regime analysis.",
-                "!d analyze Cross-validate data sources and identify any discrepancies or data quality issues. Refine 5 trade proposals based on data reliability and market microstructure analysis, updating PoP calculations accordingly."
+            
+            'quantitative_opportunity_validation': [
+                # Rigorous opportunity validation and quantification framework
+                "Execute thorough opportunity validation against historical analogs. Compare current market conditions with precedent events, evaluating outcome distributions and conditional probabilities of success.",
+                
+                "Perform comprehensive risk decomposition and stress testing. Analyze downside volatility, tail risk exposures, correlation stress scenarios, and maximum drawdown potential under various market conditions.",
+                
+                "Quantify expected value and risk-adjusted metrics. Calculate Sharpe ratios, Sortino ratios, maximum drawdown expectations, and probabilistic return distributions for each opportunity.",
+                
+                "Develop institutional-grade execution frameworks. Establish precise entry/exit criteria, position scaling protocols, risk management overlays, and contingency planning for adverse market movements.",
+                
+                "Validate market timing and liquidity considerations. Assess current market microstructure, trading volumes, bid-ask spreads, and execution feasibility given prevailing market conditions.",
+                
+                "Create comprehensive opportunity documentation packages. Develop detailed trade theses, risk memos, execution playbooks, and monitoring protocols for institutional review and approval."
             ],
-
-            'strategy_development': [
-                "!s analyze Based on macro regime and sector data, develop 5 specific trading strategies with entry/exit criteria. Each strategy must include: instrument selection, position sizing, entry triggers, profit targets, stop losses, and Probability of Profit (PoP) calculations. Consider current portfolio positions and ensure proposals maintain proper diversification and risk limits.",
-                "!m analyze Provide macro perspective on proposed strategies - how do they align with current economic regime and market cycle? Validate that strategies are appropriate for current macro conditions.",
-                "!d analyze Validate strategy proposals with current market data - check technical levels, volume patterns, and institutional activity. Ensure entry/exit criteria are supported by current market structure.",
-                "!s analyze Incorporate technical analysis: support/resistance levels, trend channels, momentum divergence signals. Generate 5 specific trade proposals with technical entry/exit points, risk/reward ratios, and PoP estimates based on historical success rates. Account for existing position sizes and avoid over-concentration in similar assets.",
-                "!s analyze Design risk management overlays: position sizing, stop losses, hedging strategies using options/futures. Propose 5 complete trade structures with defined risk parameters and PoP calculations considering win rate and risk/reward profiles. Ensure total portfolio risk remains within acceptable limits.",
-                "!m analyze Assess how proposed strategies fit within broader portfolio allocation - sector balance, duration positioning, and risk parity considerations.",
-                "!d analyze Cross-validate strategy timing with market microstructure - order flow, liquidity conditions, and execution feasibility.",
-                "!s analyze Consider market timing: optimal entry points, holding periods, exit triggers based on technicals. Develop 5 timing-based trade proposals with specific entry windows, holding periods, and PoP assessments. Factor in current market exposure and rebalancing needs.",
-                "!s analyze Evaluate strategy robustness across different market scenarios (bull/bear/sideways). Generate 5 scenario-specific trade proposals with conditional execution criteria and PoP calculations for each scenario. Consider how proposals perform relative to current portfolio composition."
+            
+            'investment_committee_review': [
+                # Efficient consensus formation with structured decision frameworks
+                "Apply multi-criteria opportunity evaluation frameworks. Score opportunities against established investment criteria including alpha potential, execution feasibility, risk-adjusted returns, and portfolio fit.",
+                
+                "Assess market regime alignment and timing optimization. Evaluate whether identified opportunities are congruent with current market cycles, volatility regimes, and macroeconomic conditions.",
+                
+                "Implement cross-framework signal validation protocols. Ensure opportunities receive support from technical, fundamental, quantitative, and risk management perspectives before advancement.",
+                
+                "Refine trade construction and risk management parameters. Optimize entry/exit levels, position sizing algorithms, stop-loss mechanisms, and profit-taking protocols based on consensus feedback.",
+                
+                "Validate operational readiness and infrastructure capabilities. Confirm broker connectivity, market access, data feeds, and execution systems are fully prepared for trade implementation.",
+                
+                "Document consensus-driven decision rationale. Record the analytical framework, participant inputs, and decision criteria that led to final opportunity selection and prioritization."
             ],
-
-            'debate': [
-                '!m debate "Evaluate strategy robustness: Which approaches work best in current regime? Consider alternatives." strategy reflection data execution',
-                '!m debate "Market timing and execution: When to enter/exit? What are the practical constraints?" strategy execution data'
+            
+            'portfolio_implementation_planning': [
+                # Professional execution preparation and risk management
+                "Calculate optimal capital allocation and position sizing. Determine appropriate position sizes considering portfolio beta, risk limits, liquidity constraints, and expected volatility-adjusted returns.",
+                
+                "Establish comprehensive risk management protocols. Define multi-layer stop-loss mechanisms, position limit thresholds, volatility-based adjustments, and catastrophic risk controls.",
+                
+                "Determine precise execution timing and methodology optimization. Select optimal trading algorithms, time horizons, and execution strategies to minimize market impact and transaction costs.",
+                
+                "Develop detailed execution playbooks with contingency planning. Create step-by-step execution protocols, communication procedures, and response frameworks for various market scenarios.",
+                
+                "Validate complete execution infrastructure readiness. Confirm API connectivity, order routing systems, market data feeds, and monitoring dashboards are fully operational.",
+                
+                "Conduct comprehensive pre-execution review and approval. Perform final validation of all trade parameters, risk controls, and market conditions before deployment authorization."
             ],
-
-            'risk_assessment': [
-                "!ref analyze Calculate Value at Risk (VaR) for each proposed trade using historical simulation and parametric methods. Rank trades by risk-adjusted return potential and refine Probability of Profit (PoP) calculations. Consider how new trades affect total portfolio VaR and correlation with existing positions.",
-                "!d analyze Provide current market data context for risk assessment - volatility levels, liquidity conditions, and correlation matrices for proposed instruments.",
-                "!ref analyze Assess tail risk: Black Swan scenarios, correlation breakdowns, liquidity crunch possibilities. Identify which trade proposals are most vulnerable to extreme events and adjust PoP estimates downward accordingly. Evaluate impact on current portfolio resilience.",
-                "!m analyze Evaluate macroeconomic risk factors - interest rate changes, currency impacts, geopolitical risks that could affect proposed trades.",
-                "!ref analyze Evaluate strategy drawdown potential and maximum loss scenarios under stress conditions. Propose risk mitigation strategies for high-risk trades and recalibrate PoP calculations based on stress testing results. Assess combined drawdown risk with existing positions.",
-                "!d analyze Validate risk metrics with current market data - check volatility surfaces, option pricing, and institutional positioning that affects risk calculations.",
-                "!ref analyze Consider systemic risks: Fed policy changes, geopolitical events, economic data surprises. Generate contingency trade proposals for different risk scenarios with updated PoP assessments. Review current portfolio exposure to these risks.",
-                "!ref analyze Generate risk-adjusted return metrics and Sharpe/Sortino ratios for strategy comparison. Recommend trade sizing based on risk tolerance and finalize PoP calculations. Ensure proposals align with current portfolio risk profile."
+            
+            'performance_analytics_and_refinement': [
+                # Systematic performance analysis and continuous improvement
+                "Evaluate analytical process effectiveness and outcome quality. Assess signal generation accuracy, opportunity identification success rates, and overall alpha discovery framework performance.",
+                
+                "Analyze collaborative intelligence integration quality. Evaluate how effectively diverse analytical perspectives were synthesized and whether consensus formation improved decision quality.",
+                
+                "Review predictive accuracy and outcome validation. Compare identified opportunities against actual market developments, tracking hit rates, false positive rates, and learning opportunities.",
+                
+                "Document key insights and process optimization opportunities. Record successful patterns, methodological improvements, and framework enhancements identified during the analysis cycle.",
+                
+                "Develop recommendations for enhanced alpha discovery capabilities. Identify technology upgrades, data source expansions, analytical methodology improvements, and process optimizations.",
+                
+                "Update analytical frameworks and decision criteria databases. Incorporate validated learnings into future analysis protocols, risk models, and investment decision frameworks."
             ],
-
-            'consensus': [
-                "!ref analyze Synthesize all agent inputs: Which trade proposals pass risk/reward hurdles? What are the trade-offs between different proposals? Consider portfolio impact, diversification benefits, and refine Probability of Profit (PoP) calculations based on consensus confidence.",
-                "!m analyze Provide macro-level consensus on trade proposals - which align best with current economic regime and long-term market outlook?",
-                "!d analyze Validate consensus with current market data - which proposals have the strongest technical and fundamental support?",
-                "!ref analyze Evaluate strategy consensus: Where do all agents agree on trade proposals? Where are there material disagreements on specific trades? Assess alignment with current position strategy and adjust PoP estimates based on consensus levels.",
-                "!ref analyze Consider implementation feasibility: Capital requirements, slippage costs, execution complexity for each proposed trade. Evaluate funding needs relative to current cash balance and factor feasibility into final PoP calculations.",
-                "!d analyze Assess market capacity: Can proposed trades be scaled without moving markets or exhausting liquidity? Consider position size limits relative to average daily volume and adjust PoP estimates for scalability concerns.",
-                "!m analyze Evaluate portfolio-level implications of consensus trades - sector allocation changes, risk profile shifts, and macroeconomic positioning.",
-                "!ref analyze Generate final trade proposal rankings with confidence levels and implementation priorities. Ensure selected trades complement current portfolio without excessive risk concentration, with final PoP assessments."
+            
+            'chief_investment_officer_oversight': [
+                # Executive oversight and final investment decision authority
+                "Conduct comprehensive opportunity portfolio review. Evaluate the complete set of identified opportunities against investment objectives, risk tolerance, and portfolio construction requirements.",
+                
+                "Assess aggregate portfolio impact and risk implications. Analyze diversification benefits, correlation effects, liquidity considerations, and overall risk-adjusted portfolio enhancement potential.",
+                
+                "Make definitive execution decision: EXECUTE, HOLD, or RESTART. Provide detailed rationale considering opportunity quality, market conditions, risk assessments, and strategic alignment.",
+                
+                "Specify exact trade execution parameters if proceeding. Define precise position sizes, entry/exit levels, risk management protocols, and monitoring requirements for approved opportunities.",
+                
+                "Establish comprehensive monitoring and adjustment frameworks. Define performance tracking metrics, risk threshold triggers, and protocols for position management and exit strategies.",
+                
+                "Document executive decision framework and oversight process. Record the evaluation criteria, risk assessments, and strategic considerations that informed the final investment decision."
             ],
-
-            'execution_validation': [
-                "!exec analyze CONDITIONAL EXECUTION: Review supreme_oversight decision - if EXECUTE approved, model transaction costs, spreads, and market impact for proposed position sizes. If RESTART or HOLD, skip execution analysis.",
-                "!exec analyze CONDITIONAL EXECUTION: If executing, assess execution logistics, trading hours, venue selection, and algorithmic requirements. Validate execution feasibility and check position limits. If not executing, analyze what would need to change for future execution.",
-                "!exec analyze CONDITIONAL EXECUTION: If executing, evaluate position management, rebalancing triggers, and exit strategies. If restarting workflow, identify required re-analysis areas. If holding, specify monitoring triggers.",
-                "!exec analyze CONDITIONAL EXECUTION: If executing, consider tax implications and optimize trade structure. If not executing, document execution constraints for future reference.",
-                "!exec analyze CONDITIONAL EXECUTION: Generate execution playbook only if trades approved. Include position sizing and risk parameters. If not executing, provide restart criteria for next workflow cycle.",
-                "!exec execute CONDITIONAL EXECUTION: Execute trades ONLY if supreme_oversight approved execution. Execute top approved trades through IBKR with full logging. If restart/hold decision, log decision and prepare for next cycle."
+            'pre_market_readiness_assessment': [
+                # Ultra-fast market readiness validation at open
+                "Verify market opening status and session initialization. Confirm exchange systems are operational, market data feeds are streaming, and trading sessions have commenced across relevant venues.",
+                
+                "Validate pre-market analysis relevance and persistence. Assess whether identified opportunities remain viable given overnight developments, economic data releases, or geopolitical events.",
+                
+                "Evaluate immediate market conditions and volatility assessment. Analyze opening price action, initial volatility levels, bid-ask spreads, and early trading patterns that may affect execution.",
+                
+                "Confirm execution infrastructure operational readiness. Validate broker API connectivity, order routing systems, market data quality, and all execution platforms are fully functional.",
+                
+                "Review risk management parameters for market open conditions. Ensure position limits, stop-loss levels, and risk controls are appropriately calibrated for opening volatility and liquidity conditions.",
+                
+                "Provide definitive go/no-go execution recommendation. Determine whether current market conditions support immediate execution of pre-approved trading strategies or require holding/reassessment."
             ],
-
-            'learning': [
-                "!l analyze Review historical performance of similar trade proposals in current market regime. Identify patterns in successful vs failed trades. Consider how similar trades performed in current portfolio context.",
-                "!l analyze Identify key success factors and common failure modes from past trade implementations. Update trade proposal templates based on historical outcomes. Learn from current position performance history.",
-                "!l analyze Update strategy templates and decision frameworks based on current analysis. Refine trade proposal generation criteria. Incorporate lessons from current portfolio composition.",
-                "!l analyze Document lessons learned and update institutional knowledge base with trade-specific insights. Include position management learnings from current holdings.",
-                "!l analyze Generate trade improvement recommendations for future workflow iterations based on current proposal outcomes. Suggest portfolio rebalancing strategies based on historical performance."
+            
+            'opening_bell_execution': [
+                # Precision trade execution at market open
+                "Execute pre-approved trading strategies at optimal market open timing. Place orders for validated opportunities utilizing predetermined execution algorithms and timing protocols.",
+                
+                "Monitor real-time execution quality and market impact assessment. Track fill rates, price improvement, slippage metrics, and execution costs during the volatile market opening period.",
+                
+                "Confirm successful position establishment and order completion. Verify all trades have executed according to plan, positions are correctly established, and confirmations are received.",
+                
+                "Document comprehensive execution details and performance metrics. Record exact execution prices, timestamps, slippage costs, and any deviations from planned execution parameters.",
+                
+                "Assess initial market reaction and price action response. Monitor post-execution price behavior, volatility response, and early performance indicators for executed positions.",
+                
+                "Transition seamlessly to active position monitoring protocols. Initialize real-time tracking systems, alert thresholds, and risk management monitoring for established positions."
             ],
-
-            'supreme_oversight': [
-                "!ref analyze EXECUTION DECISION: Review all workflow analysis and premarket developments - should we EXECUTE consensus trades, RESTART workflow cycle, or HOLD positions? Consider market conditions, news events, and risk assessment. Make definitive recommendation with reasoning.",
-                "!ref analyze EXECUTION DECISION: If EXECUTING - provide final position sizes, entry timing, and risk parameters for approved trades. If RESTARTING - identify what aspects need re-analysis. If HOLDING - specify monitoring triggers.",
-                "!ref analyze EXECUTION DECISION: Final execution authority - approve trade execution, mandate workflow restart, or implement holding pattern. Include specific execution instructions or restart parameters based on current market context."
+            
+            'position_surveillance_initialization': [
+                # Comprehensive position monitoring infrastructure establishment
+                "Configure multi-dimensional position monitoring parameters. Establish P&L tracking, risk metric calculations, performance attribution, and real-time position valuation systems.",
+                
+                "Initialize high-frequency market data streaming infrastructure. Establish continuous price feeds, volume data, order book depth, and market microstructure monitoring for active positions.",
+                
+                "Implement intelligent automated alerting systems. Configure threshold-based notifications for P&L deviations, risk limit breaches, volatility spikes, and predefined exit triggers.",
+                
+                "Establish quantitative performance tracking frameworks. Set up metrics for tracking execution quality, slippage analysis, market impact assessment, and risk-adjusted performance measurement.",
+                
+                "Define structured monitoring schedule and escalation protocols. Establish monitoring frequency parameters, communication hierarchies, and decision-making frameworks for different market conditions.",
+                
+                "Validate complete monitoring ecosystem operational readiness. Confirm all data feeds, calculation engines, alerting systems, and reporting dashboards are fully functional and calibrated."
             ],
-
-            # MARKET OPEN EXECUTION WORKFLOW - Fast-track execution leveraging premarket analysis
-            'market_open_quick_check': [
-                "!d analyze MARKET OPEN CHECK: Pull current market data - SPY, QQQ, VIX, Treasury yields. Compare to premarket analysis expectations. Identify any significant deviations requiring execution delay.",
-                "!d analyze MARKET OPEN CHECK: Check order book depth and liquidity for approved trade symbols. Assess if market conditions support planned execution sizes without excessive slippage.",
-                "!ref analyze MARKET OPEN CHECK: Review premarket news and overnight developments. Determine if any breaking news invalidates approved trade thesis. Quick risk reassessment.",
-                "!exec analyze MARKET OPEN CHECK: Validate execution logistics - IBKR connectivity, margin availability, position limits. Confirm all technical requirements for immediate execution."
+            
+            'active_position_management': [
+                # Continuous real-time position surveillance and risk management
+                "Monitor position performance metrics in real-time. Track P&L development, execution slippage, market impact costs, and performance against predefined expectations and benchmarks.",
+                
+                "Assess dynamic market condition evolution continuously. Evaluate volatility regime changes, liquidity fluctuations, correlation shifts, and broader market impacts on active positions.",
+                
+                "Maintain active risk parameter surveillance and adjustment. Monitor position sizes against current volatility, correlation changes, and ensure risk limits remain within acceptable thresholds.",
+                
+                "Identify profit-taking opportunities and exit signals. Analyze price targets achievement, momentum exhaustion patterns, and deteriorating trade setups requiring position reduction or closure.",
+                
+                "Track execution quality and market microstructure continuously. Monitor for adverse selection, price manipulation concerns, and execution inefficiencies requiring strategy adjustment.",
+                
+                "Maintain comprehensive position status documentation. Record performance metrics, market condition assessments, risk parameter status, and position management rationale throughout the holding period."
             ],
-
-            'market_open_execution': [
-                "!exec execute MARKET OPEN EXECUTION: Execute approved trades immediately using premarket analysis parameters. Execute top 3 priority trades with market orders, full position sizes as approved.",
-                "!exec execute MARKET OPEN EXECUTION: Log all execution details - entry prices, timestamps, order IDs. Update portfolio positions and calculate realized P&L.",
-                "!exec execute MARKET OPEN EXECUTION: Set initial stop losses and profit targets based on premarket risk parameters. Configure automated risk management.",
-                "!exec execute MARKET OPEN EXECUTION: Send execution alerts and initiate trade monitoring workflow. Transition from analysis mode to active position management."
+            
+            'dynamic_portfolio_adjustment': [
+                # Data-driven position management and exit strategy formulation
+                "Evaluate position performance against original investment theses. Assess whether trades are performing according to expected risk-reward profiles and market condition assumptions.",
+                
+                "Develop position adjustment and exit strategies dynamically. Determine whether positions should be maintained, scaled, or closed based on current performance, risk metrics, and market developments.",
+                
+                "Assess risk management requirement evolution. Evaluate whether stop-loss levels need tightening, position limits require adjustment, or additional hedging strategies are necessary.",
+                
+                "Review profit target achievement and scaling opportunities. Determine whether profit-taking thresholds have been reached or if scaling out of positions is appropriate given current gains.",
+                
+                "Evaluate market regime change implications for positions. Assess whether broader market condition shifts warrant position adjustments, closures, or strategic repositioning.",
+                
+                "Formulate clear position management recommendations. Provide specific guidance on trade adjustments, risk controls, and next steps based on comprehensive monitoring analysis."
             ],
-
-            # TRADE MONITORING WORKFLOW - Ongoing position management after execution
-            'trade_monitoring_setup': [
-                "!exec analyze MONITORING SETUP: Establish monitoring parameters for executed positions - entry prices, stop levels, profit targets, holding periods.",
-                "!exec analyze MONITORING SETUP: Configure automated alerts - price triggers, volume spikes, news sentiment changes, technical level breaches.",
-                "!exec analyze MONITORING SETUP: Set up position scaling rules - partial profit taking, stop loss tightening, position size adjustments based on performance.",
-                "!exec analyze MONITORING SETUP: Initialize risk monitoring - portfolio VaR, correlation changes, drawdown limits, margin utilization tracking."
-            ],
-
-            'trade_monitoring_active': [
-                "!exec analyze ACTIVE MONITORING: Track position performance in real-time - P&L, unrealized gains/losses, risk metrics, market exposure.",
-                "!exec analyze ACTIVE MONITORING: Monitor market conditions - volatility changes, sector rotations, macroeconomic developments affecting positions.",
-                "!exec analyze ACTIVE MONITORING: Evaluate exit opportunities - profit targets hit, stop losses triggered, time-based exits, fundamental changes.",
-                "!exec analyze ACTIVE MONITORING: Assess portfolio impact - overall risk profile, diversification, correlation changes, rebalancing needs."
-            ],
-
-            'trade_monitoring_decisions': [
-                "!exec analyze MONITORING DECISIONS: Evaluate position adjustments - scale out profits, tighten stops, add to winners, cut losers.",
-                "!exec analyze MONITORING DECISIONS: Consider new opportunities - related trades, hedging strategies, portfolio rebalancing trades.",
-                "!exec analyze MONITORING DECISIONS: Risk management actions - reduce position sizes, add protective options, implement trailing stops.",
-                "!exec analyze MONITORING DECISIONS: Exit decisions - full position closes, partial exits, time-based liquidations, fundamental-driven exits."
-            ],
-
-            'trade_monitoring_execution': [
-                "!exec execute MONITORING EXECUTION: Execute approved position adjustments - scale outs, stop tightening, protective additions.",
-                "!exec execute MONITORING EXECUTION: Execute new trades identified during monitoring - hedges, rebalancing, opportunity captures.",
-                "!exec execute MONITORING EXECUTION: Execute exit orders - profit taking, stop loss execution, time-based closures.",
-                "!exec execute MONITORING EXECUTION: Update portfolio records and risk metrics after all executions. Log comprehensive trade history."
+            
+            'execution_of_portfolio_changes': [
+                # Precision execution of monitoring-based position adjustments
+                "Implement approved position adjustment strategies systematically. Execute predetermined position scaling, stop-loss modifications, or closure orders according to monitoring-based decisions.",
+                
+                "Close positions according to established exit criteria. Execute exit orders for positions meeting profit targets, stop-loss triggers, or deteriorating fundamental setups.",
+                
+                "Adjust risk management parameters dynamically. Modify stop-loss levels, position size limits, or implement additional risk mitigation strategies based on current market conditions.",
+                
+                "Document all position adjustments with comprehensive audit trail. Record execution details, price levels, timestamps, and decision rationale for all position management actions.",
+                
+                "Verify successful execution and position status confirmation. Confirm all adjustments executed correctly, positions reflect intended changes, and all orders processed successfully.",
+                
+                "Update monitoring parameters and thresholds post-adjustment. Recalibrate alert levels, risk limits, and monitoring criteria based on executed position changes and current portfolio structure."
             ]
         }
+
+    def setup_scheduler(self):
+        """Setup scheduled tasks for premarket and other workflows."""
+        # Schedule pre-market prep at 6:00 AM ET, Mon-Fri
+        self.scheduler.add_job(
+            self.run_premarket_analysis,
+            CronTrigger(hour=6, minute=0, day_of_week='mon-fri', timezone='America/New_York')
+        )
+        # Add more schedules as needed, e.g., midday check
+        self.scheduler.add_job(
+            self.run_midday_check,
+            CronTrigger(hour=12, minute=0, day_of_week='mon-fri', timezone='America/New_York')
+        )
+        self.scheduler.start()
+        print("📅 Scheduler started with premarket and scheduled tasks.")
+
+    async def run_premarket_analysis(self):
+        """Run premarket analysis workflow."""
+        if self.workflow_active:
+            print("⚠️ Workflow already active, skipping premarket.")
+            return
+        print("🚀 Starting premarket analysis.")
+        # Implement premarket specific phases
+        await self.execute_phase('pre_market_readiness_assessment', "🔍 PRE-MARKET READINESS ASSESSMENT")
+        # Add more premarket phases as needed
+
+    async def run_midday_check(self):
+        """Run midday check workflow."""
+        print("🕛 Starting midday check.")
+        # Implement midday specific logic
+        await self.execute_phase('active_position_management', "📊 MIDDAY POSITION CHECK")
 
     async def initialize_discord_client(self):
         """Initialize Discord client for live orchestration"""
@@ -1282,10 +1665,30 @@ class LiveWorkflowOrchestrator:
                                 print(f"🚨 Alerts channel configured: #{self.alerts_channel.name}")
                             else:
                                 print(f"⚠️ Alerts channel ID {alerts_channel_id} not found")
+                                await general_channel.send("⚠️ **Configuration Warning**: Alerts channel not found. Trade alerts will use general channel.")
                         except ValueError:
                             print(f"⚠️ Invalid alerts channel ID: {alerts_channel_id}")
+                            await general_channel.send("⚠️ **Configuration Warning**: Invalid alerts channel ID. Trade alerts will use general channel.")
                     else:
                         print("⚠️ DISCORD_ALERTS_CHANNEL_ID not set, trade alerts will go to general channel")
+                        await general_channel.send("⚠️ **Configuration Warning**: DISCORD_ALERTS_CHANNEL_ID not set. Trade alerts will use general channel.")
+
+                    # Set up ranked trades channel for trade proposals
+                    ranked_trades_channel_id = os.getenv('DISCORD_RANKED_TRADES_CHANNEL_ID')
+                    if ranked_trades_channel_id:
+                        try:
+                            self.ranked_trades_channel = guild.get_channel(int(ranked_trades_channel_id))
+                            if self.ranked_trades_channel:
+                                print(f"📊 Ranked trades channel configured: #{self.ranked_trades_channel.name}")
+                            else:
+                                print(f"⚠️ Ranked trades channel ID {ranked_trades_channel_id} not found")
+                                await general_channel.send("⚠️ **Configuration Warning**: Ranked trades channel not found. Trade proposals will use general channel.")
+                        except ValueError:
+                            print(f"⚠️ Invalid ranked trades channel ID: {ranked_trades_channel_id}")
+                            await general_channel.send("⚠️ **Configuration Warning**: Invalid ranked trades channel ID. Trade proposals will use general channel.")
+                    else:
+                        print("⚠️ DISCORD_RANKED_TRADES_CHANNEL_ID not set, ranked trades will go to general channel")
+                        await general_channel.send("⚠️ **Configuration Warning**: DISCORD_RANKED_TRADES_CHANNEL_ID not set. Trade proposals will use general channel.")
 
                     if not self.channel and guild.text_channels:
                         self.channel = guild.text_channels[0]
@@ -1303,12 +1706,25 @@ class LiveWorkflowOrchestrator:
                         print(f"📝 Using default general channel: #{self.channel.name}")
 
                     # Announce orchestrator presence
-                    if self.channel:
+                    if self.channel and hasattr(self.channel, 'send'):
+                        general_channel = cast(discord.TextChannel, self.channel)
                         channel_status = "✅ Channel separation active" if self.alerts_channel else "⚠️ Alerts channel not configured"
-                        await self.channel.send("🎯 **Live Workflow Orchestrator Online**\n🤖 Ready to begin iterative reasoning workflow with unified agent coordination. Type `!start_workflow` to begin analysis, `!start_market_open_execution` for fast execution, or `!start_trade_monitoring` for position monitoring!")
-                        await self.channel.send(f"📢 **Channel Configuration:** {channel_status}")
+                        ranked_trades_status = "✅ Ranked trades channel active" if self.ranked_trades_channel else "⚠️ Ranked trades channel not configured"
+                        await general_channel.send("**Live Workflow Orchestrator Online**\nReady to begin iterative reasoning workflow with unified agent coordination. Type `!start_workflow` to begin analysis, `!start_premarket_analysis` for premarket prep, `!start_market_open_execution` for fast execution, or `!start_trade_monitoring` for position monitoring!")
+                        await general_channel.send(f"📢 **Channel Configuration:** {channel_status}")
                         if self.alerts_channel:
-                            await self.channel.send(f"🚨 Trade alerts will be sent to: #{self.alerts_channel.name}")
+                            await general_channel.send(f"🚨 Trade alerts will be sent to: #{self.alerts_channel.name}")
+                        if self.ranked_trades_channel:
+                            await general_channel.send(f"📊 Ranked trade proposals will be sent to: #{self.ranked_trades_channel.name}")
+
+                    # Signal that Discord is ready
+                    self.discord_ready.set()
+                    print("🎯 Discord client fully ready - channels configured and orchestrator online")
+                    self.setup_scheduler()  # Start scheduler after Discord is ready
+                    
+#                    # Automatically start the continuous workflow
+#                    print("🚀 Auto-starting continuous alpha discovery workflow...")
+#                    asyncio.create_task(self.start_workflow())
 
         @self.client.event
         async def on_message(message):
@@ -1324,6 +1740,10 @@ class LiveWorkflowOrchestrator:
 
             if content == "!start_workflow" and not self.workflow_active:
                 await self.start_workflow()
+                return
+
+            if content == "!start_premarket_analysis" and not self.workflow_active:
+                await self.start_premarket_analysis_workflow()
                 return
 
             if content == "!start_market_open_execution" and not self.workflow_active:
@@ -1395,7 +1815,7 @@ class LiveWorkflowOrchestrator:
 
         # If it's a question, consult reflection agent via A2A
         if any(word in message.content.lower() for word in ['?', 'what', 'how', 'why', 'can you', 'explain']):
-            await message.channel.send(f"🤔 Human intervention noted: `{message.content[:100]}...`\n⏸️  Consulting reflection agent...")
+            await message.channel.send(f"Human intervention noted: `{message.content[:100]}...`\nConsulting reflection agent...")
 
             # Ask reflection agent to address the question via A2A
             if 'reflection' in self.agent_instances:
@@ -1405,7 +1825,7 @@ class LiveWorkflowOrchestrator:
                     )
                     
                     # Format and present reflection agent's response
-                    await message.channel.send("🤖 **Reflection Agent Analysis:**")
+                    await message.channel.send("**Reflection Agent Analysis:**")
                     if isinstance(reflection_response, dict):
                         for key, value in reflection_response.items():
                             if key not in ['timestamp', 'agent_role']:
@@ -1418,17 +1838,17 @@ class LiveWorkflowOrchestrator:
                         await message.channel.send(sanitized_response[:1000])
                         
                 except Exception as e:
-                    await message.channel.send(f"⚠️ Reflection agent consultation failed: {str(e)}")
+                    await message.channel.send(f"Reflection agent consultation failed: {str(e)}")
             else:
-                await message.channel.send("⚠️ Reflection agent not available for consultation")
+                await message.channel.send("Reflection agent not available for consultation")
 
-            await message.channel.send("▶️ Continuing workflow...")
+            await message.channel.send("Continuing workflow...")
         else:
             # For non-questions, just log and continue
-            await message.channel.send(f"📝 Intervention logged. Continuing workflow...")
+            await message.channel.send("Intervention logged. Continuing workflow...")
 
     async def start_workflow(self):
-        """Start the complete iterative reasoning workflow"""
+        """Start the CONTINUOUS ALPHA DISCOVERY WORKFLOW - agents collaborate continuously!"""
         if not self.channel:
             print("❌ No channel available for workflow")
             return
@@ -1449,53 +1869,121 @@ class LiveWorkflowOrchestrator:
             await channel.send("⚠️ **WARNING: System health degraded - proceeding with caution**")
             await channel.send(f"Healthy agents: {len(health_status['healthy_agents'])}/{health_status['total_agents']}")
 
-        await channel.send("🤝 **Collaborative session established for unified agent coordination**")
+        await channel.send("**COLLABORATIVE ANALYSIS SESSION ESTABLISHED**")
+        await channel.send("All agents now share full workflow context for unified analysis.")
 
         # Create collaborative session for enhanced cross-agent communication
-        session_created = await self.create_collaborative_session("Enhanced Trading Analysis with Position Awareness")
+        session_created = await self.create_collaborative_session("Continuous Alpha Discovery with Full Context Sharing")
         if session_created:
-            await channel.send("🎯 **Enhanced A2A Session Active** - Agents now share full workflow context and position data")
+            await channel.send("Enhanced A2A session active - agents share insights and build on each other's analysis")
         else:
-            await channel.send("⚠️ **Limited Collaboration Mode** - Agents operating with reduced context sharing")
+            await channel.send("Limited collaboration mode - agents operating with reduced context sharing")
 
         self.workflow_active = True
-        self.current_phase = "starting"
+        self.current_phase = "systematic_market_surveillance"
         self.workflow_log = []
         self.responses_collected = []
         self.human_interventions = []
 
-        await channel.send("🚀 **STARTING SEQUENTIAL ITERATIVE REASONING WORKFLOW**")
-        await channel.send("📊 Complete analysis of market conditions, strategies, and risks for immediate trading decisions")
-        await channel.send("💡 You can ask questions or intervene at any time!")
+        await channel.send("**CONTINUOUS ANALYSIS WORKFLOW STARTED**")
+        await channel.send("Multi-agent collaborative analysis mode activated.")
+        await channel.send("Human intervention available at any time during the process.")
 
-        # Phase 0: Macro Foundation (Data Collection + Analysis)
-        await self.execute_phase_with_agents('macro_foundation_data_collection', "🏛️ PHASE 0a: DATA COLLECTION")
-        await self.execute_phase_with_agents('macro_foundation_analysis', "🏛️ PHASE 0b: MACRO ANALYSIS")
+        # CONTINUOUS ALPHA DISCOVERY LOOP - No more artificial phase barriers!
+        alpha_hunt_cycles = 0
+        max_cycles = 10  # Prevent infinite loops
 
-        # Single Iteration: Comprehensive Deliberation
-        await channel.send("\n🔄 **SINGLE ITERATION: COMPREHENSIVE ANALYSIS**")
-        await channel.send("📊 Complete analysis of market conditions, strategies, and risks for immediate trading decisions")
+        while self.workflow_active and alpha_hunt_cycles < max_cycles:
+            alpha_hunt_cycles += 1
+            await channel.send(f"\n**ANALYSIS CYCLE {alpha_hunt_cycles}**")
 
-        phases = [
-            ('intelligence_gathering', "📊 Phase 1: Intelligence Gathering"),
-            ('strategy_development', "🎯 Phase 2: Strategy Development"),
-            ('debate', "⚔️ Phase 3: Multi-Agent Debate"),
-            ('risk_assessment', "⚠️ Phase 4: Risk Assessment & Refinement"),
-            ('consensus', "🤝 Phase 5: Consensus Building"),
-            ('supreme_oversight', "🎯 Phase 6: Final Execution Decision"),
-            ('execution_validation', "✅ Phase 7: Execution Validation"),
-            ('learning', "🧠 Phase 8: Learning Integration")
-        ]
+            # Phase 1: CONTINUOUS ALPHA DISCOVERY - All agents hunt together
+            await self.execute_systematic_market_surveillance(channel)
 
-        for phase_key, phase_title in phases:
-            await self.execute_phase_with_agents(phase_key, phase_title)
+            # Phase 2: PARALLEL AGENT COLLABORATION - Build on each other's insights
+            await self.execute_parallel_collaboration(channel)
 
-        # Complete workflow with final decision
-        await channel.send("\n🎯 **WORKFLOW COMPLETE**")
-        await channel.send("📊 Analysis complete - decision made in supreme_oversight phase")
+            # Phase 3: EXCITED ALPHA STORM - Maximum enthusiasm!
+            await self.execute_quantitative_opportunity_validation(channel)
+
+            # Phase 4: RAPID CONSENSUS BUILDING - Fast-track to decisions
+            await self.execute_rapid_consensus(channel)
+
+            # Phase 5: SWIFT EXECUTION PREP - Get ready to deploy
+            await self.execute_portfolio_implementation_planning(channel)
+
+            # Phase 6: ENTHUSIASTIC LEARNING - Celebrate and improve
+            await self.execute_performance_analytics_and_refinement(channel)
+
+            # Phase 7: ALPHA HUNTING SUPERVISION - Final authority
+            execution_decision = await self.execute_chief_investment_officer_oversight(channel)
+
+            # Check execution decision
+            if execution_decision == "EXECUTE":
+                await channel.send("**EXECUTION APPROVED**")
+                # Execute trades here
+                await self.execute_alpha_deployment(channel)
+                break  # Exit loop after execution
+            elif execution_decision == "HOLD":
+                await channel.send("**HOLDING POSITION** - monitoring for better conditions")
+                await channel.send("Continuing analysis in next cycle")
+                await asyncio.sleep(60)  # Brief pause before next cycle
+            elif execution_decision == "RESTART":
+                await channel.send("**RESTARTING ANALYSIS** - applying lessons learned")
+                # Continue loop with improvements
+                await asyncio.sleep(30)
+            else:
+                await channel.send("**DECISION PENDING** - continuing analysis")
+                await asyncio.sleep(30)
 
         # Complete workflow
-        await self.complete_workflow()
+        await channel.send("**ANALYSIS MISSION COMPLETE**")
+        await self.complete_continuous_workflow(channel)
+
+    async def start_premarket_analysis_workflow(self):
+        """Start the premarket analysis workflow - focused on early market preparation"""
+        if not self.channel:
+            print("❌ No channel available for workflow")
+            return
+
+        channel = cast(discord.TextChannel, self.channel)
+
+        if self.workflow_active:
+            await channel.send("⚠️ Workflow already active! Complete current workflow first.")
+            return
+
+        # Check agent health before starting
+        health_status = await self.check_agent_health()
+        if health_status['overall_health'] == 'critical':
+            await channel.send("🚨 **CRITICAL: System health prevents workflow start**")
+            return
+
+        await channel.send("**PREMARKET ANALYSIS WORKFLOW STARTED**")
+        await channel.send("Early market preparation and data collection.")
+        await channel.send("Analyzing pre-market conditions and preparing for market open.")
+
+        # Create collaborative session for premarket analysis
+        session_created = await self.create_collaborative_session("Premarket Analysis")
+        if session_created:
+            await channel.send("🎯 **Premarket Session Active** - Early market analysis")
+
+        self.workflow_active = True
+        self.current_phase = "pre_market_readiness_assessment"
+        self.workflow_log = []
+        self.responses_collected = []
+        self.human_interventions = []
+
+        # Premarket readiness assessment
+        await self.execute_phase_with_agents('pre_market_readiness_assessment', "🔍 PRE-MARKET READINESS ASSESSMENT")
+
+        # Additional premarket phases if needed (e.g., data collection, strategy prep)
+        await self.execute_phase_with_agents('systematic_market_surveillance', "📊 SYSTEMATIC MARKET SURVEILLANCE")
+
+        # Complete premarket analysis
+        await channel.send("**PREMARKET ANALYSIS COMPLETE**")
+        await channel.send("Ready for market open execution or further analysis.")
+
+        self.workflow_active = False
 
     async def start_market_open_execution_workflow(self):
         """Start the market open execution workflow - fast-track execution leveraging premarket analysis"""
@@ -1515,9 +2003,9 @@ class LiveWorkflowOrchestrator:
             await channel.send("🚨 **CRITICAL: System health prevents workflow start**")
             return
 
-        await channel.send("🏁 **MARKET OPEN EXECUTION WORKFLOW STARTED**")
-        await channel.send("⚡ Fast-track execution leveraging premarket analysis")
-        await channel.send("💡 This workflow executes pre-approved trades at market open")
+        await channel.send("**MARKET OPEN EXECUTION WORKFLOW STARTED**")
+        await channel.send("Fast-track execution leveraging premarket analysis.")
+        await channel.send("Executing pre-approved trades at market open.")
 
         # Create collaborative session for execution coordination
         session_created = await self.create_collaborative_session("Market Open Execution")
@@ -1525,20 +2013,20 @@ class LiveWorkflowOrchestrator:
             await channel.send("🎯 **Execution Session Active** - Coordinated trade execution")
 
         self.workflow_active = True
-        self.current_phase = "market_open_execution"
+        self.current_phase = "opening_bell_execution"
         self.workflow_log = []
         self.responses_collected = []
         self.human_interventions = []
 
         # Quick market check phase
-        await self.execute_phase_with_agents('market_open_quick_check', "🔍 MARKET OPEN QUICK CHECK")
+        await self.execute_phase_with_agents('pre_market_readiness_assessment', "🔍 PRE-MARKET READINESS ASSESSMENT")
 
         # Execution phase
-        await self.execute_phase_with_agents('market_open_execution', "💹 MARKET OPEN EXECUTION")
+        await self.execute_phase_with_agents('opening_bell_execution', "💹 OPENING BELL EXECUTION")
 
         # Complete and transition to monitoring
-        await channel.send("✅ **MARKET OPEN EXECUTION COMPLETE**")
-        await channel.send("🔄 **AUTO-TRANSITIONING TO TRADE MONITORING**")
+        await channel.send("**MARKET OPEN EXECUTION COMPLETE**")
+        await channel.send("Auto-transitioning to trade monitoring.")
 
         # Automatically start trade monitoring
         await self.start_trade_monitoring_workflow()
@@ -1554,9 +2042,9 @@ class LiveWorkflowOrchestrator:
         # Don't check workflow_active here - monitoring can run alongside other activities
         # But ensure we don't have conflicting workflows
 
-        await channel.send("👁️ **TRADE MONITORING WORKFLOW ACTIVATED**")
-        await channel.send("📊 Continuous monitoring of executed positions")
-        await channel.send("⚡ Real-time risk management and exit opportunities")
+        await channel.send("**TRADE MONITORING WORKFLOW ACTIVATED**")
+        await channel.send("Continuous monitoring of executed positions.")
+        await channel.send("Real-time risk management and exit opportunity assessment.")
 
         # Create monitoring session
         session_created = await self.create_collaborative_session("Active Trade Monitoring")
@@ -1569,35 +2057,35 @@ class LiveWorkflowOrchestrator:
         self.monitoring_responses = []
 
         # Setup monitoring parameters
-        await self.execute_phase_with_agents('trade_monitoring_setup', "⚙️ MONITORING SETUP")
+        await self.execute_phase_with_agents('position_surveillance_initialization', "⚙️ POSITION SURVEILLANCE INITIALIZATION")
 
         # Start continuous monitoring loop
-        await channel.send("🔄 **STARTING CONTINUOUS MONITORING LOOP**")
-        await channel.send("📡 Monitoring will run continuously until positions are closed")
+        await channel.send("Starting continuous monitoring loop.")
+        await channel.send("Monitoring will run continuously until positions are closed.")
 
         # Run monitoring phases in a loop
         monitoring_cycle = 0
         while self.monitoring_active:
             monitoring_cycle += 1
-            await channel.send(f"\n📊 **MONITORING CYCLE {monitoring_cycle}**")
+            await channel.send(f"\n**MONITORING CYCLE {monitoring_cycle}**")
 
             # Active monitoring phase
-            await self.execute_phase_with_agents('trade_monitoring_active', f"👁️ ACTIVE MONITORING - Cycle {monitoring_cycle}")
+            await self.execute_phase_with_agents('active_position_management', f"Active Position Management - Cycle {monitoring_cycle}")
 
             # Decision phase
-            await self.execute_phase_with_agents('trade_monitoring_decisions', f"🎯 MONITORING DECISIONS - Cycle {monitoring_cycle}")
+            await self.execute_phase_with_agents('dynamic_portfolio_adjustment', f"Dynamic Portfolio Adjustment - Cycle {monitoring_cycle}")
 
             # Check if we need to execute any adjustments
-            await self.execute_phase_with_agents('trade_monitoring_execution', f"⚡ MONITORING EXECUTION - Cycle {monitoring_cycle}")
+            await self.execute_phase_with_agents('execution_of_portfolio_changes', f"Execution of Portfolio Changes - Cycle {monitoring_cycle}")
 
             # Check if all positions are closed
             if await self._check_positions_closed():
-                await channel.send("✅ **ALL POSITIONS CLOSED - MONITORING COMPLETE**")
+                await channel.send("All positions closed - monitoring complete.")
                 self.monitoring_active = False
                 break
 
             # Wait before next monitoring cycle (e.g., 5 minutes)
-            await channel.send("⏳ Waiting 5 minutes before next monitoring cycle...")
+            await channel.send("Waiting 5 minutes before next monitoring cycle...")
             await asyncio.sleep(300)  # 5 minutes
 
         await self.complete_monitoring_workflow()
@@ -1626,7 +2114,7 @@ class LiveWorkflowOrchestrator:
         self.monitoring_active = False
         self.current_phase = "monitoring_completed"
 
-        await channel.send("🎉 **TRADE MONITORING COMPLETED**")
+        await channel.send("**TRADE MONITORING COMPLETED**")
 
         # Save monitoring results
         monitoring_results = {
@@ -1656,7 +2144,7 @@ class LiveWorkflowOrchestrator:
         await general_channel.send("─" * 50)
 
         commands = self.phase_commands.get(phase_key, [])
-        max_wait_time = self.phase_delays.get(phase_key, 30)
+        max_wait_time = self.phase_delays.get(phase_key, 86400)
 
         for i, command in enumerate(commands, 1):
             if not self.workflow_active:
@@ -1665,25 +2153,23 @@ class LiveWorkflowOrchestrator:
             # Determine which channel to send this command to
             target_channel = self.get_command_channel(command)
             channel_name = target_channel.name if target_channel and target_channel != general_channel else "general"
-            
-            # Debug: Print routing info
-            print(f"🎯 Routing command: '{command[:50]}...' to #{channel_name}")
-            print(f"   Available agent channels: {list(self.agent_channels.keys())}")
-            
-            # Announce command in general channel
-            await general_channel.send(f"📤 **Command {i}/{len(commands)}:** `{command}` → #{channel_name}")
+            channel_emoji = "🚨" if target_channel == self.alerts_channel else "📊" if target_channel == self.ranked_trades_channel else "💬"
+
+            # Announce command routing in general channel
+            await general_channel.send(f"**Command {i}/{len(commands)}:** {command}")
+            await general_channel.send(f"📤 Routing to {channel_emoji} #{channel_name}")
 
             # Send the command to the appropriate channel
             if target_channel:
-                print(f"   Sending to channel: {target_channel.name} (ID: {target_channel.id})")
+                print(f"Routing command to #{channel_name}: {command[:50]}...")
                 await target_channel.send(command)
             else:
                 # Fallback to general channel if target not found
-                print("   ERROR: No target channel, using general")
+                print("ERROR: No target channel, using general")
                 await general_channel.send(command)
 
-            # Wait for responses with dynamic timing
-            await general_channel.send(f"⏳ Waiting for agent responses (max {max_wait_time}s)...")
+            # Wait for responses with extended timing for complex analysis
+            await general_channel.send(f"⏳ Waiting up to {max_wait_time}s for agent responses...")
 
             # Track responses for this specific command
             initial_response_count = len(self.responses_collected)
@@ -1691,7 +2177,7 @@ class LiveWorkflowOrchestrator:
             responses_received = 0
 
             while time.time() - start_time < max_wait_time and self.workflow_active:
-                await asyncio.sleep(2)  # Check every 2 seconds
+                await asyncio.sleep(5)  # Check every 5 seconds for better performance
 
                 # Count new responses for this phase
                 current_responses = len([r for r in self.responses_collected if r['phase'] == phase_key])
@@ -1699,17 +2185,17 @@ class LiveWorkflowOrchestrator:
                     responses_received = current_responses - initial_response_count
                     await general_channel.send(f"📥 Received {responses_received} response(s) so far...")
 
-                    # If we got at least one response, wait a bit longer for others
+                    # If we got responses, wait a bit longer for additional ones
                     if responses_received >= 1:
-                        await asyncio.sleep(5)  # Wait 5 more seconds for additional responses
+                        await asyncio.sleep(10)  # Wait 10 more seconds for additional responses
                         break
 
             # Final count
             final_responses = len([r for r in self.responses_collected if r['phase'] == phase_key]) - initial_response_count
             if final_responses > 0:
-                await general_channel.send(f"✅ **Received {final_responses} response(s) for command {i}**")
+                await general_channel.send(f"✅ **Phase {phase_key}**: {final_responses} responses received")
             else:
-                await general_channel.send(f"⏰ **No responses received within {max_wait_time}s timeout**")
+                await general_channel.send(f"⏰ **Phase {phase_key}**: No responses within {max_wait_time}s")
 
         # Phase complete
         await general_channel.send(f"✅ **{phase_title} Complete!**")
@@ -1724,7 +2210,7 @@ class LiveWorkflowOrchestrator:
 
         channel = cast(discord.TextChannel, self.channel)
         self.workflow_active = False
-        await channel.send("⏸️ **Workflow Paused** - Type `!resume_workflow` to continue")
+        await channel.send("Workflow paused. Type `!resume_workflow` to continue.")
 
     async def resume_workflow(self):
         """Resume a paused workflow"""
@@ -1734,7 +2220,7 @@ class LiveWorkflowOrchestrator:
         channel = cast(discord.TextChannel, self.channel)
         if not self.workflow_active:
             self.workflow_active = True
-            await channel.send("▶️ **Workflow Resumed** - Continuing from current phase...")
+            await channel.send("Workflow resumed. Continuing from current phase.")
             # Could implement logic to resume from current phase
 
     async def stop_workflow(self):
@@ -1745,7 +2231,7 @@ class LiveWorkflowOrchestrator:
         channel = cast(discord.TextChannel, self.channel)
         self.workflow_active = False
         self.current_phase = "stopped"
-        await channel.send("🛑 **Workflow Stopped** - All progress saved")
+        await channel.send("Workflow stopped. All progress saved.")
 
     async def send_status_update(self):
         """Send current workflow status"""
@@ -1766,7 +2252,7 @@ class LiveWorkflowOrchestrator:
         await channel.send(status_msg)
 
     async def complete_workflow(self):
-        """Complete the workflow and provide summary"""
+        """Complete the workflow and provide summary with audit logging"""
         if self.channel is None:
             return
 
@@ -1798,7 +2284,7 @@ class LiveWorkflowOrchestrator:
             except Exception as e:
                 await channel.send(f"• Session Archive: ❌ ({str(e)})")
 
-        # Save comprehensive results
+        # Save comprehensive results with audit log
         results = {
             'completed_at': datetime.now().astimezone().isoformat(),
             'total_responses': len(self.responses_collected),
@@ -1812,11 +2298,346 @@ class LiveWorkflowOrchestrator:
             'phases_completed': 9
         }
 
-        with open('data/live_workflow_results.json', 'w') as f:
-            json.dump(results, f, indent=2, default=str)
+        # Generate or load encryption key
+        key_path = 'data/encryption_key.key'
+        if not os.path.exists(key_path):
+            key = Fernet.generate_key()
+            with open(key_path, 'wb') as key_file:
+                key_file.write(key)
+        else:
+            with open(key_path, 'rb') as key_file:
+                key = key_file.read()
+        fernet = Fernet(key)
+
+        # Encrypt and save results
+        encrypted_results = fernet.encrypt(json.dumps(results, indent=2, default=str).encode())
+        with open('data/live_workflow_results.enc', 'wb') as f:
+            f.write(encrypted_results)
+
+        # Save encrypted audit log
+        audit_log = {
+            'timestamp': datetime.now().astimezone().isoformat(),
+            'decisions': [r for r in self.responses_collected if 'decision' in str(r.get('response', ''))],
+            'trades': [r for r in self.responses_collected if 'trade' in str(r.get('response', ''))],
+            'risk_assessments': [r for r in self.responses_collected if 'risk' in str(r.get('response', ''))]
+        }
+        encrypted_audit = fernet.encrypt(json.dumps(audit_log, indent=2, default=str).encode())
+        with open('data/workflow_audit_log.enc', 'wb') as f:
+            f.write(encrypted_audit)
 
         await channel.send("💾 Results saved to `data/live_workflow_results.json`")
+        await channel.send("📝 Audit log saved to `data/workflow_audit_log.json`")
         await channel.send("\n🔄 Ready for next workflow! Type `!start_workflow` to begin again.")
+
+    # CONTINUOUS ALPHA DISCOVERY METHODS
+
+    async def execute_systematic_market_surveillance(self, channel):
+        """Phase 1: CONTINUOUS ALPHA DISCOVERY - All agents hunt together"""
+        await channel.send("**PHASE 1: MARKET ANALYSIS**")
+        await channel.send("Scanning markets for alpha opportunities across all asset classes.")
+
+        # Execute parallel commands for alpha discovery
+        alpha_commands = [
+            "Analyze current market conditions and identify unusual price action, volume patterns, and emerging trends.",
+            "Review technical indicators and quantitative signals for momentum shifts and statistical anomalies.",
+            "Evaluate macroeconomic factors and their potential market impact.",
+            "Assess relative strength across sectors and identify potential opportunities."
+        ]
+
+        max_wait_time = self.phase_delays.get("systematic_market_surveillance", 86400)
+        await self._execute_commands_parallel_old(alpha_commands, channel, "alpha_discovery", max_wait_time)
+
+    async def execute_parallel_collaboration(self, channel):
+        """Phase 2: PARALLEL AGENT COLLABORATION - Build on each other's insights"""
+        await channel.send("**PHASE 2: COLLABORATIVE ANALYSIS**")
+        await channel.send("Agents integrating findings and validating signals across methodologies.")
+
+        # Execute collaborative commands
+        collab_commands = [
+            "Cross-validate findings across different analytical approaches and data sources.",
+            "Identify complementary signals and assess overall conviction levels.",
+            "Evaluate signal strength and identify potential false positives.",
+            "Prioritize opportunities based on combined analytical perspectives."
+        ]
+
+        max_wait_time = self.phase_delays.get("multi_strategy_opportunity_synthesis", 86400)
+        await self._execute_commands_parallel_old(collab_commands, channel, "parallel_collaboration", max_wait_time)
+
+    async def execute_quantitative_opportunity_validation(self, channel):
+        """Phase 3: OPPORTUNITY ASSESSMENT - Comprehensive evaluation"""
+        await channel.send("**PHASE 3: OPPORTUNITY ASSESSMENT**")
+        await channel.send("Conducting detailed evaluation of identified opportunities.")
+
+        # Execute assessment commands
+        storm_commands = [
+            "Perform comprehensive opportunity assessment against historical precedents.",
+            "Conduct detailed risk analysis including downside potential and volatility.",
+            "Quantify expected returns and calculate risk-adjusted metrics.",
+            "Develop execution plans with entry/exit criteria and position sizing."
+        ]
+
+        max_wait_time = self.phase_delays.get("quantitative_opportunity_validation", 86400)
+        await self._execute_commands_parallel_old(storm_commands, channel, "quantitative_opportunity_validation", max_wait_time)
+
+    async def execute_rapid_consensus(self, channel):
+        """Phase 4: CONSENSUS BUILDING - Fast-track to decisions"""
+        await channel.send("**PHASE 4: CONSENSUS BUILDING**")
+        await channel.send("Building consensus on opportunities and prioritizing actions.")
+
+        # Execute consensus commands
+        consensus_commands = [
+            "Evaluate opportunities against established criteria and ranking frameworks.",
+            "Assess market regime alignment and current condition suitability.",
+            "Cross-validate signals across technical, fundamental, and quantitative frameworks.",
+            "Refine trade structures and optimize risk management parameters."
+        ]
+
+        max_wait_time = self.phase_delays.get("investment_committee_review", 86400)
+        await self._execute_commands_parallel_old(consensus_commands, channel, "rapid_consensus", max_wait_time)
+
+    async def execute_portfolio_implementation_planning(self, channel):
+        """Phase 5: EXECUTION PREPARATION - Get ready to deploy"""
+        await channel.send("**PHASE 5: EXECUTION PREPARATION**")
+        await channel.send("Preparing for trade execution with comprehensive risk management.")
+
+        # Execute preparation commands
+        prep_commands = [
+            "Calculate optimal position sizing considering portfolio impact and risk limits.",
+            "Define comprehensive risk management parameters and stop-loss levels.",
+            "Determine precise entry timing and execution methodology.",
+            "Prepare detailed execution playbook with all trade parameters."
+        ]
+
+        max_wait_time = self.phase_delays.get("portfolio_implementation_planning", 86400)
+        await self._execute_commands_parallel_old(prep_commands, channel, "portfolio_implementation_planning", max_wait_time)
+
+    async def execute_performance_analytics_and_refinement(self, channel):
+        """Phase 6: PROCESS IMPROVEMENT - Systematic learning"""
+        await channel.send("**PHASE 6: PROCESS IMPROVEMENT**")
+        await channel.send("Analyzing performance and identifying optimization opportunities.")
+
+        # Execute learning commands
+        learning_commands = [
+            "Evaluate the effectiveness of our analysis process and identify success patterns.",
+            "Assess agent collaboration quality and information integration effectiveness.",
+            "Review signal quality and predictive accuracy against market outcomes.",
+            "Identify process improvements and develop recommendations for enhanced analysis."
+        ]
+
+        max_wait_time = self.phase_delays.get("performance_analytics_and_refinement", 86400)
+        await self._execute_commands_parallel_old(learning_commands, channel, "performance_analytics_and_refinement", max_wait_time)
+
+    async def execute_chief_investment_officer_oversight(self, channel):
+        """Phase 7: EXECUTIVE OVERSIGHT - Final decision authority"""
+        await channel.send("**PHASE 7: EXECUTIVE OVERSIGHT**")
+        await channel.send("Final evaluation and execution decision.")
+
+        # Execute supervision command
+        supervision_command = "Based on comprehensive analysis, recommend EXECUTE, HOLD, or RESTART. Provide detailed rationale for the recommended course of action considering opportunity quality, risk assessment, and market conditions."
+
+        max_wait_time = self.phase_delays.get("chief_investment_officer_oversight", 86400)
+        await self._execute_single_command(supervision_command, channel, "chief_investment_officer_oversight", max_wait_time)
+
+        # Analyze responses for execution decision
+        recent_responses = [r for r in self.responses_collected if r.get('phase') == 'chief_investment_officer_oversight']
+        if recent_responses:
+            # Simple decision logic - look for keywords
+            last_response = recent_responses[-1]['response'].upper()
+            if 'EXECUTE' in last_response:
+                return "EXECUTE"
+            elif 'HOLD' in last_response:
+                return "HOLD"
+            elif 'RESTART' in last_response:
+                return "RESTART"
+            else:
+                return "PENDING"
+        return "PENDING"
+
+    async def execute_alpha_deployment(self, channel):
+        """Execute the alpha deployment - actually place trades"""
+        await channel.send("**TRADE EXECUTION INITIATED**")
+        await channel.send("Executing approved trading strategies.")
+
+        # Execute deployment commands
+        deployment_commands = [
+            "Execute approved trades and establish positions.",
+            "Verify all trades executed successfully.",
+            "Initialize position monitoring and tracking.",
+            "Begin performance tracking for executed trades."
+        ]
+
+        max_wait_time = self.phase_delays.get("opening_bell_execution", 86400)
+        await self._execute_commands_parallel_old(deployment_commands, channel, "alpha_deployment", max_wait_time)
+
+    async def complete_continuous_workflow(self, channel):
+        """Complete the continuous alpha discovery workflow"""
+        await channel.send("**ANALYSIS SESSION COMPLETE**")
+
+        # Get final stats
+        total_responses = len(self.responses_collected)
+        total_cycles = sum(1 for r in self.responses_collected if 'ALPHA HUNT CYCLE' in str(r.get('phase', '')))
+
+        await channel.send("**Session Summary:**")
+        await channel.send(f"• Analysis cycles: {total_cycles}")
+        await channel.send(f"• Agent interactions: {total_responses} communications")
+        await channel.send(f"• Human interventions: {len(self.human_interventions)}")
+        await channel.send("• Architecture: Continuous collaboration with full context sharing")
+
+        # Save results
+        results = {
+            'completed_at': datetime.now().astimezone().isoformat(),
+            'mission_type': 'systematic_market_surveillance',
+            'total_cycles': total_cycles,
+            'total_responses': total_responses,
+            'human_interventions': len(self.human_interventions),
+            'responses': self.responses_collected,
+            'interventions': self.human_interventions,
+            'workflow_log': self.workflow_log
+        }
+
+        with open('data/systematic_market_surveillance_results.json', 'w') as f:
+            json.dump(results, f, indent=2, default=str)
+
+        await channel.send("Results saved to `data/systematic_market_surveillance_results.json`")
+        await channel.send("Ready for next analysis session. Type `!start_workflow` to begin.")
+
+    # HELPER METHODS FOR CONTINUOUS WORKFLOW
+
+    async def _execute_commands_parallel_old(self, commands, channel, phase_key, max_wait_time):
+        """Execute commands sequentially and display responses below each command like a train of thought"""
+        await channel.send(f"Processing {len(commands)} commands sequentially...")
+
+        for i, command in enumerate(commands, 1):
+            if not self.workflow_active:
+                return
+
+            target_channel = self.get_command_channel(command)
+            channel_name = target_channel.name if target_channel else "general"
+
+            await channel.send(f"\n**Command {i}/{len(commands)}: {command}** → #{channel_name}")
+
+            if target_channel:
+                await target_channel.send(command)
+
+            # Wait for and display responses for this specific command
+            start_time = time.time()
+            initial_count = len(self.responses_collected)
+            displayed_responses = 0
+
+            await channel.send(f"⏳ Waiting for agent responses to this command... (up to {max_wait_time}s)")
+
+            while time.time() - start_time < max_wait_time and self.workflow_active:
+                await asyncio.sleep(2)
+
+                # Get new responses that match this command
+                new_responses = [
+                    r for r in self.responses_collected[initial_count:]
+                    if r.get('phase') == phase_key and r.get('command', '') == command
+                ]
+
+                # Display new responses immediately below the command
+                for response_data in new_responses:
+                    agent_name = response_data.get('agent', 'Unknown')
+                    response = response_data.get('response', '')
+
+                    await channel.send(f"**📥 Response from {agent_name.title()} Agent:**")
+
+                    if isinstance(response, dict):
+                        for key, value in response.items():
+                            if key not in ['timestamp', 'agent_role']:
+                                formatted_value = self._format_response_value(key, value)
+                                emoji_map = {
+                                    'trade_proposals': '📈',
+                                    'confidence_level': '🎯',
+                                    'risk_assessment': '⚠️',
+                                    'analysis': '🔍',
+                                    'recommendations': '💡'
+                                }
+                                emoji = emoji_map.get(key, '•')
+                                await channel.send(f"{emoji} **{key.replace('_', ' ').title()}:** {formatted_value}")
+                    else:
+                        sanitized_response = self._sanitize_agent_output(str(response))
+                        segments = self._break_into_logical_segments(sanitized_response)
+                        for segment in segments:
+                            if segment.strip():
+                                await channel.send(segment)
+
+                    displayed_responses += 1
+
+                if displayed_responses > 0:
+                    # If we got responses, wait a bit longer for more
+                    await asyncio.sleep(5)
+
+            # Announce completion for this command
+            if displayed_responses > 0:
+                await channel.send(f"✅ Responses collected for command {i}: {displayed_responses}")
+            else:
+                await channel.send(f"⏰ No responses received for command {i} within {max_wait_time}s")
+
+        await channel.send("✅ All commands processed sequentially")
+
+    async def _execute_single_command(self, command, channel, phase_key, max_wait_time):
+        """Execute a single command and display responses in real-time"""
+        target_channel = self.get_command_channel(command)
+        channel_name = target_channel.name if target_channel else "general"
+
+        await channel.send(f"Supervision Command: {command} → #{channel_name}")
+
+        if target_channel:
+            await target_channel.send(command)
+
+        # Wait for response and display in real-time
+        await channel.send(f"⏳ Waiting up to {max_wait_time}s for supervision decision...")
+
+        start_time = time.time()
+        initial_count = len(self.responses_collected)
+        displayed_responses = 0
+
+        while time.time() - start_time < max_wait_time and self.workflow_active:
+            await asyncio.sleep(2)  # Check frequently for real-time updates
+
+            # Get new responses for this phase
+            phase_responses = [r for r in self.responses_collected if r.get('phase') == phase_key]
+            new_responses = phase_responses[displayed_responses:]
+
+            # Display new responses immediately
+            for response_data in new_responses:
+                agent_name = response_data.get('agent', 'Unknown')
+                response = response_data.get('response', '')
+
+                # Display response in Discord immediately
+                await channel.send(f"**📥 {agent_name.title()} Agent Decision:**")
+
+                # Format and display the response
+                if isinstance(response, dict):
+                    # Handle structured responses
+                    for key, value in response.items():
+                        if key not in ['timestamp', 'agent_role']:
+                            formatted_value = self._format_response_value(key, value)
+                            emoji_map = {
+                                'decision': '🎯',
+                                'rationale': '💡',
+                                'recommendation': '📋',
+                                'analysis': '🔍'
+                            }
+                            emoji = emoji_map.get(key, '•')
+                            await channel.send(f"{emoji} **{key.replace('_', ' ').title()}:** {formatted_value}")
+                else:
+                    # Handle string responses
+                    sanitized_response = self._sanitize_agent_output(str(response))
+                    # Break into logical segments for better readability
+                    segments = self._break_into_logical_segments(sanitized_response)
+                    for segment in segments:
+                        if segment.strip():
+                            await channel.send(segment)
+
+                displayed_responses += 1
+
+        final_count = len([r for r in self.responses_collected if r.get('phase') == phase_key])
+        if final_count > initial_count:
+            await channel.send("✅ **Supervision decision received and displayed**")
+        else:
+            await channel.send(f"⏰ **No supervision response received within {max_wait_time}s timeout**")
 
     async def run_orchestrator(self):
         """Run the live workflow orchestrator"""
@@ -1849,7 +2670,20 @@ class LiveWorkflowOrchestrator:
                 if not self.client:
                     raise ValueError("❌ Discord client not initialized")
                 print("🚀 Starting Discord client...")
-                await self.client.start(token)
+                max_retries = 5
+                retry_delay = 5
+                for attempt in range(max_retries):
+                    try:
+                        await self.client.start(token)
+                        break
+                    except Exception as e:
+                        print(f"❌ Connection attempt {attempt+1}/{max_retries} failed: {e}")
+                        if attempt < max_retries - 1:
+                            wait_time = retry_delay * (2 ** attempt)
+                            print(f"🔄 Retrying in {wait_time} seconds...")
+                            await asyncio.sleep(wait_time)
+                        else:
+                            raise
             except KeyboardInterrupt:
                 print("\n🛑 Orchestrator shutting down...")
                 if self.client:

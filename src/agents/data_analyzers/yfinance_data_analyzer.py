@@ -551,13 +551,20 @@ Return a JSON object with:
             period = period_map.get(time_horizon, '1y')
 
             if 'quotes' in data_types or 'historical' in data_types:
-                # Get historical data
-                hist = ticker.history(period=period, interval='1d')
+                # Get historical data including premarket
+                hist = ticker.history(period=period, interval='1d', prepost=True)
                 if not hist.empty:
+                    # Separate regular hours and premarket data
+                    regular_hours = hist.between_time('09:30', '16:00')
+                    premarket = hist[~hist.index.isin(regular_hours.index)]
+                    
                     data['historical'] = {
                         'prices': hist.to_dict('index'),
+                        'regular_hours': regular_hours.to_dict('index') if not regular_hours.empty else {},
+                        'premarket': premarket.to_dict('index') if not premarket.empty else {},
                         'source': 'yfinance',
-                        'period': period
+                        'period': period,
+                        'includes_premarket': True
                     }
 
             if 'quotes' in data_types:
@@ -783,13 +790,20 @@ Return a JSON object with:
             period = period_map.get(time_horizon, '1y')
 
             if 'quotes' in data_types or 'historical' in data_types:
-                # Get historical data
-                hist = ticker.history(period=period, interval='1d')
+                # Get historical data including premarket
+                hist = ticker.history(period=period, interval='1d', prepost=True)
                 if not hist.empty:
+                    # Separate regular hours and premarket data
+                    regular_hours = hist.between_time('09:30', '16:00')
+                    premarket = hist[~hist.index.isin(regular_hours.index)]
+                    
                     data['historical'] = {
                         'prices': hist.to_dict('index'),
+                        'regular_hours': regular_hours.to_dict('index') if not regular_hours.empty else {},
+                        'premarket': premarket.to_dict('index') if not premarket.empty else {},
                         'source': 'yfinance',
-                        'period': period
+                        'period': period,
+                        'includes_premarket': True
                     }
 
             if 'quotes' in data_types:

@@ -371,8 +371,29 @@ class HistoricalSimulationEngine:
         portfolio_df['date'] = pd.to_datetime(portfolio_df['date'])
         portfolio_df = portfolio_df.set_index('date')
 
+        # Validate portfolio values for realism
+        min_reasonable_value = self.config.initial_capital * 0.01  # At least 1% of initial
+        max_reasonable_value = self.config.initial_capital * 1000  # Max 1000x initial (very aggressive growth)
+
+        portfolio_values = portfolio_df['portfolio_value']
+        if portfolio_values.min() < min_reasonable_value:
+            logger.warning(f"Portfolio value dropped below reasonable minimum: ${portfolio_values.min():,.2f}")
+        if portfolio_values.max() > max_reasonable_value:
+            logger.warning(f"Portfolio value exceeded reasonable maximum: ${portfolio_values.max():,.2f}")
+            # Cap extreme values to prevent unrealistic calculations
+            portfolio_df['portfolio_value'] = portfolio_df['portfolio_value'].clip(upper=max_reasonable_value)
+
         # Calculate returns
         portfolio_df['returns'] = portfolio_df['portfolio_value'].pct_change()
+
+        # Validate returns for edge cases (market crashes, extreme volatility)
+        returns_std = portfolio_df['returns'].std()
+        if returns_std > 0.5:  # Daily volatility > 50%
+            logger.warning(f"Extreme volatility detected: daily std dev = {returns_std:.3f}")
+
+        # Handle NaN returns (first day)
+        portfolio_df['returns'] = portfolio_df['returns'].fillna(0)
+
         portfolio_df['cumulative_returns'] = (1 + portfolio_df['returns']).cumprod() - 1
 
         # Calculate benchmark returns
@@ -386,8 +407,15 @@ class HistoricalSimulationEngine:
         else:
             benchmark_cumulative = pd.Series([0] * len(portfolio_df), index=portfolio_df.index)
 
-        # Calculate performance metrics
-        total_return = (portfolio_df['portfolio_value'].iloc[-1] / self.config.initial_capital) - 1
+        # Calculate performance metrics with validation
+        final_value = portfolio_df['portfolio_value'].iloc[-1]
+        total_return = (final_value / self.config.initial_capital) - 1
+
+        # Validate total return for realism
+        if abs(total_return) > 50:  # More than 5000% return (extremely unrealistic)
+            logger.error(f"Unrealistic total return detected: {total_return:.2f}. Capping to reasonable range.")
+            total_return = np.sign(total_return) * 50  # Cap at +/- 5000%
+
         if total_return > -1:  # Only calculate if not a total loss
             annualized_return = (1 + total_return) ** (252 / len(portfolio_df)) - 1
         else:
@@ -397,11 +425,15 @@ class HistoricalSimulationEngine:
         volatility = portfolio_df['returns'].std() * np.sqrt(252)
         sharpe_ratio = (annualized_return - self.config.risk_free_rate) / volatility if volatility > 0 else 0
 
-        # Maximum drawdown
+        # Maximum drawdown with validation
         cumulative = (1 + portfolio_df['returns']).cumprod()
         running_max = cumulative.expanding().max()
         drawdown = (cumulative - running_max) / running_max
         max_drawdown = drawdown.min()
+
+        # Validate drawdown
+        if max_drawdown < -0.99:  # Near total loss
+            logger.warning(f"Extreme drawdown detected: {max_drawdown:.3f}")
 
         # Calculate benchmark comparison
         benchmark_total_return = benchmark_cumulative.iloc[-1] if not benchmark_cumulative.empty else 0

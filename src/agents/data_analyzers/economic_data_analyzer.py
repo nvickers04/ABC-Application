@@ -10,7 +10,7 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 from dataclasses import dataclass, field
-from agents.base import BaseAgent
+from src.agents.base import BaseAgent
 from src.utils.tools import fred_data_tool, requests
 
 logger = logging.getLogger(__name__)

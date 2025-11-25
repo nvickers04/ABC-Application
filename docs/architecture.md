@@ -56,15 +56,15 @@ ABC Application is a sophisticated multi-agent AI system for quantitative portfo
 
 **Collaborative Reasoning Process:**
 
-**Single Iteration Framework: Comprehensive Analysis**
+**Enhanced 7-Phase Alpha Discovery Framework:**
 
-The collaborative reasoning process operates in a single comprehensive iteration that combines macro foundation with full agent deliberation for efficient decision-making.
-
-**Macro Foundation: Market Regime Assessment & Opportunity Identification**
-The MacroAgent establishes the strategic foundation before any detailed analysis begins, scanning 39+ sectors/assets and identifying top opportunities for focused analysis.
-
-**Comprehensive Multi-Agent Deliberation (All 8 Agents)**
-All agents participate in the complete workflow phases to ensure maximum information gathering, diverse perspectives, and thorough analysis on the MacroAgent's prioritized opportunities.
+1. **Systematic Market Surveillance** - Institutional-grade multi-asset surveillance and anomaly detection
+2. **Multi-Strategy Opportunity Synthesis** - Advanced cross-agent validation and conviction-weighted prioritization  
+3. **Quantitative Opportunity Validation** - Rigorous opportunity validation with risk decomposition and execution planning
+4. **Investment Committee Review** - Efficient multi-criteria evaluation and trade structure optimization
+5. **Portfolio Implementation Planning** - Professional capital allocation and risk management protocol establishment
+6. **Performance Analytics and Refinement** - Systematic performance analytics and continuous improvement frameworks
+7. **Chief Investment Officer Oversight** - Executive oversight with final investment decision authority
 
 #### **Reflection Agent's Supreme Oversight Authority**
 The ReflectionAgent serves as the system's final arbiter with unilateral authority to ensure decision quality and risk management:
@@ -335,4 +335,4 @@ token = get_vault_secret('DISCORD_ORCHESTRATOR_TOKEN')
 
 ---
 
-*This architecture document provides the foundation for understanding the ABC Application system. For detailed implementation guides, refer to the AGENTS and IMPLEMENTATION sections.*
+## Additional Utilities\n\n### Adaptive Scheduler\nThe adaptive_scheduler.py provides dynamic scheduling for agent tasks, adjusting based on market conditions and system load. It integrates with the A2A protocol for real-time task management.\n\n### Historical Simulation Engine\nThe historical_simulation_engine.py enables backtesting of strategies using historical data, supporting multiple scenarios and performance metrics calculation.\n\n---\n\n*This architecture document provides the foundation for understanding the ABC Application system. For detailed implementation guides, refer to the AGENTS and IMPLEMENTATION sections.*

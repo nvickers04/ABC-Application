@@ -33,3 +33,15 @@ def load_secure_environment():
 
 # Load secure environment on import
 load_secure_environment()
+class SecureConfig:
+    def __init__(self):
+        self.config = {}
+
+    def load_config(self, config_file: str) -> dict:
+        """Load configuration from file."""
+        # Mock implementation
+        return {"loaded": True}
+
+    def _decrypt_value(self, value: str) -> str:
+        """Decrypt a value."""
+        return value

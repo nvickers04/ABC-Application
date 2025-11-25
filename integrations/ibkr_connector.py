@@ -447,6 +447,23 @@ class IBKRConnector:
             logger.error(f"Error getting positions: {e}")
             return []
 
+    async def get_cash_balance(self) -> float:
+        """
+        Get the current cash balance from the account summary.
+
+        Returns:
+            float: Current cash balance
+        """
+        try:
+            summary = await self.get_account_summary()
+            if 'error' in summary:
+                logger.error(f"Error getting cash balance: {summary['error']}")
+                return 0.0
+            return summary.get('cash_balance', 0.0)
+        except Exception as e:
+            logger.error(f"Error in get_cash_balance: {e}")
+            return 0.0
+
     def _is_market_open(self) -> bool:
         """
         Check if the market is currently open

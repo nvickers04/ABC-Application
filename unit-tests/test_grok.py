@@ -24,7 +24,7 @@ async def test_grok():
         from langchain_core.utils import convert_to_secret_str
         chat = ChatXAI(
             api_key=convert_to_secret_str(api_key),
-            model="grok-4-fast-reasoning",
+            model="grok-4-1-fast-reasoning",
             temperature=0.1,
             max_tokens=4096
         )
