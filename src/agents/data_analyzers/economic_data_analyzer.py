@@ -232,7 +232,7 @@ class EconomicDataAnalyzer(BaseAgent):
                     "limit": 100
                 }
 
-                response = await asyncio.get_event_loop().run_in_executor(
+                response = await asyncio.get_running_loop().run_in_executor(
                     None, lambda: requests.get(base_url, params=params, timeout=10)
                 )
                 response.raise_for_status()

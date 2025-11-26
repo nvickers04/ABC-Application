@@ -12,7 +12,6 @@ This folder contains comprehensive integration and system testing scripts for th
 ## Test Categories
 
 ### System Integration Tests
-- `comprehensive_test.py` - Full system testing of all agents and subagents
 - `full_system_integration_test.py` - Complete system integration validation
 - `system_integration_test.py` - Core system integration testing
 - `priority7_integration_test.py` - Priority 7 system integration with performance targets
@@ -58,8 +57,6 @@ Run any test script directly from the project root:
 # Basic IBKR connectivity test
 python integration-tests/test_ibkr_simple.py
 
-# Full system integration test
-python integration-tests/comprehensive_test.py
 
 # Priority 7 performance test
 python integration-tests/priority7_integration_test.py
@@ -79,6 +76,18 @@ pytest integration-tests/ -v
 
 # Run with coverage
 pytest integration-tests/ --cov=src --cov-report=html
+
+# Run fast unit tests only
+pytest -m fast
+
+# Run tests with mocks (skip real IBKR)
+pytest -m mocked
+
+# Run IBKR tests (requires TWS running)
+pytest -m ibkr
+
+# Run in parallel
+pytest -n auto
 ```
 
 ### Test Dependencies
@@ -88,6 +97,8 @@ Before running integration tests, ensure:
 3. Redis server is running (for memory tests)
 4. IBKR TWS/Gateway is running (for IBKR integration tests)
 5. API keys are properly configured
+
+For IBKR tests, set RUN_IBKR_TESTS=true in .env
 
 ### Environment Setup
 ```bash

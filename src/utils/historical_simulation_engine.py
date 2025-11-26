@@ -532,8 +532,10 @@ def run_multi_strategy_comparison(symbols: List[str],
     """
     results = {}
 
-    for strategy in strategies:
-        strategy_name = strategy.get('name', 'unnamed_strategy')
+for strategy in strategies:
+    if 'name' not in strategy:
+        raise KeyError("Strategy configuration missing 'name' key")
+    strategy_name = strategy['name']
         weights = strategy.get('weights', None)
         rebalance_freq = strategy.get('rebalance_frequency', 'monthly')
 

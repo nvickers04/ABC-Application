@@ -67,13 +67,14 @@ class OptimizedPipelineProcessor:
     @asynccontextmanager
     async def memory_context(self, operation_name: str):
         """Context manager for memory monitoring."""
+        loop = asyncio.get_running_loop()
         start_memory = self.memory_stats.current_mb
-        start_time = asyncio.get_event_loop().time()
+        start_time = loop.time()
 
         try:
             yield
         finally:
-            end_time = asyncio.get_event_loop().time()
+            end_time = loop.time()
             self._update_memory_stats()
             end_memory = self.memory_stats.current_mb
 
@@ -362,7 +363,7 @@ class OptimizedPipelineProcessor:
             'fundamental': subagent_results.get('fundamental', {}).get('fundamental', {}),
             'microstructure': subagent_results.get('microstructure', {}).get('microstructure', {}),
             'kalshi': subagent_results.get('kalshi', {}).get('kalshi', {}),
-            'processing_timestamp': asyncio.get_event_loop().time()
+            'processing_timestamp': asyncio.get_running_loop().time()
         }
 
         return result

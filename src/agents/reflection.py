@@ -2720,3 +2720,39 @@ Provide a clear AWARD/NO-AWARD recommendation with detailed rationale.
             })
 
         return {'checks': checks, 'operational_issues': operational_issues}
+
+    def analyze_performance(self, execution_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Analyze performance data.
+
+        Args:
+            execution_data: Performance data to analyze
+
+        Returns:
+            Analysis results
+        """
+        try:
+            analysis = {
+                'insights': ['performance_analyzed'],
+                'metrics': {}
+            }
+
+            # Basic analysis
+            if 'pnl' in execution_data:
+                pnl = execution_data['pnl']
+                if pnl > 0:
+                    analysis['insights'].append('positive_performance')
+                else:
+                    analysis['insights'].append('negative_performance')
+
+            analysis['metrics'] = {
+                'total_return': execution_data.get('pnl', 0),
+                'win_rate': execution_data.get('win_rate', 0.5),
+                'max_drawdown': execution_data.get('max_drawdown', 0.1)
+            }
+
+            return analysis
+
+        except Exception as e:
+            logger.error(f"Error analyzing performance: {e}")
+            return {'insights': ['analysis_failed'], 'error': str(e)}

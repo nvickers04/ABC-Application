@@ -1491,6 +1491,43 @@ class ExecutionAgent(BaseAgent):
             logger.error(f"Error generating execution optimization proposal: {e}")
             return {'error': str(e)}
 
+    def execute_trades(self, trades: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Execute a list of trades.
+
+        Args:
+            trades: List of trade dictionaries
+
+        Returns:
+            Execution results
+        """
+        try:
+            results = []
+            for trade in trades:
+                symbol = trade.get('symbol', 'SPY')
+                quantity = trade.get('quantity', 100)
+                action = trade.get('action', 'BUY')
+
+                # Simulate trade execution
+                result = {
+                    'success': True,
+                    'symbol': symbol,
+                    'quantity': quantity,
+                    'action': action,
+                    'simulated': True
+                }
+                results.append(result)
+
+            return {
+                'success': True,
+                'trades_executed': len(results),
+                'results': results
+            }
+
+        except Exception as e:
+            logger.error(f"Error executing trades: {e}")
+            return {'success': False, 'error': str(e)}
+
 # Standalone test (run python src/agents/execution.py to verify)
 if __name__ == "__main__":
     import asyncio

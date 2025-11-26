@@ -26,10 +26,12 @@ class PerformanceOptimizer:
 
     def __init__(self):
         self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=8)
-        self.loop = asyncio.get_event_loop()
+        self.loop = None
 
     async def run_io_bound_task(self, func, *args, **kwargs):
         """Run IO-bound tasks in thread pool to avoid blocking"""
+        if self.loop is None:
+            self.loop = asyncio.get_running_loop()
         return await self.loop.run_in_executor(
             self.executor,
             functools.partial(func, *args, **kwargs)
@@ -256,7 +258,7 @@ class OptimizedDataAgent(DataAgent):
         def fetch_data():
             return self.yfinance_sub.process_input_sync({"symbols": [symbol], "period": "2y"})
 
-        result = await asyncio.get_event_loop().run_in_executor(self.executor, fetch_data)
+        result = await asyncio.get_running_loop().run_in_executor(self.executor, fetch_data)
 
         # Cache result
         self._cache_result(cache_key, result)

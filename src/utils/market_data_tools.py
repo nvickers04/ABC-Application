@@ -150,10 +150,11 @@ class MarketDataAppWebSocketTool(BaseTool):
                 uri = f"wss://api.marketdataapp.com/v1/stocks/quotes?symbols={symbol}&apikey={api_key}"
 
                 collected_data = []
-                start_time = asyncio.get_event_loop().time()
+                loop = asyncio.get_running_loop()
+                start_time = loop.time()
 
                 async with websockets.connect(uri) as websocket:
-                    while asyncio.get_event_loop().time() - start_time < duration_seconds:
+                    while loop.time() - start_time < duration_seconds:
                         try:
                             message = await asyncio.wait_for(websocket.recv(), timeout=1.0)
                             data = json.loads(message)
@@ -161,7 +162,7 @@ class MarketDataAppWebSocketTool(BaseTool):
                             if symbol in data:
                                 symbol_data = data[symbol]
                                 collected_data.append({
-                                    "timestamp": asyncio.get_event_loop().time(),
+                                    "timestamp": loop.time(),
                                     "price": symbol_data.get("last", 0),
                                     "change": symbol_data.get("change", 0),
                                     "volume": symbol_data.get("volume", 0)

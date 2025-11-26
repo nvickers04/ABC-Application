@@ -5,7 +5,7 @@ import aiohttp
 
 # Async fixtures for common test dependencies
 @pytest.fixture
-async def data_agent():
+def data_agent():
     """Mock data agent for testing."""
     agent = AsyncMock()
     agent.process_data = AsyncMock(return_value={"status": "success", "data": {"articles_df": []}})
@@ -39,13 +39,7 @@ async def system_setup():
     setup.cleanup = AsyncMock(return_value=True)
     yield setup
 
-@pytest.fixture
-def event_loop():
-    """Create an instance of the default event loop for the test session."""
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    yield loop
-    loop.close()
+
 
 # Mock aiohttp session to prevent unclosed session warnings
 @pytest.fixture

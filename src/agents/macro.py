@@ -144,7 +144,8 @@ class MacroAgent(BaseAgent):
 
         # Initialize Redis caching
         try:
-            self.redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=False)
+import os
+self.redis_client = redis.Redis(host='localhost', port=int(os.getenv('REDIS_PORT', 6379)), db=0, decode_responses=False)
             self.redis_available = self.redis_client.ping()
             logger.info("Redis caching enabled for MacroAgent")
         except redis.ConnectionError:
@@ -1781,5 +1782,33 @@ if __name__ == "__main__":
         print(f"Selected sectors: {len(result.get('selected_sectors', []))}")
         for sector in result.get('selected_sectors', []):
             print(f"  {sector['ticker']}: {sector['name']} (score: {sector['score']:.3f})")
+
+    def assess_market_regime(self, market_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Assess the current market regime.
+
+        Args:
+            market_data: Market data for regime assessment
+
+        Returns:
+            Regime assessment
+        """
+        try:
+            # Basic regime assessment
+            regime = 'neutral'
+
+            # Simple assessment based on volatility or other indicators
+            if 'volatility_index' in market_data:
+                vix = market_data['volatility_index']
+                if vix > 25:
+                    regime = 'volatile'
+                elif vix < 15:
+                    regime = 'calm'
+
+            return {'regime': regime}
+
+        except Exception as e:
+            logger.error(f"Error assessing market regime: {e}")
+            return {'regime': 'unknown', 'error': str(e)}
 
     asyncio.run(test_macro_agent())

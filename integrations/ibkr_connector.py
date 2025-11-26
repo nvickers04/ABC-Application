@@ -13,6 +13,7 @@ from pathlib import Path
 from threading import Lock
 from concurrent.futures import ThreadPoolExecutor
 import time
+import random
 
 # IBKR imports
 from ib_insync import IB, Contract, Order, util
@@ -156,101 +157,44 @@ class IBKRConnector:
 
     async def connect(self) -> bool:
         """
-        Connect to IBKR paper trading account with improved asyncio handling.
+        Connect to IBKR paper trading account with direct async handling.
 
         Returns:
             bool: True if connection successful
         """
-        max_retries = 3
-        retry_delay = 2.0
+        if self.connected:
+            logger.info("Already connected to IBKR")
+            return True
 
-        for attempt in range(max_retries):
-            try:
-                if self.connected:
-                    logger.info("Already connected to IBKR")
-                    return True
+        if not self.username or not self.password:
+            logger.error("IBKR credentials not available. Please set IBKR_USERNAME and IBKR_PASSWORD in .env file.")
+            return False
 
-                if not self.username or not self.password:
-                    logger.error("IBKR credentials not available. Please set IBKR_USERNAME and IBKR_PASSWORD in .env file.")
-                    return False
+        # Generate a new random client ID for each connection attempt to avoid conflicts
+        self.client_id = random.randint(1, 999)
+        logger.info(f"Using client ID {self.client_id} for connection")
 
-                # Use threading with a new event loop for IBKR operations
-                import threading
-                import asyncio as asyncio_module
+        try:
+            # Create IB instance
+            self.ib = IB()
+            await self.ib.connectAsync(self.host, self.port, self.client_id, timeout=10)
+            
+            # Wait for connection to be fully established
+            await asyncio.sleep(2)
+            
+            if self.ib.isConnected():
+                logger.info("Connection established, getting managed accounts...")
+                self.account_id = self.ib.managedAccounts()[0] if self.ib.managedAccounts() else self.account_id_env
+                self.connected = True
+                logger.info(f"Successfully connected to IBKR Paper Trading. Account: {self.account_id}")
+                return True
+            else:
+                logger.warning("Connection timeout")
+                return False
 
-                connection_result = {'connected': False, 'error': None}
-
-                def connect_in_thread():
-                    # Create new event loop for this thread
-                    loop = asyncio_module.new_event_loop()
-                    asyncio_module.set_event_loop(loop)
-
-                    try:
-                        # Create IB instance
-                        temp_ib = IB()
-                        logger.info(f"Attempting to connect to IBKR at {self.host}:{self.port} with client ID {self.client_id}")
-
-                        # Use connectAsync directly in our event loop
-                        connect_task = temp_ib.connectAsync(self.host, self.port, self.client_id, timeout=10)
-                        loop.run_until_complete(connect_task)
-
-                        # Wait for connection to be fully established
-                        timeout = 15  # Increased timeout
-                        start_time = time.time()
-                        logger.info("Waiting for connection to be established...")
-                        while not temp_ib.isConnected() and (time.time() - start_time) < timeout:
-                            time.sleep(0.5)  # Longer sleep interval
-                            logger.debug(f"Still waiting for connection... {(time.time() - start_time):.1f}s elapsed")
-
-                        if temp_ib.isConnected():
-                            logger.info("Connection established, attempting to get managed accounts...")
-                            # Successfully connected, transfer to main instance
-                            self.ib = temp_ib
-                            connection_result['connected'] = True
-                            self.account_id = self.ib.managedAccounts()[0] if self.ib.managedAccounts() else self.account_id_env
-                            logger.info(f"Successfully connected to IBKR Paper Trading. Account: {self.account_id}")
-                        else:
-                            logger.warning("Connection timeout - disconnecting...")
-                            temp_ib.disconnect()
-                            connection_result['error'] = 'Connection timeout'
-
-                    except Exception as e:
-                        connection_result['error'] = str(e)
-                        logger.error(f"Connection error: {e}")
-                        logger.error(f"Error type: {type(e)}")
-                        import traceback
-                        logger.error(f"Traceback: {traceback.format_exc()}")
-                    finally:
-                        loop.close()
-
-                # Run connection in separate thread with its own event loop
-                connect_thread = threading.Thread(target=connect_in_thread)
-                connect_thread.start()
-                connect_thread.join(timeout=15)  # 15 second timeout
-
-                if connection_result['connected']:
-                    self.connected = True
-                    return True
-                else:
-                    error_msg = connection_result.get('error', 'Unknown error')
-                    logger.warning(f"Connection attempt {attempt + 1} failed: {error_msg}")
-                    if attempt < max_retries - 1:
-                        await asyncio.sleep(retry_delay)
-                        retry_delay *= 1.5  # Exponential backoff
-
-            except Exception as e:
-                logger.error(f"Error in connection attempt {attempt + 1}: {e}")
-                if attempt < max_retries - 1:
-                    await asyncio.sleep(retry_delay)
-                    retry_delay *= 1.5
-
-        logger.error("Failed to connect to IBKR Paper Trading after all retries")
-        logger.info("Make sure:")
-        logger.info("1. IBKR Trader Workstation (TWS) or Gateway is running")
-        logger.info("2. Paper trading account is enabled")
-        logger.info("3. API connections are enabled in TWS/Gateway")
-        logger.info("4. Correct host/port settings (127.0.0.1:7497 for paper trading)")
-        return False
+        except Exception as e:
+            logger.error(f"Connection error: {e}")
+            return False
 
     async def _wait_for_connection(self) -> None:
         """
@@ -343,7 +287,7 @@ class IBKRConnector:
     async def place_order(self, symbol: str, quantity: int, order_type: str = 'MKT',
                          action: str = 'BUY', price: Optional[float] = None) -> Dict[str, Any]:
         """
-        Place an order on IBKR paper trading with improved asyncio handling.
+        Place an order on IBKR paper trading with direct async handling.
 
         Args:
             symbol: Stock symbol
@@ -377,7 +321,7 @@ class IBKRConnector:
             if order_type == 'LMT' and price:
                 order.lmtPrice = price
 
-            # Place order using synchronous IBKR method
+            # Place order using IBKR method
             trade = self.ib.placeOrder(contract, order)
 
             # Wait a bit for order to process

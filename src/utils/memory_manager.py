@@ -6,6 +6,7 @@ Implements memory pooling, lazy loading, and efficient data structures.
 
 import asyncio
 import logging
+import time
 import weakref
 from typing import Dict, Any, List, Optional, Callable
 from dataclasses import dataclass
@@ -74,7 +75,7 @@ class MemoryPool:
 
     async def _cleanup_unused_objects(self) -> None:
         """Clean up objects that haven't been used recently."""
-        current_time = asyncio.get_event_loop().time()
+        current_time = asyncio.get_running_loop().time()
         to_remove = []
 
         for key, mem_obj in self.pool.items():
@@ -96,7 +97,7 @@ class MemoryPool:
         if key in self.pool:
             mem_obj = self.pool[key]
             mem_obj.ref_count += 1
-            mem_obj.last_accessed = asyncio.get_event_loop().time()
+            mem_obj.last_accessed = time.time()
             self.access_history.append(key)
             return mem_obj.obj
         return None
@@ -113,7 +114,7 @@ class MemoryPool:
         self.pool[key] = MemoryObject(
             obj=obj,
             ref_count=1,
-            last_accessed=asyncio.get_event_loop().time(),
+            last_accessed=time.time(),
             size_bytes=size_bytes
         )
 

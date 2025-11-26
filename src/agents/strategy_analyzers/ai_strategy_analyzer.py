@@ -1460,7 +1460,13 @@ class AIStrategyAnalyzer(BaseAgent):
         self.research_session_id = None
 
         # ML model cache for performance
-        self.model_cache = {}
+self.model_cache = {}
+
+def _analyze_multi_symbol_ml(self, symbols, timeframes, include_feature_engineering, include_model_training, include_signal_generation, shared_data):
+    return {}
+
+def _generate_ml_alpha_signals(self, ml_analysis):
+    return []
 
     def _perform_ml_analysis(self, symbol: str, timeframe: str, features: List[str]) -> Dict[str, Any]:
         """Perform real ML analysis using historical data."""
@@ -1597,7 +1603,7 @@ class AIStrategyAnalyzer(BaseAgent):
             await self._share_predictive_insights(ai_analysis)
 
             logger.info(f"Enhanced AI proposal generated: {proposal.get('setup', 'unknown')} for {symbol}")
-            return {'ai': proposal}
+return {'ml_strategy': proposal}
 
         except Exception as e:
             logger.error(f"AI subagent processing failed: {e}")

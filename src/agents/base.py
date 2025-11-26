@@ -2117,9 +2117,10 @@ Please provide analysis based on your role and expertise.
                 
             # Wait for response (with timeout)
             timeout = 30  # seconds
-            start_time = asyncio.get_event_loop().time()
-            
-            while asyncio.get_event_loop().time() - start_time < timeout:
+            loop = asyncio.get_running_loop()
+            start_time = loop.time()
+
+            while loop.time() - start_time < timeout:
                 response = await self.receive_a2a_message()
                 if response and response.get('reply_to') == message_id:
                     logger.info(f"Agent {self.role} received data response from {target_agent}")

@@ -4010,3 +4010,51 @@ Be concise but thorough.
             factors.append("Strong cross-agent confidence")
 
         return factors
+
+    def generate_strategy_proposals(self, market_data: pd.DataFrame) -> List[Dict[str, Any]]:
+        """
+        Generate strategy proposals based on market data.
+
+        Args:
+            market_data: Market data for analysis
+
+        Returns:
+            List of strategy proposals
+        """
+        try:
+            proposals = []
+
+            # Basic strategy proposal generation
+            if market_data is not None and not market_data.empty:
+                # Simple momentum-based proposal
+                if 'Close' in market_data.columns and len(market_data) > 5:
+                    recent_prices = market_data['Close'].tail(5)
+                    if recent_prices.iloc[-1] > recent_prices.iloc[0]:
+                        proposals.append({
+                            'strategy': 'momentum_long',
+                            'symbol': 'SPY',  # Default symbol
+                            'confidence': 0.7,
+                            'type': 'momentum'
+                        })
+                    else:
+                        proposals.append({
+                            'strategy': 'mean_reversion',
+                            'symbol': 'SPY',
+                            'confidence': 0.6,
+                            'type': 'reversion'
+                        })
+
+            # Default proposal if no data
+            if not proposals:
+                proposals.append({
+                    'strategy': 'covered_call',
+                    'symbol': 'AAPL',
+                    'confidence': 0.5,
+                    'type': 'options'
+                })
+
+            return proposals
+
+        except Exception as e:
+            logger.error(f"Error generating strategy proposals: {e}")
+            return [{'strategy': 'default', 'symbol': 'SPY', 'confidence': 0.5, 'type': 'default'}]

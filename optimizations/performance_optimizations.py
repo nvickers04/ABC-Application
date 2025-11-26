@@ -70,9 +70,15 @@ class AsyncYFianceClient:
     """Async wrapper for yfinance operations"""
 
     def __init__(self, session: aiohttp.ClientSession = None):
-        self.session = session or aiohttp.ClientSession()
+        self._session = session
         self.base_url = "https://query1.finance.yahoo.com/v8/finance/chart/"
         self.circuit_breaker = CircuitBreaker(failure_threshold=3, recovery_timeout=30)
+
+    @property
+    def session(self):
+        if self._session is None:
+            self._session = aiohttp.ClientSession()
+        return self._session
 
     async def get_ticker_info(self, symbol: str) -> Dict[str, Any]:
         """Async get ticker info"""
