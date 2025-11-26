@@ -1,5 +1,5 @@
 # src/agents/data_analyzers/yfinance_data_analyzer.py
-# Purpose: Yfinance Data Subagent for fetching and analyzing market data from multiple sources.
+# Purpose: Yfinance Data Subagent for fetching and analyzing market data from Yahoo Finance only.
 
 import sys
 from pathlib import Path
@@ -50,63 +50,25 @@ class MarketDataMemory:
 
 class YfinanceDataAnalyzer(BaseAgent):
     """
-    Yfinance Data Analyzer with LLM-powered exploration.
-    Reasoning: Intelligently explores multiple market data sources and aggregates comprehensive data.
-    Uses LLM to prioritize data types, sources, and time horizons for optimal market intelligence.
+    Yfinance Data Analyzer - Pure Yfinance implementation.
+    Reasoning: Fetches and analyzes market data exclusively from Yahoo Finance.
     """
     def __init__(self):
         config_paths = {'risk': 'config/risk-constraints.yaml'}  # Relative to root.
         prompt_paths = {'base': 'config/base_prompt.txt', 'role': 'docs/AGENTS/main-agents/data-agent.md'}  # Relative to root.
-        tools = []  # MarketDataSub uses internal methods instead of tools
-        super().__init__(role='market_data', config_paths=config_paths, prompt_paths=prompt_paths, tools=tools)
+        tools = []  # YfinanceDataAnalyzer uses internal methods only
+        super().__init__(role='yfinance_data', config_paths=config_paths, prompt_paths=prompt_paths, tools=tools)
 
         # Initialize Redis cache manager
         self.redis_cache = get_redis_cache_manager()
         self.cache_ttl = 300  # 5 minutes TTL for market data
 
-        # Initialize optimized components if available
-        if OPTIMIZATIONS_AVAILABLE:
-            self.async_client = AsyncYFianceClient()
-            self.optimized_cache = OptimizedRedisCache(self.redis_cache) if self.redis_cache else None
-            self.circuit_breaker = CircuitBreaker(failure_threshold=3, recovery_timeout=30)
-        else:
-            self.async_client = None
-            self.optimized_cache = None
-            self.circuit_breaker = None
-
         # Initialize collaborative memory
         self.memory = MarketDataMemory()
 
-        # Available data sources for LLM exploration
-        self.available_sources = {
-            'yfinance': 'Primary Yahoo Finance data with historical prices and fundamentals',
-            'marketdataapp': 'Premium real-time quotes and institutional data',
-            'alpha_vantage': 'Alternative market data with technical indicators',
-            'polygon': 'High-frequency market data and aggregates',
-            'ibkr': 'Interactive Brokers market data integration',
-            'finnhub': 'Real-time stock quotes and market news',
-            'twelve_data': 'Global market data with forex and crypto'
-        }
-
-        # Available data types for exploration
-        self.available_data_types = {
-            'quotes': 'Real-time price quotes and market data',
-            'historical': 'Historical price data with OHLCV',
-            'fundamentals': 'Company financials and valuation metrics',
-            'options': 'Options chain data and Greeks',
-            'technical': 'Technical indicators and analysis',
-            'institutional': 'Institutional holdings and flow data',
-            'news': 'Market news and sentiment data',
-            'earnings': 'Earnings estimates and surprises'
-        }
-
-        # Data source configurations
+        # Yfinance-specific configurations
         self.data_sources = {
-            'yfinance': self._fetch_yfinance_data,
-            'marketdataapp': self._fetch_marketdataapp_data,
-            'ibkr': self._fetch_ibkr_data,
-            'polygon': self._fetch_polygon_data,
-            'alpha_vantage': self._fetch_alpha_vantage_data
+            'yfinance': self._fetch_yfinance_data
         }
 
         # Real-time streaming configurations
@@ -118,6 +80,19 @@ class YfinanceDataAnalyzer(BaseAgent):
 
         # Market data indicators
         self.technical_indicators = self._initialize_technical_indicators()
+
+    async def _fetch_yfinance_data(self, symbol: str, data_types: List[str], time_horizon: str) -> Dict[str, Any]:
+        """Fetch data from yfinance."""
+        try:
+            import yfinance as yf
+            ticker = yf.Ticker(symbol)
+            hist = ticker.history(period=time_horizon)
+            if hist.empty:
+                return {"error": "No data for symbol"}
+            return {"data": hist.to_dict(), "source": "yfinance"}
+        except Exception as e:
+            logger.error(f"Yfinance fetch failed for {symbol}: {e}")
+            return {"error": str(e)}
 
     def _initialize_technical_indicators(self) -> Dict[str, Callable[..., Any]]:
         """Initialize technical indicator functions."""
@@ -141,19 +116,19 @@ class YfinanceDataAnalyzer(BaseAgent):
                 asyncio.get_running_loop()
                 # If we're in an async context, we can't use await here
                 # Fall back to basic cache check
-                return cache_get('market_data', cache_key) is not None
+                return cache_get('yfinance_data', cache_key) is not None
             except RuntimeError:
                 # Not in async context, we can run async check
                 try:
                     loop = asyncio.new_event_loop()
                     asyncio.set_event_loop(loop)
-                    result = loop.run_until_complete(self.optimized_cache.get('market_data', cache_key))
+                    result = loop.run_until_complete(self.optimized_cache.get('yfinance_data', cache_key))
                     loop.close()
                     return result is not None
                 except:
-                    return cache_get('market_data', cache_key) is not None
+                    return cache_get('yfinance_data', cache_key) is not None
         else:
-            return cache_get('market_data', cache_key) is not None
+            return cache_get('yfinance_data', cache_key) is not None
 
     def _get_cached_data(self, cache_key):
         """Get cached market data from Redis."""
@@ -163,19 +138,19 @@ class YfinanceDataAnalyzer(BaseAgent):
                 asyncio.get_running_loop()
                 # If we're in an async context, we can't use await here
                 # Fall back to basic cache get
-                return cache_get('market_data', cache_key)
+                return cache_get('yfinance_data', cache_key)
             except RuntimeError:
                 # Not in async context, we can run async get
                 try:
                     loop = asyncio.new_event_loop()
                     asyncio.set_event_loop(loop)
-                    result = loop.run_until_complete(self.optimized_cache.get('market_data', cache_key))
+                    result = loop.run_until_complete(self.optimized_cache.get('yfinance_data', cache_key))
                     loop.close()
                     return result
                 except:
-                    return cache_get('market_data', cache_key)
+                    return cache_get('yfinance_data', cache_key)
         else:
-            return cache_get('market_data', cache_key)
+            return cache_get('yfinance_data', cache_key)
 
     def _cache_data(self, cache_key, data):
         """Cache market data in Redis with TTL."""
@@ -185,28 +160,28 @@ class YfinanceDataAnalyzer(BaseAgent):
                 asyncio.get_running_loop()
                 # If we're in an async context, we can't use await here
                 # Fall back to basic cache set
-                cache_set('market_data', cache_key, data, self.cache_ttl)
+                cache_set('yfinance_data', cache_key, data, self.cache_ttl)
             except RuntimeError:
                 # Not in async context, we can run async set
                 try:
                     loop = asyncio.new_event_loop()
                     asyncio.set_event_loop(loop)
-                    loop.run_until_complete(self.optimized_cache.set('market_data', cache_key, data, ttl=self.cache_ttl))
+                    loop.run_until_complete(self.optimized_cache.set('yfinance_data', cache_key, data, ttl=self.cache_ttl))
                     loop.close()
                 except:
-                    cache_set('market_data', cache_key, data, self.cache_ttl)
+                    cache_set('yfinance_data', cache_key, data, self.cache_ttl)
         else:
-            cache_set('market_data', cache_key, data, self.cache_ttl)
+            cache_set('yfinance_data', cache_key, data, self.cache_ttl)
 
     def reflect(self, adjustments: Dict[str, Any]) -> Dict[str, Any]:
         """
         Reflect on batch adjustments for self-improvement.
         """
-        logger.info(f"MarketData Reflecting on adjustments: {adjustments}")
+        logger.info(f"YfinanceDataAnalyzer reflecting on adjustments: {adjustments}")
         return {}
 
     async def process_input(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Processes input for YFinance data analysis.
+        """Processes input for Yfinance data analysis.
         
         Args:
             input_data: Dictionary with symbols, data_types, etc.
@@ -251,7 +226,7 @@ class YfinanceDataAnalyzer(BaseAgent):
                 # Store market data in shared memory for strategy agents
                 for symbol in symbols:
                     if symbol in consolidated_data:
-                        await self.store_shared_memory("market_data", symbol, {
+                        await self.store_shared_memory("yfinance_data", symbol, {
                             "market_data": consolidated_data[symbol],
                             "llm_analysis": llm_analysis,
                             "timestamp": datetime.now().isoformat(),
@@ -329,11 +304,11 @@ class YfinanceDataAnalyzer(BaseAgent):
 
     async def _process_symbol_optimized(self, symbol: str, data_types: List[str], time_horizon: str) -> Dict[str, Any]:
         """Process a single symbol with caching and async operations"""
-        cache_key = f"symbol_data_{symbol}_{'_'.join(data_types)}_{time_horizon}"
+        cache_key = f"yfinance_symbol_data_{symbol}_{'_'.join(data_types)}_{time_horizon}"
 
         # Check cache first
         if self.optimized_cache:
-            cached_result = await self.optimized_cache.get('symbol_data', cache_key)
+            cached_result = await self.optimized_cache.get('yfinance_data', cache_key)
             if cached_result:
                 logger.info(f"Cache hit for {symbol}")
                 return cached_result
@@ -368,14 +343,14 @@ class YfinanceDataAnalyzer(BaseAgent):
                 if i == 0:  # Historical data
                     result['data']['historical'] = {
                         'prices': fetch_result,
-                        'source': 'yfinance_optimized'
+                        'source': 'yfinance'
                     }
                 elif i == 1:  # Ticker info
                     result['data']['quote'] = fetch_result
 
             # Cache the result
             if self.optimized_cache:
-                await self.optimized_cache.set('symbol_data', cache_key, result, ttl=self.cache_ttl)
+                await self.optimized_cache.set('yfinance_data', cache_key, result, ttl=self.cache_ttl)
 
             return result
 
@@ -418,7 +393,7 @@ class YfinanceDataAnalyzer(BaseAgent):
                         symbol_dataframes[symbol] = {
                             'historical_df': df,
                             'quote_data': result['data'].get('quote', {}),
-                            'source': 'optimized_yfinance'
+                            'source': 'yfinance'
                         }
 
                         # Add to master price DataFrame
@@ -436,6 +411,86 @@ class YfinanceDataAnalyzer(BaseAgent):
         consolidated['success_rate'] = consolidated['successful_fetches'] / len(symbols)
 
         return consolidated
+
+    async def _plan_data_exploration(self, symbols: List[str], context: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Use LLM to plan intelligent market data exploration based on symbols and context.
+
+        Args:
+            symbols: List of stock symbols to analyze
+            context: Additional context for exploration planning
+
+        Returns:
+            Dict containing exploration plan with prioritized sources and data types
+        """
+        if not self.llm:
+            logger.warning("No LLM available for data exploration - using default plan")
+            return {
+                "sources": ["yfinance"],
+                "data_types": ["quotes", "historical"],
+                "priorities": {"yfinance": 9},
+                "time_horizons": ["1mo"],
+                "reasoning": "Default plan without LLM assistance",
+                "expected_insights": ["Price momentum signals", "Volume analysis"]
+            }
+
+        try:
+            primary_symbol = symbols[0] if symbols else 'SPY'
+            exploration_prompt = f"""
+You are an expert quantitative analyst planning comprehensive market data collection for {primary_symbol} and related symbols.
+
+CONTEXT:
+- Primary Symbol: {primary_symbol}
+- Additional Symbols: {symbols[1:] if len(symbols) > 1 else 'None'}
+- Available Data Sources: {self.available_sources}
+- Available Data Types: {self.available_data_types}
+- Analysis Goals: Maximize market intelligence while managing API costs and data quality
+- Risk Constraints: Focus on reliable sources and market-moving data
+
+TASK:
+Based on the symbols and market context, determine which data sources and types to explore and prioritize them.
+Consider:
+1. Market capitalization and liquidity (large caps vs small caps)
+2. Recent volatility and trading activity
+3. Data freshness requirements vs cost trade-offs
+4. Correlation between symbols for multi-asset analysis
+5. Technical vs fundamental data needs
+
+Return a JSON object with:
+- "sources": Array of source names to explore (from available_sources keys)
+- "data_types": Array of data types to prioritize (from available_data_types keys)
+- "priorities": {{"yfinance": 9, "alpha_vantage": 7, "marketdataapp": 8}},
+- "time_horizons": ["1d", "1mo", "3mo"],
+- "reasoning": "Brief explanation of exploration strategy",
+- "expected_insights": ["Price momentum signals", "Volume analysis", "Valuation metrics", "Technical indicators"]
+
+Example:
+{{
+  "sources": ["yfinance"],
+  "data_types": ["quotes", "historical", "fundamentals"],
+  "priorities": {{"yfinance": 9}},
+  "time_horizons": ["1mo"],
+  "reasoning": "Focus on comprehensive data for {primary_symbol} as it's a major index component requiring both technical and fundamental analysis",
+  "expected_insights": ["Price momentum signals", "Volume analysis", "Valuation metrics", "Technical indicators"]
+}}
+"""
+
+            response = await self.llm.ainvoke(exploration_prompt)
+            response_text = response.content if hasattr(response, 'content') else str(response)
+
+            # Parse JSON response
+            import json
+            try:
+                plan = json.loads(response_text)
+                logger.info(f"LLM data exploration plan for {primary_symbol}: {plan.get('reasoning', 'No reasoning provided')}")
+                return plan
+            except json.JSONDecodeError as e:
+                logger.error(f"CRITICAL FAILURE: Failed to parse LLM data exploration plan JSON: {e} - cannot proceed without AI planning")
+                raise Exception(f"LLM data exploration planning failed - JSON parsing error: {e}")
+
+        except Exception as e:
+            logger.error(f"CRITICAL FAILURE: LLM data exploration planning failed: {e} - cannot proceed without AI planning")
+            raise Exception(f"LLM data exploration planning failed: {e}")
 
     async def _execute_data_exploration(self, symbols: List[str], plan: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -472,176 +527,6 @@ class YfinanceDataAnalyzer(BaseAgent):
             results[symbol] = symbol_results
 
         return results
-
-    async def _fetch_yfinance_data(self, symbol: str, data_types: List[str], time_horizon: str) -> Dict[str, Any]:
-        """Fetch data from Yahoo Finance with enhanced capabilities."""
-        try:
-            import yfinance as yf
-
-            data = {}
-            ticker = yf.Ticker(symbol)
-
-            # Map time horizon to yfinance period
-            period_map = {
-                '1d': '1d', '5d': '5d', '1mo': '1mo', '3mo': '3mo',
-                '6mo': '6mo', '1y': '1y', '2y': '2y', '5y': '5y'
-            }
-            period = period_map.get(time_horizon, '1y')
-
-            if 'quotes' in data_types or 'historical' in data_types:
-                # Get historical data including premarket
-                hist = ticker.history(period=period, interval='1d', prepost=True)
-                if not hist.empty:
-                    # Separate regular hours and premarket data
-                    regular_hours = hist.between_time('09:30', '16:00')
-                    premarket = hist[~hist.index.isin(regular_hours.index)]
-                    
-                    data['historical'] = {
-                        'prices': hist.to_dict('index'),
-                        'regular_hours': regular_hours.to_dict('index') if not regular_hours.empty else {},
-                        'premarket': premarket.to_dict('index') if not premarket.empty else {},
-                        'source': 'yfinance',
-                        'period': period,
-                        'includes_premarket': True
-                    }
-
-            if 'quotes' in data_types:
-                # Get current quote
-                quote = ticker.info
-                if quote:
-                    data['quote'] = {
-                        'price': quote.get('currentPrice') or quote.get('regularMarketPrice'),
-                        'change': quote.get('regularMarketChange'),
-                        'change_percent': quote.get('regularMarketChangePercent'),
-                        'volume': quote.get('volume'),
-                        'market_cap': quote.get('marketCap'),
-                        'pe_ratio': quote.get('trailingPE'),
-                        'source': 'yfinance'
-                    }
-
-            if 'fundamentals' in data_types:
-                # Get fundamental data
-                fundamentals = {
-                    'balance_sheet': ticker.balance_sheet.to_dict() if hasattr(ticker, 'balance_sheet') and ticker.balance_sheet is not None else {},
-                    'income_stmt': ticker.income_stmt.to_dict() if hasattr(ticker, 'income_stmt') and ticker.income_stmt is not None else {},
-                    'cash_flow': ticker.cashflow.to_dict() if hasattr(ticker, 'cashflow') and ticker.cashflow is not None else {},
-                    'source': 'yfinance'
-                }
-                data['fundamentals'] = fundamentals
-
-            if 'options' in data_types:
-                # Get options data
-                try:
-                    options = ticker.options
-                    if options:
-                        data['options'] = {
-                            'expirations': options,
-                            'source': 'yfinance'
-                        }
-                except Exception as e:
-                    logger.warning(f"Failed to fetch options for {symbol}: {e}")
-
-            return {
-                'symbol': symbol,
-                'data': data,
-                'timestamp': datetime.now().isoformat(),
-                'source': 'yfinance'
-            }
-
-        except Exception as e:
-            logger.error(f"Yfinance data fetch failed for {symbol}: {e}")
-            return {
-                'symbol': symbol,
-                'data': {},
-                'error': str(e),
-                'timestamp': datetime.now().isoformat(),
-                'source': 'yfinance'
-            }
-
-    async def _fetch_marketdataapp_data(self, symbol: str, data_types: List[str], time_horizon: str) -> Dict[str, Any]:
-        """Fetch data from MarketDataApp."""
-        try:
-            from src.utils.tools import marketdataapp_api_tool
-
-            data = {}
-
-            if 'quotes' in data_types:
-                quotes = marketdataapp_api_tool.invoke({"symbol": symbol, "data_type": "quotes"})
-                if quotes and 'error' not in quotes:
-                    data['quote'] = quotes
-
-            if 'trades' in data_types:
-                trades = marketdataapp_api_tool.invoke({"symbol": symbol, "data_type": "trades"})
-                if trades and 'error' not in trades:
-                    data['trades'] = trades
-
-            return {
-                'symbol': symbol,
-                'data': data,
-                'timestamp': datetime.now().isoformat(),
-                'source': 'marketdataapp'
-            }
-
-        except Exception as e:
-            logger.error(f"MarketDataApp data fetch failed for {symbol}: {e}")
-            return {
-                'symbol': symbol,
-                'data': {},
-                'error': str(e),
-                'timestamp': datetime.now().isoformat(),
-                'source': 'marketdataapp'
-            }
-
-    async def _fetch_ibkr_data(self, symbol: str, data_types: List[str], time_horizon: str) -> Dict[str, Any]:
-        """Fetch data from IBKR (placeholder for future implementation)."""
-        # IBKR integration would go here
-        return {
-            'symbol': symbol,
-            'data': {},
-            'source': 'ibkr',
-            'success': False,
-            'note': 'IBKR integration not yet implemented'
-        }
-
-    async def _fetch_polygon_data(self, symbol: str, data_types: List[str], time_horizon: str) -> Dict[str, Any]:
-        """Fetch data from Polygon.io (placeholder for future implementation)."""
-        # Polygon.io integration would go here
-        return {
-            'symbol': symbol,
-            'data': {},
-            'source': 'polygon',
-            'success': False,
-            'note': 'Polygon integration not yet implemented'
-        }
-
-    async def _fetch_alpha_vantage_data(self, symbol: str, data_types: List[str], time_horizon: str) -> Dict[str, Any]:
-        """Fetch data from Alpha Vantage."""
-        try:
-            from src.utils.tools import alpha_vantage_tool
-
-            data = {}
-
-            if 'quotes' in data_types:
-                quote = alpha_vantage_tool.invoke({"symbol": symbol, "function": "GLOBAL_QUOTE"})
-                if quote and 'error' not in quote:
-                    data['quote'] = quote
-
-            return {
-                'symbol': symbol,
-                'data': data,
-                'timestamp': datetime.now().isoformat(),
-                'source': 'alpha_vantage'
-            }
-
-        except Exception as e:
-            logger.error(f"Alpha Vantage data fetch failed for {symbol}: {e}")
-            return {
-                'symbol': symbol,
-                'data': {},
-                'error': str(e),
-                'timestamp': datetime.now().isoformat(),
-                'source': 'alpha_vantage'
-            }
 
     def _consolidate_market_data(self, symbols: List[str], exploration_results: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -688,73 +573,34 @@ class YfinanceDataAnalyzer(BaseAgent):
 
         return consolidated
 
-    def _consolidate_symbol_data(self, symbol_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Consolidate data from multiple sources for a symbol."""
-        consolidated = {
-            'primary_quote': None,
-            'consensus_price': None,
-            'price_sources': [],
-            'data_quality': 'low',
-            'dataframe': pd.DataFrame()  # Initialize empty dataframe
-        }
+    def _calculate_market_data_quality_score(self, exploration_results: Dict[str, Any]) -> float:
+        """Calculate overall market data quality score."""
+        base_score = 5.0
+        source_bonus = len(set(source for symbol_data in exploration_results.values() for source in symbol_data.keys())) * 0.5
+        symbol_bonus = len(exploration_results) * 0.3
+        data_completeness_bonus = sum(1 for symbol_data in exploration_results.values() if any('historical_df' in self._consolidate_symbol_data({k: v}).keys() for k, v in symbol_data.items())) * 0.4
 
-        data = symbol_data.get('data', {})
-        sources = symbol_data.get('sources', [])
+        return min(10.0, base_score + source_bonus + symbol_bonus + data_completeness_bonus)
 
-        # Consolidate historical data into DataFrame
-        for data_type, sources_data in data.items():
-            if data_type == 'historical':
-                for source, hist_data in sources_data.items():
-                    if 'prices' in hist_data and hist_data['prices']:
-                        # Convert the dict of dicts back to DataFrame
-                        try:
-                            df = pd.DataFrame.from_dict(hist_data['prices'], orient='index')
-                            if not df.empty:
-                                # Ensure we have OHLC columns
-                                required_cols = ['Open', 'High', 'Low', 'Close']
-                                if all(col in df.columns for col in required_cols):
-                                    consolidated['dataframe'] = df
-                                    break  # Use first valid historical data source
-                        except Exception as e:
-                            logger.warning(f"Failed to convert historical data to DataFrame: {e}")
-                            continue
-                if not consolidated['dataframe'].empty:
-                    break  # Stop after finding first valid dataframe
+    def _extract_market_insights(self, exploration_results: Dict[str, Any]) -> List[str]:
+        """Extract key market insights from consolidated data."""
+        insights = []
 
-        # Consolidate quotes
-        quotes = []
-        for data_type, sources_data in data.items():
-            if data_type == 'quote':
-                for source, quote_data in sources_data.items():
-                    if quote_data and 'price' in quote_data and quote_data['price']:
-                        quotes.append({
-                            'price': quote_data['price'],
-                            'source': source,
-                            'timestamp': quote_data.get('timestamp', datetime.now().isoformat())
-                        })
+        total_symbols = len(exploration_results)
+        if total_symbols > 0:
+            insights.append(f"Market data collected for {total_symbols} symbols")
 
-        if quotes:
-            prices = [q['price'] for q in quotes]
-            consolidated['consensus_price'] = np.mean(prices)
-            consolidated['price_range'] = {'min': min(prices), 'max': max(prices)}
-            consolidated['price_sources'] = [q['source'] for q in quotes]
-            consolidated['primary_quote'] = quotes[0]  # Use first source as primary
+        # Check for data completeness
+        complete_data_count = sum(1 for symbol_data in exploration_results.values() if any('historical_df' in self._consolidate_symbol_data({k: v}).keys() for k, v in symbol_data.items()))
+        if complete_data_count > 0:
+            insights.append(f"{complete_data_count} symbols have complete historical data")
 
-            # Assess data quality
-            if len(quotes) >= 2:
-                price_std = np.std(prices)
-                price_cv = price_std / consolidated['consensus_price'] if consolidated['consensus_price'] > 0 else float('inf')
-                if price_cv < 0.01:  # Within 1%
-                    consolidated['data_quality'] = 'high'
-                elif price_cv < 0.05:  # Within 5%
-                    consolidated['data_quality'] = 'medium'
-                else:
-                    consolidated['data_quality'] = 'low'
+        # Check for multiple sources
+        multi_source_count = sum(1 for symbol_data in exploration_results.values() if len([k for k, v in symbol_data.items() if isinstance(v, dict) and 'data' in v and v['data']]) > 1)
+        if multi_source_count > 0:
+            insights.append(f"{multi_source_count} symbols have multi-source data validation")
 
-        consolidated['sources_used'] = len(sources)
-        consolidated['total_data_points'] = sum(len(sources_data) for sources_data in data.values())
-
-        return consolidated
+        return insights if insights else ["Basic market data collection completed"]
 
     async def _analyze_market_data_llm(self, consolidated_data: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -890,35 +736,6 @@ Consider market conditions, risk factors, and alignment with our goals (10-20% m
         """Extract risk metrics from LLM market data analysis."""
         return {"var_estimate": 0.02, "max_drawdown": 0.05}
 
-    def _calculate_market_data_quality_score(self, exploration_results: Dict[str, Any]) -> float:
-        """Calculate overall market data quality score."""
-        base_score = 5.0
-        source_bonus = len(set(source for symbol_data in exploration_results.values() for source in symbol_data.keys())) * 0.5
-        symbol_bonus = len(exploration_results) * 0.3
-        data_completeness_bonus = sum(1 for symbol_data in exploration_results.values() if any('historical_df' in self._consolidate_symbol_data({k: v}).keys() for k, v in symbol_data.items())) * 0.4
-
-        return min(10.0, base_score + source_bonus + symbol_bonus + data_completeness_bonus)
-
-    def _extract_market_insights(self, exploration_results: Dict[str, Any]) -> List[str]:
-        """Extract key market insights from consolidated data."""
-        insights = []
-
-        total_symbols = len(exploration_results)
-        if total_symbols > 0:
-            insights.append(f"Market data collected for {total_symbols} symbols")
-
-        # Check for data completeness
-        complete_data_count = sum(1 for symbol_data in exploration_results.values() if any('historical_df' in self._consolidate_symbol_data({k: v}).keys() for k, v in symbol_data.items()))
-        if complete_data_count > 0:
-            insights.append(f"{complete_data_count} symbols have complete historical data")
-
-        # Check for multiple sources
-        multi_source_count = sum(1 for symbol_data in exploration_results.values() if len([k for k, v in symbol_data.items() if isinstance(v, dict) and 'data' in v and v['data']]) > 1)
-        if multi_source_count > 0:
-            insights.append(f"{multi_source_count} symbols have multi-source data validation")
-
-        return insights if insights else ["Basic market data collection completed"]
-
     def _calculate_sma(self, prices: pd.Series, period: int) -> pd.Series:
         """Calculate Simple Moving Average."""
         return prices.rolling(window=period).mean()
@@ -1018,6 +835,74 @@ Consider market conditions, risk factors, and alignment with our goals (10-20% m
             'order_imbalance': 0,
             'flow_toxicity': 'neutral'
         }
+
+    def _consolidate_symbol_data(self, symbol_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Consolidate data from multiple sources for a symbol."""
+        consolidated = {
+            'primary_quote': None,
+            'consensus_price': None,
+            'price_sources': [],
+            'data_quality': 'low',
+            'dataframe': pd.DataFrame()  # Initialize empty dataframe
+        }
+
+        data = symbol_data.get('data', {})
+        sources = symbol_data.get('sources', [])
+
+        # Consolidate historical data into DataFrame
+        for data_type, sources_data in data.items():
+            if data_type == 'historical':
+                for source, hist_data in sources_data.items():
+                    if 'prices' in hist_data and hist_data['prices']:
+                        # Convert the dict of dicts back to DataFrame
+                        try:
+                            df = pd.DataFrame.from_dict(hist_data['prices'], orient='index')
+                            if not df.empty:
+                                # Ensure we have OHLC columns
+                                required_cols = ['Open', 'High', 'Low', 'Close']
+                                if all(col in df.columns for col in required_cols):
+                                    consolidated['dataframe'] = df
+                                    break  # Use first valid historical data source
+                        except Exception as e:
+                            logger.warning(f"Failed to convert historical data to DataFrame: {e}")
+                            continue
+                if not consolidated['dataframe'].empty:
+                    break  # Stop after finding first valid dataframe
+
+        # Consolidate quotes
+        quotes = []
+        for data_type, sources_data in data.items():
+            if data_type == 'quote':
+                for source, quote_data in sources_data.items():
+                    if quote_data and 'price' in quote_data and quote_data['price']:
+                        quotes.append({
+                            'price': quote_data['price'],
+                            'source': source,
+                            'timestamp': quote_data.get('timestamp', datetime.now().isoformat())
+                        })
+
+        if quotes:
+            prices = [q['price'] for q in quotes]
+            consolidated['consensus_price'] = np.mean(prices)
+            consolidated['price_range'] = {'min': min(prices), 'max': max(prices)}
+            consolidated['price_sources'] = [q['source'] for q in quotes]
+            consolidated['primary_quote'] = quotes[0]  # Use first source as primary
+
+            # Assess data quality
+            if len(quotes) >= 2:
+                price_std = np.std(prices)
+                price_cv = price_std / consolidated['consensus_price'] if consolidated['consensus_price'] > 0 else float('inf')
+                if price_cv < 0.01:  # Within 1%
+                    consolidated['data_quality'] = 'high'
+                elif price_cv < 0.05:  # Within 5%
+                    consolidated['data_quality'] = 'medium'
+                else:
+                    consolidated['data_quality'] = 'low'
+
+        consolidated['sources_used'] = len(sources)
+        consolidated['total_data_points'] = sum(len(sources_data) for sources_data in data.values())
+
+        return consolidated
 
     def _analyze_market_microstructure(self, symbol_data: Dict[str, Any]) -> Dict[str, Any]:
         """Analyze market microstructure."""
@@ -1162,7 +1047,13 @@ Consider market conditions, risk factors, and alignment with our goals (10-20% m
         """Alias for _sanitize_llm_input for backward compatibility."""
         return self._sanitize_llm_input(input_text)
 
-    async def close(self):
-        """Cleanup resources"""
-        if self.async_client:
-            await self.async_client.close()
+# Standalone test (run python src/agents/data_analyzers/yfinance_data_analyzer.py to verify)
+if __name__ == "__main__":
+    import asyncio
+    analyzer = YfinanceDataAnalyzer()
+    result = asyncio.run(analyzer.process_input({'symbols': ['SPY']}))
+    print("Yfinance Data Analyzer Test Result:")
+    print(f"Keys: {list(result.keys())}")
+    if 'consolidated_data' in result:
+        print(f"Symbols processed: {len(result['consolidated_data'].get('symbols', []))}")
+        print(f"Data quality: {result['consolidated_data'].get('data_quality_score', 'unknown')}")

@@ -143,9 +143,9 @@ class MacroAgent(BaseAgent):
         self.a2a = a2a_protocol
 
         # Initialize Redis caching
+        import os
         try:
-import os
-self.redis_client = redis.Redis(host='localhost', port=int(os.getenv('REDIS_PORT', 6379)), db=0, decode_responses=False)
+            self.redis_client = redis.Redis(host='localhost', port=int(os.getenv('REDIS_PORT', 6379)), db=0, decode_responses=False)
             self.redis_available = self.redis_client.ping()
             logger.info("Redis caching enabled for MacroAgent")
         except redis.ConnectionError:

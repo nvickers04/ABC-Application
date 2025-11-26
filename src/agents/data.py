@@ -83,6 +83,14 @@ class DataAgent(BaseAgent):
         except Exception as e:
             logger.error(f"Failed to initialize YfinanceDataAnalyzer: {e}")
             raise
+
+        try:
+            from src.agents.data_analyzers.ibkr_data_analyzer import IBKRDataAnalyzer
+            self.ibkr_sub = IBKRDataAnalyzer()
+            logger.info("IBKRDataAnalyzer initialized")
+        except Exception as e:
+            logger.error(f"Failed to initialize IBKRDataAnalyzer: {e}")
+            self.ibkr_sub = None
         
         try:
             from src.agents.data_analyzers.sentiment_data_analyzer import SentimentDataAnalyzer
@@ -602,7 +610,7 @@ class DataAgent(BaseAgent):
         try:
             # Create tasks for all subagents with timeout protection
             tasks = {
-                'yfinance': self.yfinance_sub.process_input({'symbols': [symbol], 'period': input_data.get('period', '2y')}),
+                'yfinance': self.ibkr_sub.process_input({'symbols': [symbol], 'period': input_data.get('period', '2y')}) if self.ibkr_sub else self.yfinance_sub.process_input({'symbols': [symbol], 'period': input_data.get('period', '2y')}),
                 'sentiment': self.sentiment_sub.process_input({'text': f'Market sentiment for {symbol}'}),
                 'news': self.news_sub.process_input({'symbol': symbol}),
                 'economic': self.economic_sub.process_input({}),
@@ -656,9 +664,16 @@ class DataAgent(BaseAgent):
             # Extract dataframe from yfinance subagent result
             yfinance_result = results['yfinance']
             dataframe = pd.DataFrame()
-            if 'price_data' in yfinance_result:
+            if 'consolidated_data' in yfinance_result:
+                consolidated_data = yfinance_result['consolidated_data']
+                # Get the first symbol's data
+                for symbol_key, symbol_data in consolidated_data.get('symbol_dataframes', {}).items():
+                    if 'historical_df' in symbol_data:
+                        dataframe = symbol_data['historical_df']
+                        break
+            elif 'price_data' in yfinance_result:
+                # Fallback for yfinance format
                 price_data = yfinance_result['price_data']
-                # Get the first symbol's data (assuming single symbol processing)
                 for symbol_key, symbol_data in price_data.items():
                     if 'consolidated' in symbol_data and 'dataframe' in symbol_data['consolidated']:
                         dataframe = symbol_data['consolidated']['dataframe']

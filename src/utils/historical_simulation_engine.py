@@ -536,20 +536,20 @@ for strategy in strategies:
     if 'name' not in strategy:
         raise KeyError("Strategy configuration missing 'name' key")
     strategy_name = strategy['name']
-        weights = strategy.get('weights', None)
-        rebalance_freq = strategy.get('rebalance_frequency', 'monthly')
+    weights = strategy.get('weights', None)
+    rebalance_freq = strategy.get('rebalance_frequency', 'monthly')
 
-        logger.info(f"Running simulation for strategy: {strategy_name}")
+    logger.info(f"Running simulation for strategy: {strategy_name}")
 
-        result = run_historical_portfolio_simulation(
-            symbols=symbols,
-            start_date=start_date,
-            end_date=end_date,
-            initial_capital=initial_capital,
-            weights=weights,
-            rebalance_frequency=rebalance_freq
-        )
+    result = run_historical_portfolio_simulation(
+        symbols=symbols,
+        start_date=start_date,
+        end_date=end_date,
+        initial_capital=initial_capital,
+        weights=weights,
+        rebalance_frequency=rebalance_freq
+    )
 
-        results[strategy_name] = result
+    results[strategy_name] = result
 
-    return results
+return results
