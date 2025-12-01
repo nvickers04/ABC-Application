@@ -54,19 +54,22 @@ class TestYfinanceDataAnalyzer:
         assert yfinance_sub.role == "yfinance_data"
         assert hasattr(yfinance_sub, 'memory_manager')
 
-    @patch('yfinance.Ticker')
+    @patch('yfinance.download')
     @pytest.mark.asyncio
-    async def test_process_input_basic(self, mock_ticker, yfinance_sub):
+    async def test_process_input_basic(self, mock_download, yfinance_sub):
         """Test basic process_input functionality."""
-        # Mock yfinance ticker
-        mock_ticker_instance = Mock()
-        mock_ticker_instance.info = {"marketCap": 1000000000, "volume": 1000000}
-        mock_ticker_instance.history.return_value = pd.DataFrame({
-            'Open': [150.0], 'High': [155.0], 'Low': [149.0], 'Close': [152.0], 'Volume': [1000000]
-        })
-        mock_ticker.return_value = mock_ticker_instance
+        # Mock yfinance download
+        dates = pd.date_range('2023-01-01', periods=5)
+        mock_data = pd.DataFrame({
+            'Open': [150, 152, 148, 155, 153],
+            'High': [155, 157, 153, 160, 158],
+            'Low': [148, 150, 145, 152, 150],
+            'Close': [152, 148, 155, 153, 158],
+            'Volume': [1000000, 1100000, 950000, 1200000, 1050000]
+        }, index=dates)
+        mock_download.return_value = mock_data
 
-        test_input = {"symbol": "AAPL", "period": "1d"}
+        test_input = {"symbols": ["AAPL"], "start": "2023-01-01", "end": "2023-01-05"}
 
         with patch.object(yfinance_sub, 'validate_data_quality', return_value=True):
             result = await yfinance_sub.process_input(test_input)
@@ -75,6 +78,7 @@ class TestYfinanceDataAnalyzer:
             assert "consolidated_data" in result
             assert "enhanced" in result
             assert result["enhanced"] is True
+            assert len(result["consolidated_data"]) > 0
 
     def test_data_validation(self, yfinance_sub):
         """Test data validation functionality."""

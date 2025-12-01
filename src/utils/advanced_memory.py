@@ -324,8 +324,15 @@ class RedisBackend(MemoryBackend):
         if not REDIS_AVAILABLE:
             raise ImportError("Redis not available. Install with: pip install redis")
 
-        self.redis_client = redis.Redis(host=host, port=port, db=db, decode_responses=True)
+        self.redis_client = redis.Redis(host=host, port=port, db=db, decode_responses=True,
+                                       socket_connect_timeout=5, socket_timeout=5)
         self.ttl_seconds = 30 * 24 * 60 * 60  # 30 days default TTL
+
+        # Test connection
+        try:
+            self.redis_client.ping()
+        except (redis.ConnectionError, redis.TimeoutError) as e:
+            raise ConnectionError(f"Failed to connect to Redis: {str(e)}")
 
     async def store(self, key: str, data: Any, metadata: Dict[str, Any] = None) -> bool:
         try:
@@ -400,6 +407,8 @@ class RedisBackend(MemoryBackend):
                 "connected_clients": info.get("connected_clients", 0),
                 "uptime_days": info.get("uptime_in_days", 0)
             }
+        except (redis.ConnectionError, redis.TimeoutError) as e:
+            return {"error": f"Redis unavailable or timed out: {str(e)}"}
         except Exception as e:
             return {"error": str(e)}
 
@@ -636,6 +645,7 @@ class AdvancedMemoryManager:
                 logger.info("Redis backend initialized successfully")
             except Exception as e:
                 logger.warning(f"Redis backend not available (expected if Redis not running): {e}")
+                logger.info("Falling back to JSON/in-memory storage for robustness")
                 # Don't add to backends if it fails
 
         # Vector backend (semantic search, persistent)

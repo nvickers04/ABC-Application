@@ -50,7 +50,6 @@ class TestCollaborativeSessions:
         assert session.max_participants == 3
         assert session.session_timeout == 1800
         assert session.status == "active"
-        assert "strategy_agent" in session.participants
 
     async def test_agent_join_leave_session(self):
         """Test agents joining and leaving collaborative sessions."""

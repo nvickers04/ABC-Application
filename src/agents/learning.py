@@ -76,7 +76,7 @@ except ImportError as e:
 
 # Try to import LangChain memory components
 try:
-    from langchain.memory import ConversationBufferMemory
+    from langchain_classic.memory import ConversationBufferMemory
     from langchain.chains import ConversationChain
     LANGCHAIN_MEMORY_AVAILABLE = True
     logger.info("LangChain memory available for agent conversations")

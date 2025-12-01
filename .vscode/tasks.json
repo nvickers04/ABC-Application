@@ -5,7 +5,9 @@
 			"label": "IBKR Premarket Preparation (Simulated)",
 			"type": "shell",
 			"command": "python",
-			"args": ["premarket_prep_simulated.py"],
+			"args": [
+				"premarket_prep_simulated.py"
+			],
 			"group": {
 				"kind": "build",
 				"isDefault": true
@@ -25,7 +27,9 @@
 			"label": "IBKR Premarket Preparation (Live)",
 			"type": "shell",
 			"command": "python",
-			"args": ["premarket_prep.py"],
+			"args": [
+				"premarket_prep.py"
+			],
 			"group": "build",
 			"presentation": {
 				"echo": true,
@@ -37,6 +41,15 @@
 			},
 			"problemMatcher": [],
 			"detail": "Run IBKR premarket preparation routine (requires live TWS/Gateway connection)"
+		},
+		{
+			"label": "Idle Training Workflow",
+			"type": "shell",
+			"command": "python",
+			"args": [
+				"simulations/idle_training_workflow.py"
+			],
+			"group": "build"
 		}
 	]
 }

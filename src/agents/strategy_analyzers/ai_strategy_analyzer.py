@@ -19,10 +19,29 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import TimeSeriesSplit
 from sklearn.metrics import accuracy_score, mean_squared_error
 import joblib
+try:
+    from stable_baselines3 import PPO
+    from stable_baselines3.common.vec_env import DummyVecEnv
+    from stable_baselines3.common.callbacks import BaseCallback
+    RL_AVAILABLE = True
+except ImportError:
+    logger.warning("Stable-Baselines3 not available. RL features will be disabled.")
+    RL_AVAILABLE = False
 import os
 from src.utils.redis_cache import get_redis_cache_manager, cache_get, cache_set, cache_delete
+from src.utils.news_tools import NewsDataTool
+from textblob import TextBlob
 
 logger = logging.getLogger(__name__)
+
+try:
+    from stable_baselines3 import PPO
+    from stable_baselines3.common.vec_env import DummyVecEnv
+    from stable_baselines3.common.callbacks import BaseCallback
+    RL_AVAILABLE = True
+except ImportError:
+    logger.warning("Stable-Baselines3 not available. RL features will be disabled.")
+    RL_AVAILABLE = False
 
 @dataclass
 class AIMemory:
@@ -46,6 +65,91 @@ class AIMemory:
         """Get recent AI insights."""
         return self.session_insights[-limit:]
 
+if RL_AVAILABLE:
+    import gym
+    from gym import spaces
+
+    class TradingEnv(gym.Env):
+        """Custom trading environment for reinforcement learning."""
+
+        def __init__(self, data: pd.DataFrame, initial_balance: float = 10000.0):
+            super(TradingEnv, self).__init__()
+
+            self.data = data.reset_index(drop=True)
+            self.initial_balance = initial_balance
+            self.current_step = 0
+            self.balance = initial_balance
+            self.shares_held = 0
+            self.total_value = initial_balance
+
+            # Action space: 0 = hold, 1 = buy, 2 = sell
+            self.action_space = spaces.Discrete(3)
+
+            # Observation space: price features + position + balance
+            self.observation_space = spaces.Box(
+                low=-np.inf, high=np.inf, shape=(10,), dtype=np.float32
+            )
+
+        def reset(self):
+            self.current_step = 0
+            self.balance = self.initial_balance
+            self.shares_held = 0
+            self.total_value = self.initial_balance
+            return self._get_observation()
+
+        def step(self, action):
+            current_price = self.data.iloc[self.current_step]['Close']
+            reward = 0
+
+            if action == 1:  # Buy
+                if self.balance >= current_price:
+                    shares_to_buy = int(self.balance // current_price)
+                    if shares_to_buy > 0:
+                        self.shares_held += shares_to_buy
+                        self.balance -= shares_to_buy * current_price
+                        reward = 0.1  # Small reward for buying
+            elif action == 2:  # Sell
+                if self.shares_held > 0:
+                    self.balance += self.shares_held * current_price
+                    reward = (self.balance - self.initial_balance) / self.initial_balance
+                    self.shares_held = 0
+
+            # Update total value
+            self.total_value = self.balance + self.shares_held * current_price
+
+            # Move to next step
+            self.current_step += 1
+            done = self.current_step >= len(self.data) - 1
+
+            if done:
+                # Final reward based on total return
+                final_return = (self.total_value - self.initial_balance) / self.initial_balance
+                reward = final_return * 100  # Scale reward
+
+            return self._get_observation(), reward, done, {}
+
+        def _get_observation(self):
+            if self.current_step >= len(self.data):
+                return np.zeros(self.observation_space.shape)
+
+            row = self.data.iloc[self.current_step]
+            obs = np.array([
+                row['Close'] / 100,  # Normalized price
+                row.get('returns', 0),
+                row.get('momentum', 0),
+                row.get('volume_ratio', 0),
+                row.get('volatility', 0),
+                row.get('sentiment_score', 0),
+                self.balance / self.initial_balance,  # Normalized balance
+                self.shares_held / 100,  # Normalized shares
+                self.total_value / self.initial_balance,  # Normalized total value
+                self.current_step / len(self.data)  # Time progress
+            ], dtype=np.float32)
+            return obs
+
+        def render(self, mode='human'):
+            pass
+
 class AIStrategyAnalyzer(BaseAgent):
     """
     Comprehensive AI Strategy Analyzer implementing full specification.
@@ -65,25 +169,35 @@ class AIStrategyAnalyzer(BaseAgent):
         # Initialize collaborative memory
         self.memory = AIMemory()
 
+        # Initialize news tool for sentiment
+        self.news_tool = NewsDataTool()
+
         # AI model configurations
         self.model_configs = {
             'trend_model': {
                 'type': 'classification',
-                'features': ['returns', 'momentum', 'volume_ratio', 'trend_strength', 'volatility'],
+                'features': ['returns', 'momentum', 'volume_ratio', 'trend_strength', 'volatility', 'sentiment_score'],
                 'target': 'trend_direction',
                 'model': RandomForestClassifier(n_estimators=100, random_state=42)
             },
             'volatility_model': {
                 'type': 'regression',
-                'features': ['realized_vol', 'volume_sma', 'price_range', 'momentum'],
+                'features': ['realized_vol', 'volume_sma', 'price_range', 'momentum', 'sentiment_score'],
                 'target': 'future_volatility',
                 'model': GradientBoostingRegressor(n_estimators=100, random_state=42)
             },
             'momentum_model': {
                 'type': 'classification',
-                'features': ['momentum', 'volume_ratio', 'trend_strength', 'support_resistance'],
+                'features': ['momentum', 'volume_ratio', 'trend_strength', 'support_resistance', 'sentiment_score'],
                 'target': 'momentum_signal',
                 'model': RandomForestClassifier(n_estimators=100, random_state=42)
+            },
+            'rl_model': {
+                'type': 'reinforcement_learning',
+                'features': ['returns', 'momentum', 'volume_ratio', 'trend_strength', 'volatility', 'sentiment_score'],
+                'target': 'trading_action',
+                'model': None,  # Will be initialized during training
+                'env_class': TradingEnv if RL_AVAILABLE else None
             }
         }
 
@@ -278,6 +392,13 @@ class AIStrategyAnalyzer(BaseAgent):
                     'feature_importance': {'error': 'No shared data available', 'data_missing': True}
                 }
 
+            # Ensure sentiment data is available
+            if 'sentiment_data' not in shared_data or not shared_data['sentiment_data']:
+                sentiment_data = await self._compute_sentiment_score(symbol, timeframe)
+                if sentiment_data:
+                    shared_data['sentiment_data'] = sentiment_data
+                    logger.info(f"Computed sentiment data for {symbol}")
+
             analysis = {
                 'feature_engineering': {},
                 'model_training': {},
@@ -301,8 +422,9 @@ class AIStrategyAnalyzer(BaseAgent):
                 market_data = shared_data.get('market_data')
                 if market_data:
                     logger.info(f"Using shared market data for model training of {symbol}")
-                    analysis['model_training'] = {'data_available': True, 'shared_data_used': True}
-                    analysis['model_performance'] = {'data_available': True, 'shared_data_used': True}
+                    training_results = self._train_ml_models(symbol, timeframe, shared_data)
+                    analysis['model_training'] = training_results
+                    analysis['model_performance'] = self._evaluate_model_performance(training_results)
                 else:
                     logger.warning(f"No shared market data available for {symbol} - cannot perform model training")
                     analysis['model_training'] = {'error': 'No shared market data available', 'data_missing': True}
@@ -337,6 +459,40 @@ class AIStrategyAnalyzer(BaseAgent):
                 'model_performance': {},
                 'feature_importance': {}
             }
+
+    async def _compute_sentiment_score(self, symbol: str, timeframe: str) -> Optional[Dict[str, Any]]:
+        """Compute sentiment score using news data."""
+        try:
+            # Fetch recent news for the symbol
+            news_result = self.news_tool._run(query=symbol, page_size=10)
+            if news_result.get('status') != 'success' or not news_result.get('articles'):
+                logger.warning(f"No news data available for {symbol}")
+                return None
+
+            articles = news_result['articles']
+            sentiments = []
+
+            for article in articles:
+                text = f"{article.get('title', '')} {article.get('description', '')}".strip()
+                if text:
+                    blob = TextBlob(text)
+                    sentiments.append(blob.sentiment.polarity)
+
+            if sentiments:
+                avg_sentiment = np.mean(sentiments)
+                logger.info(f"Computed sentiment score for {symbol}: {avg_sentiment:.3f} from {len(sentiments)} articles")
+                return {
+                    'average_sentiment': float(avg_sentiment),
+                    'article_count': len(articles),
+                    'sentiment_range': [min(sentiments), max(sentiments)],
+                    'timestamp': datetime.now().isoformat()
+                }
+
+            return None
+
+        except Exception as e:
+            logger.error(f"Failed to compute sentiment for {symbol}: {e}")
+            return None
 
     async def _perform_feature_engineering(self, symbol: str, timeframe: str) -> Dict[str, Any]:
         """Perform comprehensive feature engineering."""
@@ -435,15 +591,24 @@ class AIStrategyAnalyzer(BaseAgent):
 
             # Generate signals from each model
             for model_name, config in self.model_configs.items():
-                training_results = analysis.get('model_training', {}).get(model_name, {})
+                if config['type'] == 'reinforcement_learning':
+                    # Handle RL model separately
+                    rl_model = analysis.get('model_training', {}).get(model_name, {}).get('rl_model')
+                    if rl_model:
+                        rl_signal = self._generate_rl_signal(rl_model, features, config)
+                        signals[model_name] = rl_signal
+                    else:
+                        signals[model_name] = {'error': 'No RL model available'}
+                else:
+                    training_results = analysis.get('model_training', {}).get(model_name, {})
 
-                if 'final_model' not in training_results:
-                    signals[model_name] = {'error': 'No trained model available'}
-                    continue
+                    if 'final_model' not in training_results:
+                        signals[model_name] = {'error': 'No trained model available'}
+                        continue
 
-                model = training_results['final_model']
-                signal = self._generate_model_signal(model, features, config)
-                signals[model_name] = signal
+                    model = training_results['final_model']
+                    signal = self._generate_model_signal(model, features, config)
+                    signals[model_name] = signal
 
             # Combine signals into ensemble
             ensemble_signal = self._create_ensemble_signal(signals)
@@ -876,6 +1041,49 @@ class AIStrategyAnalyzer(BaseAgent):
         except Exception as e:
             return {'error': str(e)}
 
+    def _train_ml_models(self, symbol: str, timeframe: str, shared_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Train all ML models for a symbol and timeframe."""
+        try:
+            training_results = {}
+
+            # Get market data for training
+            market_data = shared_data.get('market_data')
+            if not market_data or not isinstance(market_data, pd.DataFrame):
+                return {'error': 'No market data available for training'}
+
+            for model_name, config in self.model_configs.items():
+                if config['type'] == 'reinforcement_learning':
+                    # Train RL model
+                    rl_model = self._train_rl_model(market_data, config)
+                    training_results[model_name] = {'rl_model': rl_model}
+                else:
+                    # Prepare training data for traditional ML models
+                    features = {'symbol': symbol}  # Add symbol for _prepare_training_data
+                    X, y = self._prepare_training_data(features, config)
+
+                    if isinstance(X, str) or len(X) == 0:
+                        training_results[model_name] = {'error': 'No training data available'}
+                        continue
+
+                    # Train model with cross-validation
+                    cv_results = self._train_with_cross_validation(X, y, config)
+
+                    # Train final model
+                    final_model = self._train_final_model(X, y, config)
+
+                    training_results[model_name] = {
+                        'cross_validation_results': cv_results,
+                        'final_model': final_model,
+                        'feature_importance': self._get_feature_importance(final_model, config),
+                        'training_timestamp': datetime.now().isoformat()
+                    }
+
+            return training_results
+
+        except Exception as e:
+            logger.error(f"ML model training failed for {symbol}: {e}")
+            return {'error': str(e)}
+
     def _train_final_model(self, X: np.ndarray, y: np.ndarray, config: Dict[str, Any]) -> Any:
         """Train the final model on all available data."""
         try:
@@ -883,6 +1091,28 @@ class AIStrategyAnalyzer(BaseAgent):
             model.fit(X, y)
             return model
         except Exception:
+            return None
+
+    def _train_rl_model(self, data: pd.DataFrame, config: Dict[str, Any]) -> Any:
+        """Train reinforcement learning model using PPO."""
+        if not RL_AVAILABLE:
+            return None
+
+        try:
+            # Create environment
+            trading_env = config['env_class'](data)
+            env = DummyVecEnv([lambda: trading_env])
+
+            # Initialize PPO model
+            model = PPO('MlpPolicy', env, verbose=0, learning_rate=0.0003, n_steps=2048, batch_size=64, n_epochs=10)
+
+            # Train the model
+            model.learn(total_timesteps=10000)
+
+            return model
+
+        except Exception as e:
+            logger.error(f"RL training failed: {e}")
             return None
 
     def _get_feature_importance(self, model: Any, config: Dict[str, Any]) -> Dict[str, float]:
@@ -926,10 +1156,15 @@ class AIStrategyAnalyzer(BaseAgent):
                 prediction_proba = model.predict_proba(X)[0]
                 prediction = model.predict(X)[0]
 
+                # Weight by sentiment if available
+                sentiment_weight = features.get('sentiment_score', 0.0)
+                adjusted_prediction = int(prediction) * (1 + sentiment_weight * 0.2)  # Boost by up to 20%
+
                 return {
-                    'prediction': int(prediction),
+                    'prediction': adjusted_prediction,
                     'confidence': float(max(prediction_proba)),
-                    'probabilities': prediction_proba.tolist()
+                    'probabilities': prediction_proba.tolist(),
+                    'sentiment_adjustment': float(sentiment_weight)
                 }
             else:
                 prediction = model.predict(X)[0]
@@ -955,12 +1190,57 @@ class AIStrategyAnalyzer(BaseAgent):
                 else:
                     magnitude_penalty = 0.0
                 
+                # Weight by sentiment
+                sentiment_weight = features.get('sentiment_score', 0.0)
+                adjusted_prediction = prediction * (1 + sentiment_weight * 0.2)
                 confidence = max(0.1, base_confidence - magnitude_penalty)
                 
                 return {
-                    'prediction': float(prediction),
-                    'confidence': confidence
+                    'prediction': float(adjusted_prediction),
+                    'confidence': confidence,
+                    'sentiment_adjustment': float(sentiment_weight)
                 }
+
+        except Exception as e:
+            return {'error': str(e)}
+
+    def _generate_rl_signal(self, model: Any, features: Dict[str, float], config: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate signal from RL model."""
+        if not RL_AVAILABLE:
+            return {'error': 'RL not available'}
+
+        try:
+            # Extract relevant features
+            model_features = []
+            for feature in config['features']:
+                model_features.append(features.get(feature, 0.0))
+
+            obs = np.array(model_features, dtype=np.float32)
+
+            # Get action from RL model
+            action, _ = model.predict(obs, deterministic=True)
+
+            # Convert action to signal (0=hold, 1=buy, 2=sell -> -1=sell, 0=hold, 1=buy)
+            if action == 0:
+                signal = 0  # Hold
+                confidence = 0.5
+            elif action == 1:
+                signal = 1  # Buy
+                confidence = 0.7
+            else:
+                signal = -1  # Sell
+                confidence = 0.7
+
+            # Weight by sentiment
+            sentiment_weight = features.get('sentiment_score', 0.0)
+            adjusted_signal = signal * (1 + sentiment_weight * 0.2)
+
+            return {
+                'prediction': float(adjusted_signal),
+                'confidence': confidence,
+                'action': int(action),
+                'sentiment_adjustment': float(sentiment_weight)
+            }
 
         except Exception as e:
             return {'error': str(e)}

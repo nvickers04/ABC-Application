@@ -25,11 +25,14 @@ def mock_redis(mocker):
     return mocker
 
 @pytest.fixture
-def mock_api_calls(mocker):
+def mock_api_calls(monkeypatch):
     """Fixture to mock external API calls."""
-    mocker.patch('requests.get', return_value=MagicMock(status_code=200, json=lambda: {}))
-    mocker.patch('requests.post', return_value=MagicMock(status_code=200, json=lambda: {}))
-    return mocker
+    from unittest.mock import MagicMock
+    mock_get = MagicMock(status_code=200, json=lambda: {})
+    mock_post = MagicMock(status_code=200, json=lambda: {})
+    monkeypatch.setattr('requests.get', mock_get)
+    monkeypatch.setattr('requests.post', mock_post)
+    return {'get': mock_get, 'post': mock_post}
 
 @pytest.fixture(scope="session")
 def check_tws():

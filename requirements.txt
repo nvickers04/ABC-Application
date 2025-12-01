@@ -43,6 +43,8 @@ ffn>=1.1.0,<2.0  # For advanced financial functions and portfolio optimization; 
 scipy>=1.14.1,<2.0  # For scientific computing and statistical functions; latest stable is 1.14.1
 statsmodels>=0.14.4,<1.0  # For statistical modeling and cointegration tests; latest stable is 0.14.4
 scikit-learn>=1.5.2,<2.0  # For machine learning algorithms; latest stable is 1.5.2
+stable-baselines3>=2.0.0,<3.0  # For reinforcement learning algorithms; latest stable is 2.x
+gym>=0.26.0,<1.0  # For reinforcement learning environments; latest stable is 0.26.x
 
 # Additional API Dependencies for Data Sources
 alpha-vantage>=1.0.0,<2.0  # For Alpha Vantage financial data API
@@ -68,3 +70,10 @@ financialmodelingprep>=0.0.1,<1.0  # For Financial Modeling Prep API backup
 
 # Security and Vault Integration
 hvac>=2.0.0,<3.0  # For HashiCorp Vault client integration; latest stable is 2.x
+
+# TigerBeetle Integration
+tigerbeetle-py>=0.1.0,<1.0  # For TigerBeetle database client; latest stable
+
+# Testing Dependencies
+pytest-testmon>=2.1.0,<3.0  # For selective test execution based on code changes; latest stable is 2.1.x
+pytest-sugar>=1.0.0,<2.0  # For enhanced pytest output formatting; latest stable is 1.x

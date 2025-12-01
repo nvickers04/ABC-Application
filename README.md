@@ -161,4 +161,20 @@ python optimizations/compare_data_sources.py
 - Risk metrics (Sharpe ratio, max drawdown, VaR)
 - Performance analytics and reporting
 
+## Testing
+
+Run the full test suite with optimized parallel execution:
+
+```bash
+pytest
+```
+
+For fast incremental testing (runs only changed tests):
+
+```bash
+pytest --testmon -n auto --ff -ra -q
+```
+
+Or use the alias: `make test-fast` (if Makefile is present) or `just fast` (if just is installed).
+
 For contributions or issues, ensure all changes tie back to profitability and traceability (e.g., update CHANGELOG.md with diffs). This project honors long-term wealth stewardship—do your absolute best.

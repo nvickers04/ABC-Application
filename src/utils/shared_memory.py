@@ -8,13 +8,15 @@ import asyncio
 from typing import Dict, Any, List, Optional, Callable
 from datetime import datetime
 import json
+import numpy as np
+import pandas as pd
 
 from src.utils.advanced_memory import get_advanced_memory_manager
 from src.utils.memory_persistence import get_memory_persistence
 
 logger = logging.getLogger(__name__)
 
-def sanitize_for_json(data: Any, max_depth: int = 3, current_depth: int = 0, seen_objects: set = None) -> Any:
+def sanitize_for_json(data: Any, max_depth: int = 3, current_depth: int = 0, seen_objects: Optional[set] = None) -> Any:
     """
     Recursively sanitize data for JSON serialization by converting complex objects
     to simple serializable types, handling circular references and deep nesting.
@@ -51,42 +53,34 @@ def sanitize_for_json(data: Any, max_depth: int = 3, current_depth: int = 0, see
         return data.isoformat()
 
     # Handle numpy types
-    try:
-        import numpy as np
-        if isinstance(data, (np.integer, np.floating, np.bool_)):
-            return data.item()
-        if isinstance(data, np.ndarray):
-            return {
-                "type": "ndarray",
-                "shape": data.shape,
-                "dtype": str(data.dtype),
-                "data": data.flatten()[:10].tolist() if data.size > 0 else [],
-                "size": int(data.size)
-            }
-    except ImportError:
-        pass
+    if isinstance(data, (np.integer, np.floating, np.bool_)):
+        return data.item()
+    if isinstance(data, np.ndarray):
+        return {
+            "type": "ndarray",
+            "shape": data.shape,
+            "dtype": str(data.dtype),
+            "data": data.flatten()[:10].tolist() if data.size > 0 else [],
+            "size": int(data.size)
+        }
 
     # Handle pandas DataFrames and Series
-    try:
-        import pandas as pd
-        if isinstance(data, pd.DataFrame):
-            return {
-                "type": "DataFrame",
-                "columns": list(data.columns),
-                "shape": data.shape,
-                "data": data.head(5).to_dict('records') if len(data) > 0 else [],
-                "summary": str(data.describe()) if len(data) > 0 else "Empty DataFrame"
-            }
-        elif isinstance(data, pd.Series):
-            return {
-                "type": "Series",
-                "name": str(data.name),
-                "data": data.head(5).tolist() if len(data) > 0 else [],
-                "length": len(data),
-                "summary": str(data.describe()) if len(data) > 0 else "Empty Series"
-            }
-    except ImportError:
-        pass
+    if isinstance(data, pd.DataFrame):
+        return {
+            "type": "DataFrame",
+            "columns": list(data.columns),
+            "shape": data.shape,
+            "data": data.head(5).to_dict('records') if len(data) > 0 else [],
+            "summary": str(data.describe()) if len(data) > 0 else "Empty DataFrame"
+        }
+    elif isinstance(data, pd.Series):
+        return {
+            "type": "Series",
+            "name": str(data.name),
+            "data": data.head(5).tolist() if len(data) > 0 else [],
+            "length": len(data),
+            "summary": str(data.describe()) if len(data) > 0 else "Empty Series"
+        }
 
     # Handle lists and tuples
     if isinstance(data, (list, tuple)):
@@ -155,7 +149,7 @@ class SharedMemoryNamespace:
     Represents a shared memory namespace that multiple agents can access.
     """
 
-    def __init__(self, namespace: str, access_control: Dict[str, List[str]] = None):
+    def __init__(self, namespace: str, access_control: Optional[Dict[str, List[str]]] = None):
         """
         Initialize shared memory namespace.
 
@@ -367,7 +361,7 @@ class AgentToAgentProtocol:
         self.message_queue = asyncio.Queue()
         self.running = False
 
-    def register_agent(self, agent_role: str, agent_info: Dict[str, Any]):
+    def register_agent(self, agent_role: str, agent_info: Optional[Dict[str, Any]] = None):
         """
         Register an agent with the A2A protocol.
 
@@ -376,7 +370,7 @@ class AgentToAgentProtocol:
             agent_info: Agent information and capabilities
         """
         self.agent_registrations[agent_role] = {
-            **agent_info,
+            **(agent_info or {}),
             "registered_at": datetime.now().isoformat(),
             "status": "active"
         }
@@ -397,7 +391,7 @@ class AgentToAgentProtocol:
 
         logger.info(f"Unregistered agent: {agent_role}")
 
-    def create_namespace(self, namespace: str, access_control: Dict[str, List[str]] = None) -> SharedMemoryNamespace:
+    def create_namespace(self, namespace: str, access_control: Optional[Dict[str, List[str]]] = None) -> SharedMemoryNamespace:
         """
         Create a new shared memory namespace.
 
@@ -431,7 +425,7 @@ class AgentToAgentProtocol:
         return self.namespaces.get(namespace)
 
     async def send_message(self, from_agent: str, to_agent: str, message_type: str,
-                          payload: Dict[str, Any]):
+                          payload: Optional[Dict[str, Any]] = None):
         """
         Send a message from one agent to another.
 
@@ -445,7 +439,7 @@ class AgentToAgentProtocol:
             "from_agent": from_agent,
             "to_agent": to_agent,
             "message_type": message_type,
-            "payload": payload,
+            "payload": payload or {},
             "timestamp": datetime.now().isoformat(),
             "message_id": f"{from_agent}_{to_agent}_{datetime.now().timestamp()}"
         }
@@ -454,7 +448,7 @@ class AgentToAgentProtocol:
         logger.debug(f"Queued message from {from_agent} to {to_agent}: {message_type}")
 
     async def broadcast_message(self, from_agent: str, message_type: str,
-                               payload: Dict[str, Any], target_roles: List[str] = None):
+                               payload: Optional[Dict[str, Any]] = None, target_roles: Optional[List[str]] = None):
         """
         Broadcast a message to multiple agents.
 
@@ -594,6 +588,113 @@ class AgentToAgentProtocol:
             for namespace, ns in self.namespaces.items()
         }
 
+class CollaborativeSession:
+    """
+    Represents a collaborative session between multiple agents.
+    """
+
+    def __init__(self, session_id: str, creator: str, topic: str, max_participants: int, timeout: int):
+        self.session_id = session_id
+        self.creator = creator
+        self.topic = topic
+        self.participants = {}
+        self.max_participants = max_participants
+        self.session_timeout = timeout
+        self.created_at = datetime.now().isoformat()
+        self.status = "active"
+        self.insights = []
+        self.decisions = []
+        self.shared_context = {}
+        self.last_activity = self.created_at
+
+    @property
+    def creator_agent(self):
+        return self.creator
+
+    @property
+    def session_data(self):
+        return {
+            "insights": self.insights,
+            "decisions": self.decisions
+        }
+
+    def is_expired(self) -> bool:
+        """
+        Check if the session has expired based on last activity and timeout.
+        """
+        try:
+            activity_time = datetime.fromisoformat(self.last_activity)
+        except ValueError:
+            activity_time = datetime.fromisoformat(self.created_at)
+        elapsed = (datetime.now() - activity_time).total_seconds()
+        return elapsed > self.session_timeout
+
+    def join(self, agent_role, context=None):
+        if len(self.participants) > self.max_participants:
+            return False
+        if agent_role not in self.participants:
+            self.participants[agent_role] = {"context": context or {}}
+            self.insights.append({
+                "agent": agent_role,
+                "type": "joined",
+                "timestamp": datetime.now().isoformat(),
+                "context": context or {}
+            })
+            self.last_activity = datetime.now().isoformat()
+        return True
+
+    def leave(self, agent_role):
+        if agent_role in self.participants:
+            del self.participants[agent_role]
+            self.last_activity = datetime.now().isoformat()
+            return True
+        return False
+
+    def contribute_insight(self, agent_role, insight):
+        if agent_role not in self.participants:
+            return False
+        contribution = {
+            "agent": agent_role,
+            "timestamp": datetime.now().isoformat(),
+            **insight
+        }
+        if "validated_by" not in contribution:
+            contribution["validated_by"] = []
+        self.insights.append(contribution)
+        self.last_activity = datetime.now().isoformat()
+        return True
+
+    def record_decision(self, agent_role, decision):
+        if agent_role not in self.participants:
+            return False
+        decision_record = {
+            "agent": agent_role,
+            "participants": list(self.participants.keys()),
+            "timestamp": datetime.now().isoformat(),
+            **decision
+        }
+        self.decisions.append(decision_record)
+        self.last_activity = datetime.now().isoformat()
+        return True
+
+    def get_session_summary(self):
+        if self.status != "active":
+            return None
+        return {
+            "session_id": self.session_id,
+            "topic": self.topic,
+            "creator": self.creator,
+            "participant_count": len(self.participants),
+            "insights_count": len(self.insights),
+            "decisions_count": len(self.decisions),
+            "status": self.status
+        }
+
+    def archive(self, agent_role=None):
+        if agent_role and agent_role != self.creator:
+            return False
+        self.status = "archived"
+        return True
 
 class MultiAgentMemoryCoordinator:
     """
@@ -603,8 +704,11 @@ class MultiAgentMemoryCoordinator:
 
     def __init__(self):
         self.a2a_protocol = AgentToAgentProtocol()
-        self.collaborative_sessions = {}  # session_id -> session_info
+        self.collaborative_sessions = {}  # session_id -> CollaborativeSession
         self.session_counter = 0
+
+    def get_session(self, session_id):
+        return self.collaborative_sessions.get(session_id)
 
     async def share_memory(self, from_agent: str, to_agent: str, namespace: str,
                           key: str, data: Any) -> bool:
@@ -670,21 +774,10 @@ class MultiAgentMemoryCoordinator:
             str: Session ID or None if failed
         """
         self.session_counter += 1
-        session_id = f"session_{self.session_counter}"
+        session_id = f"session_{creator_agent}_{self.session_counter}"
 
-        session_info = {
-            "session_id": session_id,
-            "creator": creator_agent,
-            "topic": topic,
-            "participants": [creator_agent],
-            "max_participants": max_participants,
-            "created_at": datetime.now().isoformat(),
-            "timeout": session_timeout,
-            "insights": [],
-            "status": "active"
-        }
-
-        self.collaborative_sessions[session_id] = session_info
+        session = CollaborativeSession(session_id, creator_agent, topic, max_participants, session_timeout)
+        self.collaborative_sessions[session_id] = session
         logger.info(f"Created collaborative session: {session_id} by {creator_agent}")
         return session_id
 
@@ -701,23 +794,38 @@ class MultiAgentMemoryCoordinator:
         Returns:
             bool: Success status
         """
-        if session_id not in self.collaborative_sessions:
+        session = self.collaborative_sessions.get(session_id)
+        if not session or session.status != "active":
             return False
 
-        session = self.collaborative_sessions[session_id]
-        if len(session["participants"]) >= session["max_participants"]:
+        if len(session.participants) >= session.max_participants:
             return False
 
-        if agent_role not in session["participants"]:
-            session["participants"].append(agent_role)
-            session["insights"].append({
-                "agent": agent_role,
-                "type": "joined",
-                "timestamp": datetime.now().isoformat(),
-                "context": agent_context or {}
-            })
+        if agent_role not in session.participants:
+            session.participants[agent_role] = {"context": agent_context or {}}
+            session.last_activity = datetime.now().isoformat()
 
         logger.info(f"Agent {agent_role} joined session {session_id}")
+        return True
+
+    async def leave_collaborative_session(self, session_id: str, agent_role: str) -> bool:
+        """
+        Leave a collaborative session.
+
+        Args:
+            session_id: Session ID
+            agent_role: Leaving agent role
+
+        Returns:
+            bool: Success status
+        """
+        session = self.collaborative_sessions.get(session_id)
+        if not session or agent_role not in session.participants:
+            return False
+
+        del session.participants[agent_role]
+        session.last_activity = datetime.now().isoformat()
+        logger.info(f"Agent {agent_role} left session {session_id}")
         return True
 
     async def contribute_to_session(self, session_id: str, agent_role: str,
@@ -733,21 +841,62 @@ class MultiAgentMemoryCoordinator:
         Returns:
             bool: Success status
         """
-        if session_id not in self.collaborative_sessions:
+        session = self.collaborative_sessions.get(session_id)
+        if not session or session.status != "active":
             return False
 
-        session = self.collaborative_sessions[session_id]
-        if agent_role not in session["participants"]:
+        if agent_role not in session.participants:
             return False
 
         contribution = {
             "agent": agent_role,
             "timestamp": datetime.now().isoformat(),
-            **insight
+            "insight": insight
         }
+        if "validated_by" not in contribution:
+            contribution["validated_by"] = []
 
-        session["insights"].append(contribution)
+        session.insights.append(contribution)
+        session.last_activity = datetime.now().isoformat()
         logger.info(f"Agent {agent_role} contributed to session {session_id}")
+        return True
+
+    async def validate_session_insight(self, session_id: str, agent_role: str, insight_index: int,
+                                     validation: Dict[str, Any]) -> bool:
+        """
+        Validate an insight in a collaborative session.
+
+        Args:
+            session_id: Session ID
+            agent_role: Validating agent
+            insight_index: Index of insight to validate
+            validation: Validation data
+
+        Returns:
+            bool: Success status
+        """
+        session = self.collaborative_sessions.get(session_id)
+        if not session or session.status != "active":
+            return False
+
+        if agent_role not in session.participants:
+            return False
+
+        if insight_index >= len(session.insights):
+            return False
+
+        insight = session.insights[insight_index]
+        if "validated_by" not in insight:
+            insight["validated_by"] = []
+
+        insight["validated_by"].append({
+            "validator": agent_role,
+            "validation": validation,
+            "timestamp": datetime.now().isoformat()
+        })
+
+        session.last_activity = datetime.now().isoformat()
+        logger.info(f"Agent {agent_role} validated insight {insight_index} in session {session_id}")
         return True
 
     async def update_session_context(self, session_id: str, agent_role: str,
@@ -764,24 +913,20 @@ class MultiAgentMemoryCoordinator:
         Returns:
             bool: Success status
         """
-        if session_id not in self.collaborative_sessions:
+        session = self.collaborative_sessions.get(session_id)
+        if not session or session.status != "active":
             return False
 
-        session = self.collaborative_sessions[session_id]
-        if agent_role not in session["participants"]:
+        if agent_role != session.creator and agent_role not in session.participants:
             return False
 
-        # Initialize context storage if not exists
-        if "shared_context" not in session:
-            session["shared_context"] = {}
-
-        # Update context
-        session["shared_context"][context_type] = {
+        session.shared_context[context_type] = {
             "agent": agent_role,
             "timestamp": datetime.now().isoformat(),
             "data": context_data
         }
 
+        session.last_activity = datetime.now().isoformat()
         logger.info(f"Agent {agent_role} updated {context_type} context in session {session_id}")
         return True
 
@@ -796,11 +941,11 @@ class MultiAgentMemoryCoordinator:
         Returns:
             Dict containing context data
         """
-        if session_id not in self.collaborative_sessions:
+        session = self.collaborative_sessions.get(session_id)
+        if not session:
             return {}
 
-        session = self.collaborative_sessions[session_id]
-        context = session.get("shared_context", {})
+        context = session.shared_context
 
         if context_type:
             return context.get(context_type, {})
@@ -820,29 +965,26 @@ class MultiAgentMemoryCoordinator:
         Returns:
             bool: Success status
         """
-        if session_id not in self.collaborative_sessions:
+        session = self.collaborative_sessions.get(session_id)
+        if not session or session.status != "active":
             return False
 
-        session = self.collaborative_sessions[session_id]
-        if agent_role not in session["participants"]:
+        if agent_role != session.creator and agent_role not in session.participants:
             return False
 
-        # Initialize decisions storage if not exists
-        if "decisions" not in session:
-            session["decisions"] = []
-
-        # Record decision
         decision_record = {
             "agent": agent_role,
+            "participants": [session.creator] + list(session.participants.keys()),
             "timestamp": datetime.now().isoformat(),
-            **decision
+            "decision": decision
         }
 
-        session["decisions"].append(decision_record)
+        session.decisions.append(decision_record)
+        session.last_activity = datetime.now().isoformat()
         logger.info(f"Agent {agent_role} recorded decision in session {session_id}")
         return True
 
-    async def get_session_summary(self, session_id: str) -> Dict[str, Any]:
+    async def get_session_summary(self, session_id: str) -> Optional[Dict[str, Any]]:
         """
         Get a summary of the collaborative session.
 
@@ -852,48 +994,52 @@ class MultiAgentMemoryCoordinator:
         Returns:
             Dict containing session summary
         """
-        if session_id not in self.collaborative_sessions:
-            return {}
+        session = self.collaborative_sessions.get(session_id)
+        if not session:
+            return None
 
-        session = self.collaborative_sessions[session_id]
-
-        summary = {
-            "session_id": session_id,
-            "topic": session["topic"],
-            "creator": session["creator"],
-            "participants": session["participants"],
-            "participant_count": len(session["participants"]),
-            "created_at": session["created_at"],
-            "status": session["status"],
-            "insights_count": len(session.get("insights", [])),
-            "decisions_count": len(session.get("decisions", [])),
-            "context_types": list(session.get("shared_context", {}).keys())
+        return {
+            "session_id": session.session_id,
+            "topic": session.topic,
+            "creator": session.creator,
+            "participant_count": len(session.participants) + 1,
+            "insights_count": len(session.insights),
+            "decisions_count": len(session.decisions),
+            "status": session.status,
+            "participants": session.participants,
+            "session_data": session.session_data,
+            "is_expired": session.is_expired()
         }
 
-        return summary
-
-    async def archive_session(self, session_id: str) -> bool:
+    async def archive_session(self, session_id: str, agent_role: Optional[str] = None) -> bool:
         """
         Archive a collaborative session.
 
         Args:
             session_id: Session ID
+            agent_role: Agent archiving (optional, defaults to allow if None)
 
         Returns:
             bool: Success status
         """
-        if session_id not in self.collaborative_sessions:
+        session = self.collaborative_sessions.get(session_id)
+        if not session or session.status != "active":
             return False
 
-        session = self.collaborative_sessions[session_id]
-        session["status"] = "archived"
-        session["archived_at"] = datetime.now().isoformat()
+        if agent_role is None:
+            if session.participants:
+                return False
+        elif agent_role != session.creator:
+            return False
 
-        logger.info(f"Session {session_id} archived")
+        session.status = "archived"
+        session.archived_at = datetime.now().isoformat()
+        # Keep in dict for potential retrieval, active_sessions filters
+        logger.info(f"Session {session_id} archived by {agent_role or 'system'}")
         return True
 
     @property
-    def active_sessions(self) -> Dict[str, Any]:
+    def active_sessions(self) -> Dict[str, CollaborativeSession]:
         """
         Get active collaborative sessions.
 
@@ -901,9 +1047,7 @@ class MultiAgentMemoryCoordinator:
             Dict of active sessions
         """
         return {
-            session_id: info
-            for session_id, info in self.collaborative_sessions.items()
-            if info["status"] == "active"
+            s.session_id: s for s in self.collaborative_sessions.values() if s.status == "active"
         }
 
     async def get_session_insights(self, session_id: str, agent_role: Optional[str] = None) -> List[Dict[str, Any]]:
@@ -917,11 +1061,11 @@ class MultiAgentMemoryCoordinator:
         Returns:
             List of insights
         """
-        if session_id not in self.collaborative_sessions:
+        session = self.collaborative_sessions.get(session_id)
+        if not session:
             return []
 
-        session = self.collaborative_sessions[session_id]
-        insights = session["insights"]
+        insights = session.insights
 
         if agent_role:
             insights = [i for i in insights if i.get("agent") == agent_role]
@@ -937,17 +1081,15 @@ class MultiAgentMemoryCoordinator:
         """
         return [
             {
-                "session_id": session_id,
-                "topic": info["topic"],
-                "participants": info["participants"],
-                "created_at": info["created_at"]
-            }
-            for session_id, info in self.collaborative_sessions.items()
-            if info["status"] == "active"
+                "session_id": s.session_id,
+                "topic": s.topic,
+                "participants": s.participants,
+                "created_at": s.created_at
+            } for s in self.collaborative_sessions.values() if s.status == "active"
         ]
 
     # Delegate other methods to A2A protocol
-    def register_agent(self, agent_role: str, agent_info: Dict[str, Any]):
+    def register_agent(self, agent_role: str, agent_info: Optional[Dict[str, Any]] = None):
         """Register an agent with the coordinator."""
         self.a2a_protocol.register_agent(agent_role, agent_info)
 
@@ -986,7 +1128,7 @@ async def share_memory_between_agents(from_agent: str, to_agent: str, namespace:
     return await get_multi_agent_coordinator().share_memory(from_agent, to_agent, namespace, key, data)
 
 async def broadcast_coordination_signal(from_agent: str, signal_type: str,
-                                      signal_data: Dict[str, Any] = None):
+                                      signal_data: Optional[Dict[str, Any]] = None):
     """Broadcast coordination signal."""
     await get_multi_agent_coordinator().broadcast_coordination_signal(from_agent, signal_type, signal_data)
 
@@ -1000,10 +1142,16 @@ async def create_collaborative_session(creator_agent: str, topic: str,
     )
 
 async def join_collaborative_session(session_id: str, agent_role: str,
-                                   agent_context: Dict[str, Any] = None) -> bool:
+                                   agent_context: Optional[Dict[str, Any]] = None) -> bool:
     """Join an existing collaborative session."""
     return await get_multi_agent_coordinator().join_collaborative_session(
         session_id, agent_role, agent_context
+    )
+
+async def leave_collaborative_session(session_id: str, agent_role: str) -> bool:
+    """Leave a collaborative session."""
+    return await get_multi_agent_coordinator().leave_collaborative_session(
+        session_id, agent_role
     )
 
 async def contribute_to_session(session_id: str, agent_role: str,
@@ -1013,7 +1161,14 @@ async def contribute_to_session(session_id: str, agent_role: str,
         session_id, agent_role, insight
     )
 
-async def get_session_insights(session_id: str, agent_role: str = None) -> List[Dict[str, Any]]:
+async def validate_session_insight(session_id: str, agent_role: str, insight_index: int,
+                                 validation: Dict[str, Any]) -> bool:
+    """Validate an insight in a collaborative session."""
+    return await get_multi_agent_coordinator().validate_session_insight(
+        session_id, agent_role, insight_index, validation
+    )
+
+async def get_session_insights(session_id: str, agent_role: Optional[str] = None) -> List[Dict[str, Any]]:
     """Get insights from a collaborative session."""
     return await get_multi_agent_coordinator().get_session_insights(session_id, agent_role)
 
@@ -1021,60 +1176,6 @@ async def list_active_sessions() -> List[Dict[str, Any]]:
     """List all active collaborative sessions."""
     return get_multi_agent_coordinator().list_active_sessions()
 
-# Global instance
-_multi_agent_coordinator = None
-
-def get_multi_agent_coordinator() -> MultiAgentMemoryCoordinator:
-    """
-    Get global multi-agent memory coordinator instance.
-
-    Returns:
-        MultiAgentMemoryCoordinator: Global instance
-    """
-    global _multi_agent_coordinator
-    if _multi_agent_coordinator is None:
-        _multi_agent_coordinator = MultiAgentMemoryCoordinator()
-    return _multi_agent_coordinator
-
-# Convenience functions
-async def share_memory_between_agents(from_agent: str, to_agent: str, namespace: str,
-                                   key: str, data: Any) -> bool:
-    """Share memory between agents."""
-    return await get_multi_agent_coordinator().share_memory(from_agent, to_agent, namespace, key, data)
-
-async def broadcast_coordination_signal(from_agent: str, signal_type: str,
-                                      signal_data: Dict[str, Any] = None):
-    """Broadcast coordination signal."""
-    await get_multi_agent_coordinator().broadcast_coordination_signal(from_agent, signal_type, signal_data)
-
-# Convenience functions for collaborative sessions
-async def create_collaborative_session(creator_agent: str, topic: str,
-                                     max_participants: int = 10,
-                                     session_timeout: int = 3600) -> Optional[str]:
-    """Create a new collaborative session."""
-    return await get_multi_agent_coordinator().create_collaborative_session(
-        creator_agent, topic, max_participants, session_timeout
-    )
-
-async def join_collaborative_session(session_id: str, agent_role: str,
-                                   agent_context: Dict[str, Any] = None) -> bool:
-    """Join an existing collaborative session."""
-    return await get_multi_agent_coordinator().join_collaborative_session(
-        session_id, agent_role, agent_context
-    )
-
-async def contribute_to_session(session_id: str, agent_role: str,
-                              insight: Dict[str, Any]) -> bool:
-    """Contribute an insight to a collaborative session."""
-    return await get_multi_agent_coordinator().contribute_to_session(
-        session_id, agent_role, insight
-    )
-
-async def get_session_insights(session_id: str, agent_role: str = None) -> List[Dict[str, Any]]:
-    """Get insights from a collaborative session."""
-    return await get_multi_agent_coordinator().get_session_insights(session_id, agent_role)
-
-async def list_active_sessions() -> List[Dict[str, Any]]:
-    """List all active collaborative sessions."""
-    return get_multi_agent_coordinator().list_active_sessions()
-
+async def archive_session(session_id: str, agent_role: Optional[str] = None) -> bool:
+    """Archive a collaborative session."""
+    return await get_multi_agent_coordinator().archive_session(session_id, agent_role)

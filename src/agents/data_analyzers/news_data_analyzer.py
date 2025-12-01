@@ -1,743 +1,964 @@
-# src/agents/data_subs/news_datasub.py
-# Purpose: News Data Subagent with LLM-powered exploration and intelligent filtering.
-# Provides comprehensive news analysis from multiple sources with AI-driven insights.
-# Structural Reasoning: Enhanced subagent for intelligent news aggregation and analysis.
-# Ties to system: Provides structured news DataFrames for main data agent coordination.
-# For legacy wealth: AI-powered news intelligence for superior market insights.
+# src/agents/data_analyzers/news_data_analyzer.py
+# News Data Analyzer Subagent
+# Fetches and analyzes news data from multiple sources
+# Handles sentiment analysis, event detection, and news impact assessment
 
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))  # Dynamic root path for imports.
-
-from src.agents.base import BaseAgent  # Absolute import.
+import asyncio
+from typing import Dict, List, Any, Optional
 import logging
-from typing import Dict, Any, List
-import pandas as pd
 from datetime import datetime, timedelta
+import pandas as pd
+from dataclasses import dataclass
+
+from src.agents.base import BaseAgent
+from src.utils.redis_cache import get_redis_cache_manager
+from src.utils.tools import news_data_tool
 
 logger = logging.getLogger(__name__)
 
+@dataclass
+class NewsArticle:
+    """Data class for news article representation."""
+    title: str
+    content: str
+    source: str
+    published_at: datetime
+    url: str
+    sentiment: Optional[float] = None
+    relevance_score: Optional[float] = None
+    topics: Optional[List[str]] = None
+
 class NewsDataAnalyzer(BaseAgent):
     """
-    News Data Subagent with LLM-powered exploration.
-    Reasoning: Intelligently explores multiple news sources and filters content for relevance.
-    Uses LLM to prioritize sources, assess credibility, and analyze market impact.
+    Subagent for fetching and analyzing news data from multiple sources.
+    Handles news aggregation, sentiment analysis, and event detection.
     """
+
     def __init__(self):
-        config_paths = {'risk': 'config/risk-constraints.yaml'}  # Relative to root.
-        prompt_paths = {'base': 'config/base_prompt.txt', 'role': 'docs/AGENTS/main-agents/data-agent.md'}  # Relative to root.
-        tools = []  # NewsDatasub uses internal methods instead of tools
-        super().__init__(role='news_data', config_paths=config_paths, prompt_paths=prompt_paths, tools=tools)
-
-        # Available news sources for LLM exploration
-        self.available_sources = {
-            'newsapi': 'Comprehensive news aggregation with global coverage',
-            'currentsapi': 'Real-time news with fast updates and diverse sources',
-            'alphavantage': 'Financial news focused on market-moving events',
-            'bing_news': 'Microsoft Bing news search with broad coverage',
-            'google_news': 'Google News aggregation with trending topics',
-            'twitter_trends': 'Social media sentiment and breaking news',
-            'rss_feeds': 'Direct RSS feeds from financial publications'
+        super().__init__(role="news_data")
+        self.cache_manager = get_redis_cache_manager()
+        self.max_articles_per_query = 20
+        self.relevance_threshold = 0.3
+        self.sources_priority = {
+            "newsapi": 9,
+            "currentsapi": 8,
+            "financial_times": 7,
+            "reuters": 6,
+            "bloomberg": 5
         }
 
-    async def reflect(self, adjustments: Dict[str, Any]) -> Dict[str, Any]:
+    async def process_input(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Reflect on batch adjustments for self-improvement.
-        Analyzes news data performance metrics and generates optimization insights.
-
+        Process input data for news analysis.
+        
         Args:
-            adjustments: Dictionary containing performance data and adjustment metrics
-
+            input_data: Dictionary containing symbols, time periods, focus areas
+            
         Returns:
-            Dict with reflection insights and improvement recommendations
+            Dictionary with consolidated news data, sentiment analysis, and quality metrics
         """
         try:
-            logger.info(f"News reflecting on adjustments: {adjustments}")
-
-            # Analyze news data-specific performance
-            reflection_insights = {
-                'timestamp': pd.Timestamp.now().isoformat(),
-                'adjustments_processed': len(adjustments) if isinstance(adjustments, dict) else 0,
-                'performance_analysis': {},
-                'optimization_opportunities': [],
-                'content_quality_insights': {}
-            }
-
-            # Extract news data performance metrics
-            if isinstance(adjustments, dict):
-                # Analyze article fetch success, relevance scoring, credibility assessment
-                if 'performance_data' in adjustments:
-                    perf_data = adjustments['performance_data']
-                    reflection_insights['performance_analysis'] = {
-                        'article_fetch_success_rate': perf_data.get('article_fetch_success_rate', 0),
-                        'relevance_scoring_accuracy': perf_data.get('relevance_scoring_accuracy', 0),
-                        'credibility_assessment_quality': perf_data.get('credibility_assessment_quality', 0),
-                        'impact_prediction_accuracy': perf_data.get('impact_prediction_accuracy', 0)
-                    }
-
-                # Identify news data-specific improvement opportunities
-                if 'issues' in adjustments:
-                    issues = adjustments['issues']
-                    for issue in issues:
-                        if 'relevance' in issue.lower() or 'filtering' in issue.lower():
-                            reflection_insights['optimization_opportunities'].append({
-                                'type': 'content_filtering_enhancement',
-                                'description': 'Improve news article relevance filtering and prioritization algorithms',
-                                'priority': 'high'
-                            })
-                        elif 'credibility' in issue.lower() or 'source' in issue.lower():
-                            reflection_insights['optimization_opportunities'].append({
-                                'type': 'source_credibility_scoring',
-                                'description': 'Enhance source credibility assessment and weighting mechanisms',
-                                'priority': 'medium'
-                            })
-                        elif 'sentiment' in issue.lower():
-                            reflection_insights['optimization_opportunities'].append({
-                                'type': 'sentiment_analysis_improvement',
-                                'description': 'Strengthen sentiment extraction from news content and headlines',
-                                'priority': 'medium'
-                            })
-
-                # Generate content quality insights
-                reflection_insights['content_quality_insights'] = {
-                    'article_diversity_score': adjustments.get('article_diversity_score', 0.7),
-                    'source_coverage_breadth': adjustments.get('source_coverage_breadth', 0.8),
-                    'real_time_coverage_effectiveness': adjustments.get('real_time_coverage_effectiveness', 0.6),
-                    'market_impact_prediction_accuracy': adjustments.get('market_impact_prediction_accuracy', 0.5)
-                }
-
-            # Store reflection in memory for future learning
-            self.update_memory('news_reflection_history', {
-                'timestamp': reflection_insights['timestamp'],
-                'insights': reflection_insights,
-                'adjustments_analyzed': adjustments
-            })
-
-            logger.info(f"News reflection completed with {len(reflection_insights['optimization_opportunities'])} optimization opportunities identified")
-            return reflection_insights
-
-        except Exception as e:
-            logger.error(f"Error during news reflection analysis: {e}")
+            symbols = input_data.get("symbols", [])
+            time_period = input_data.get("time_period", "last_24h")
+            focus_areas = input_data.get("focus_areas", ["earnings", "mergers", "regulations"])
+            languages = input_data.get("languages", ["en"])
+            
+            # Use LLM to determine optimal news exploration strategy
+            exploration_plan = await self._get_news_exploration_plan(symbols, focus_areas)
+            
+            # Fetch news concurrently from multiple sources
+            all_articles = await self._fetch_news_concurrently(symbols, exploration_plan, time_period)
+            
+            # Filter and rank articles by relevance
+            relevant_articles = self._filter_relevant_articles(all_articles, symbols, focus_areas)
+            
+            # Perform sentiment analysis
+            sentiment_results = await self._analyze_news_sentiment(relevant_articles)
+            
+            # Detect events and themes
+            event_detection = await self._detect_news_events(relevant_articles, sentiment_results)
+            
+            # Validate data quality
+            quality_score = self._validate_news_quality(relevant_articles, sentiment_results)
+            
+            # Store in memory
+            await self.memory_manager.store_memory(
+                f"news_data:{symbols[0] if symbols else 'general'}",
+                {
+                    "articles": [article.__dict__ for article in relevant_articles],
+                    "sentiment": sentiment_results,
+                    "events": event_detection,
+                    "quality_score": quality_score
+                },
+                "working_memory"
+            )
+            
+            # Convert to DataFrame for analysis
+            articles_df = pd.DataFrame([article.__dict__ for article in relevant_articles]) if relevant_articles else pd.DataFrame()
+            
             return {
-                'error': str(e),
-                'timestamp': pd.Timestamp.now().isoformat(),
-                'adjustments_processed': len(adjustments) if isinstance(adjustments, dict) else 0
-            }
-
-    async def process_input(self, input_data: Dict[str, Any] = None) -> Dict[str, Any]:
-        """
-        Process input to fetch and analyze news data with LLM enhancement.
-        Args:
-            input_data: Dict with parameters (symbol for news analysis).
-        Returns:
-            Dict with structured news data and LLM analysis.
-        """
-        logger.info(f"NewsDatasub processing input: {input_data}")
-
-        try:
-            # Initialize LLM if not already done
-            if not self.llm:
-                await self.async_initialize_llm()
-
-            symbol = input_data.get('symbol', 'SPY') if input_data else 'SPY'
-
-            # Step 1: Plan news exploration with LLM
-            exploration_plan = await self._plan_news_exploration(symbol, input_data or {})
-
-            # Step 2: Execute exploration plan
-            exploration_results = await self._execute_news_exploration(symbol, exploration_plan)
-
-            # Step 3: Consolidate data into structured format
-            consolidated_data = self._consolidate_news_data(symbol, exploration_results)
-
-            # Step 4: Analyze with LLM for insights
-            llm_analysis = await self._analyze_news_data_llm(consolidated_data)
-
-            # Combine results
-            result = {
-                "consolidated_data": consolidated_data,
-                "llm_analysis": llm_analysis,
+                "consolidated_data": {
+                    "articles_df": articles_df,
+                    "sentiment_summary": sentiment_results,
+                    "event_detection": event_detection,
+                    "sources_used": list(set(article.source for article in relevant_articles)) if relevant_articles else []
+                },
+                "enhanced": len(relevant_articles) > 0,
+                "quality_score": quality_score,
                 "exploration_plan": exploration_plan,
-                "enhanced": True
+                "total_articles_fetched": len(all_articles),
+                "relevant_articles_count": len(relevant_articles)
             }
-
-            # Store news data in shared memory
-            await self.store_shared_memory("news_data", symbol, {
-                "news_data": consolidated_data,
-                "llm_analysis": llm_analysis,
-                "timestamp": pd.Timestamp.now().isoformat()
-            })
-
-            # Store quality assessment for cross-verification
-            quality_assessment = {
-                "analyzer": "news",
-                "symbol": symbol,
-                "credibility_score": consolidated_data.get('avg_credibility_score', 0.5),
-                "relevance_score": consolidated_data.get('avg_relevance_score', 0.5),
-                "data_quality_score": consolidated_data.get('data_quality_score', 5.0),
-                "article_count": consolidated_data.get('total_articles', 0),
-                "sources_used": consolidated_data.get('sources_explored', []),
-                "impact_distribution": consolidated_data.get('impact_distribution', {}),
-                "timestamp": pd.Timestamp.now().isoformat(),
-                "llm_insights": {
-                    "sentiment": llm_analysis.get('sentiment_summary', {}).get('overall_sentiment', 'neutral'),
-                    "key_themes": llm_analysis.get('key_themes', []),
-                    "risk_level": llm_analysis.get('risk_assessment', {}).get('risk_level', 'moderate')
-                }
-            }
-            await self.store_shared_memory("data_quality_assessments", f"news_{symbol}", quality_assessment)
-
-            logger.info(f"NewsDatasub output: LLM-enhanced news data collected for {symbol}")
-            return result
-
-        except Exception as e:
-            logger.error(f"NewsDatasub failed: {e}")
-            return {"articles_df": pd.DataFrame(), "error": str(e), "enhanced": False}
-
-    async def _plan_news_exploration(self, symbol: str, context: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Use LLM to plan intelligent news exploration based on symbol and context.
-
-        Args:
-            symbol: Stock symbol to analyze
-            context: Additional context for exploration planning
-
-        Returns:
-            Dict containing exploration plan with prioritized sources
-        """
-        if not self.llm:
-            logger.error("CRITICAL FAILURE: No LLM available for news data exploration - cannot proceed without AI planning")
-            raise Exception("LLM required for intelligent news exploration - no default fallback allowed")
-
-        try:
-            exploration_prompt = f"""
-You are an expert financial news analyst planning comprehensive news coverage for {symbol}.
-
-CONTEXT:
-- Symbol: {symbol}
-- Available News Sources: {self.available_sources}
-- Analysis Goals: Maximize market intelligence while managing API costs and avoiding information overload
-- Risk Constraints: Focus on credible sources and market-moving news
-
-TASK:
-Based on the symbol characteristics and available sources, determine which news sources to explore and prioritize them.
-Consider:
-1. Market capitalization and news coverage (large caps vs small caps)
-2. Recent volatility and breaking news potential
-3. Source credibility and timeliness
-4. Cost-benefit analysis of premium vs free sources
-5. Geographic relevance for international companies
-
-Return a JSON object with:
-- "sources": Array of source names to explore (from available_sources keys)
-- "priorities": Object mapping source names to priority scores (1-10, higher = more important)
-- "reasoning": Brief explanation of exploration strategy
-- "focus_areas": Array of news categories to prioritize (e.g., ["earnings", "M&A", "regulatory"])
-
-Example response:
-{{
-  "sources": ["newsapi", "currentsapi", "alphavantage"],
-  "priorities": {{"newsapi": 9, "currentsapi": 8, "alphavantage": 7}},
-  "reasoning": "Focus on established financial news sources for {symbol} as it's a major index component",
-  "focus_areas": ["earnings", "economic_impact", "sector_news"]
-}}
-"""
-
-            response = await self.llm.ainvoke(exploration_prompt)
-            response_text = response.content if hasattr(response, 'content') else str(response)
-
-            # Parse JSON response
-            import json
-            try:
-                plan = json.loads(response_text)
-                logger.info(f"LLM news exploration plan for {symbol}: {plan.get('reasoning', 'No reasoning provided')}")
-                return plan
-            except json.JSONDecodeError as e:
-                logger.error(f"CRITICAL FAILURE: Failed to parse LLM news exploration plan JSON: {e} - cannot proceed without AI planning")
-                raise Exception(f"LLM news exploration planning failed - JSON parsing error: {e}")
-
-        except Exception as e:
-            logger.error(f"CRITICAL FAILURE: LLM news exploration planning failed: {e} - cannot proceed without AI planning")
-            raise Exception(f"LLM news exploration planning failed: {e}")
-
-    async def _execute_news_exploration(self, symbol: str, plan: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Execute the news exploration plan by fetching from prioritized sources.
-
-        Args:
-            symbol: Stock symbol
-            plan: Exploration plan from LLM
-
-        Returns:
-            Dict containing results from all explored sources
-        """
-        results = {}
-        sources = plan.get('sources', ['newsapi'])
-
-        for source in sources:
-            try:
-                if source == 'newsapi':
-                    results['newsapi'] = await self._fetch_newsapi_data(symbol)
-                elif source == 'currentsapi':
-                    results['currentsapi'] = await self._fetch_currentsapi_data(symbol)
-                elif source == 'alphavantage':
-                    results['alphavantage'] = await self._fetch_alphavantage_news(symbol)
-                elif source == 'bing_news':
-                    results['bing_news'] = await self._fetch_bing_news(symbol)
-                elif source == 'google_news':
-                    results['google_news'] = await self._fetch_google_news(symbol)
-                elif source == 'twitter_trends':
-                    results['twitter_trends'] = await self._fetch_twitter_trends(symbol)
-                elif source == 'rss_feeds':
-                    results['rss_feeds'] = await self._fetch_rss_feeds(symbol)
-                else:
-                    logger.warning(f"Unknown news source: {source}")
-
-            except Exception as e:
-                logger.error(f"Failed to fetch {source} data for {symbol}: {e}")
-                results[source] = {"error": str(e)}
-
-        return results
-
-    async def _fetch_newsapi_data(self, symbol: str) -> Dict[str, Any]:
-        """Fetch news from NewsAPI."""
-        from src.utils.tools import news_data_tool
-        result = news_data_tool(symbol)  # Call directly as function
-        return self._enhance_news_data(result, symbol, "newsapi")
-
-    async def _fetch_currentsapi_data(self, symbol: str) -> Dict[str, Any]:
-        """Fetch news from CurrentsAPI."""
-        raise NotImplementedError("Real CurrentsAPI implementation required - no mock data allowed in production")
-
-    async def _fetch_alphavantage_news(self, symbol: str) -> Dict[str, Any]:
-        """Fetch financial news from Alpha Vantage."""
-        raise NotImplementedError("Real Alpha Vantage news API implementation required - no mock data allowed in production")
-
-    async def _fetch_bing_news(self, symbol: str) -> Dict[str, Any]:
-        """Fetch news from Bing News Search."""
-        raise NotImplementedError("Real Bing News Search API implementation required - no mock data allowed in production")
-
-    async def _fetch_google_news(self, symbol: str) -> Dict[str, Any]:
-        """Fetch news from Google News."""
-        raise NotImplementedError("Real Google News API implementation required - no mock data allowed in production")
-
-    async def _fetch_twitter_trends(self, symbol: str) -> Dict[str, Any]:
-        """Fetch Twitter trends and sentiment for symbol."""
-        raise NotImplementedError("Real Twitter API implementation required - no mock data allowed in production")
-
-    async def _fetch_rss_feeds(self, symbol: str) -> Dict[str, Any]:
-        """Fetch news from financial RSS feeds."""
-        raise NotImplementedError("Real RSS feed aggregation implementation required - no mock data allowed in production")
-
-    def _enhance_news_data(self, news_data: Dict[str, Any], symbol: str, source: str) -> Dict[str, Any]:
-        """Enhance news data with additional processing and validation."""
-        try:
-            if 'articles' not in news_data:
-                news_data['articles'] = []
-
-            # Add metadata
-            news_data['symbol'] = symbol
-            news_data['fetch_timestamp'] = datetime.now().isoformat()
-            news_data['article_count'] = len(news_data.get('articles', []))
-            news_data['source'] = source
-
-            # Validate and clean articles
-            valid_articles = []
-            for article in news_data.get('articles', []):
-                if isinstance(article, dict) and 'title' in article:
-                    # Add enhanced validation and scoring
-                    article['validated'] = True
-                    article['relevance_score'] = self._calculate_relevance_score(article, symbol)
-                    article['credibility_score'] = self._calculate_credibility_score(article, source)
-                    article['impact_potential'] = self._assess_impact_potential(article)
-                    valid_articles.append(article)
-
-            news_data['articles'] = valid_articles
-            news_data['valid_article_count'] = len(valid_articles)
-
-            return news_data
-
-        except Exception as e:
-            logger.error(f"Failed to enhance news data: {e}")
-            return news_data
-
-    def _calculate_relevance_score(self, article: Dict[str, Any], symbol: str) -> float:
-        """Calculate relevance score for news article to symbol."""
-        try:
-            title = article.get('title', '').lower()
-            description = article.get('description', '').lower()
-            symbol_lower = symbol.lower()
-
-            # Enhanced relevance scoring
-            score = 0.0
-            if symbol_lower in title:
-                score += 0.6
-            if symbol_lower in description:
-                score += 0.4
-
-            # Boost for financial keywords
-            financial_keywords = ['stock', 'market', 'price', 'trading', 'earnings', 'revenue', 'profit', 'loss']
-            for keyword in financial_keywords:
-                if keyword in title or keyword in description:
-                    score += 0.15
-
-            # Boost for market-moving keywords
-            market_keywords = ['earnings', 'guidance', 'forecast', 'merger', 'acquisition', 'lawsuit', 'regulation']
-            for keyword in market_keywords:
-                if keyword in title or keyword in description:
-                    score += 0.2
-
-            return min(1.0, score)  # Cap at 1.0
-
-        except Exception as e:
-            logger.error(f"Failed to calculate relevance score: {e}")
-            return 0.0
-
-    def _calculate_credibility_score(self, article: Dict[str, Any], source: str) -> float:
-        """Calculate credibility score based on source and article characteristics."""
-        try:
-            base_score = 0.5  # Default neutral score
-
-            # Source credibility weights
-            source_weights = {
-                'newsapi': 0.8,
-                'currentsapi': 0.7,
-                'alphavantage': 0.9,
-                'bing_news': 0.6,
-                'google_news': 0.7,
-                'twitter_trends': 0.4,
-                'rss_feeds': 0.8
-            }
-
-            base_score = source_weights.get(source, 0.5)
-
-            # Adjust based on article characteristics
-            title = article.get('title', '')
-            description = article.get('description', '')
-
-            # Boost for detailed content
-            if len(description) > 100:
-                base_score += 0.1
-
-            # Boost for author presence
-            if article.get('author'):
-                base_score += 0.1
-
-            # Penalize for sensational titles
-            sensational_words = ['breaking', 'shocking', 'explosive', 'crisis']
-            for word in sensational_words:
-                if word.lower() in title.lower():
-                    base_score -= 0.1
-
-            return max(0.0, min(1.0, base_score))
-
-        except Exception as e:
-            logger.error(f"Failed to calculate credibility score: {e}")
-            return 0.5
-
-    def _assess_impact_potential(self, article: Dict[str, Any]) -> str:
-        """Assess the potential market impact of the article."""
-        try:
-            title = article.get('title', '').lower()
-            description = article.get('description', '').lower()
-
-            # High impact keywords
-            high_impact = ['earnings', 'merger', 'acquisition', 'lawsuit', 'regulation', 'bankruptcy', 'recall']
-            # Medium impact keywords
-            medium_impact = ['guidance', 'forecast', 'partnership', 'expansion', 'layoffs']
-            # Low impact keywords
-            low_impact = ['analysis', 'opinion', 'interview', 'update']
-
-            for keyword in high_impact:
-                if keyword in title or keyword in description:
-                    return 'high'
-
-            for keyword in medium_impact:
-                if keyword in title or keyword in description:
-                    return 'medium'
-
-            for keyword in low_impact:
-                if keyword in title or keyword in description:
-                    return 'low'
-
-            return 'neutral'
-
-        except Exception as e:
-            logger.error(f"Failed to assess impact potential: {e}")
-            return 'unknown'
-
-    def _consolidate_news_data(self, symbol: str, exploration_results: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Consolidate exploration results into DataFrame format for pipeline integration.
-
-        Args:
-            symbol: Stock symbol
-            exploration_results: Raw data from all explored sources
-
-        Returns:
-            Dict with consolidated data including DataFrames
-        """
-        consolidated = {
-            'symbol': symbol,
-            'source': 'news_llm_exploration',
-            'sources_explored': list(exploration_results.keys()),
-            'timestamp': datetime.now().isoformat()
-        }
-
-        # Collect all articles from all sources
-        all_articles = []
-        for source, result in exploration_results.items():
-            if isinstance(result, dict) and 'articles' in result:
-                for article in result['articles']:
-                    article['news_source'] = source
-                    all_articles.append(article)
-
-        # Create articles DataFrame
-        if all_articles:
-            articles_df = pd.DataFrame(all_articles)
-            consolidated['articles_df'] = articles_df
-
-            # Calculate aggregate metrics
-            consolidated['total_articles'] = len(all_articles)
-            consolidated['avg_relevance_score'] = articles_df['relevance_score'].mean() if 'relevance_score' in articles_df.columns else 0.5
-            consolidated['avg_credibility_score'] = articles_df['credibility_score'].mean() if 'credibility_score' in articles_df.columns else 0.5
-
-            # Sentiment analysis summary
-            if 'impact_potential' in articles_df.columns:
-                impact_counts = articles_df['impact_potential'].value_counts()
-                consolidated['impact_distribution'] = impact_counts.to_dict()
-            else:
-                consolidated['impact_distribution'] = {}
-
-        # Add metadata
-        consolidated['data_quality_score'] = self._calculate_news_quality_score(exploration_results)
-        consolidated['market_insights'] = self._extract_market_insights(all_articles)
-
-        return consolidated
-
-    def _calculate_news_quality_score(self, exploration_results: Dict[str, Any]) -> float:
-        """Calculate overall news data quality score."""
-        base_score = 5.0
-        source_bonus = len(exploration_results) * 0.5
-        article_bonus = sum(len(r.get('articles', [])) for r in exploration_results.values() if isinstance(r, dict)) * 0.1
-
-        return min(10.0, base_score + source_bonus + article_bonus)
-
-    def _extract_market_insights(self, articles: List[Dict[str, Any]]) -> List[str]:
-        """Extract key market insights from consolidated articles."""
-        insights = []
-
-        if not articles:
-            return ["No significant market insights from news sources"]
-
-        # Count high-impact articles
-        high_impact_count = sum(1 for a in articles if a.get('impact_potential') == 'high')
-        if high_impact_count > 0:
-            insights.append(f"{high_impact_count} high-impact news articles identified")
-
-        # Check for earnings-related news
-        earnings_articles = [a for a in articles if 'earnings' in a.get('title', '').lower() or 'earnings' in a.get('description', '').lower()]
-        if earnings_articles:
-            insights.append(f"{len(earnings_articles)} earnings-related articles found")
-
-        # Check for regulatory news
-        regulatory_articles = [a for a in articles if 'regulation' in a.get('title', '').lower() or 'sec' in a.get('title', '').lower()]
-        if regulatory_articles:
-            insights.append(f"{len(regulatory_articles)} regulatory articles identified")
-
-        return insights if insights else ["Standard market coverage observed"]
-
-    def _enhance_news_data(self, news_data: Dict[str, Any], symbol: str) -> Dict[str, Any]:
-        """Enhance news data with additional processing and validation."""
-        try:
-            if 'articles' not in news_data:
-                news_data['articles'] = []
-            
-            # Add metadata
-            news_data['symbol'] = symbol
-            news_data['fetch_timestamp'] = pd.Timestamp.now().isoformat()
-            news_data['article_count'] = len(news_data.get('articles', []))
-            
-            # Validate and clean articles
-            valid_articles = []
-            for article in news_data.get('articles', []):
-                if isinstance(article, dict) and 'title' in article:
-                    # Add basic validation
-                    article['validated'] = True
-                    article['relevance_score'] = self._calculate_relevance_score(article, symbol)
-                    valid_articles.append(article)
-            
-            news_data['articles'] = valid_articles
-            news_data['valid_article_count'] = len(valid_articles)
-            
-            return news_data
             
         except Exception as e:
-            logger.error(f"Failed to enhance news data: {e}")
-            return news_data
-
-    def _calculate_relevance_score(self, article: Dict[str, Any], symbol: str) -> float:
-        """Calculate relevance score for news article to symbol."""
-        try:
-            title = article.get('title', '').lower()
-            description = article.get('description', '').lower()
-            symbol_lower = symbol.lower()
-            
-            # Simple relevance scoring
-            score = 0.0
-            if symbol_lower in title:
-                score += 0.5
-            if symbol_lower in description:
-                score += 0.3
-            
-            # Boost for financial keywords
-            financial_keywords = ['stock', 'market', 'price', 'trading', 'earnings', 'revenue']
-            for keyword in financial_keywords:
-                if keyword in title or keyword in description:
-                    score += 0.1
-            
-            return min(1.0, score)  # Cap at 1.0
-            
-        except Exception as e:
-            logger.error(f"Failed to calculate relevance score: {e}")
-            return 0.0
-
-    async def _cross_validate_news(self, symbol: str) -> Dict[str, Any]:
-        """
-        Cross-validate news from multiple sources.
-        Returns validation result with confidence score.
-        """
-        import asyncio
-        
-        validation_results = []
-        sources_attempted = 0
-        
-        # Source 1: Primary news data tool
-        try:
-            sources_attempted += 1
-            news_data1 = await news_data_tool.ainvoke({"symbol": symbol})
-            news_data1 = self._enhance_news_data(news_data1, symbol)
-            
-            article_count = news_data1.get('valid_article_count', 0)
-            if article_count > 0:
-                validation_results.append({
-                    'source': 'primary_tool',
-                    'news_data': news_data1,
-                    'article_count': article_count,
-                    'success': True
-                })
-            else:
-                validation_results.append({
-                    'source': 'primary_tool',
-                    'success': False,
-                    'reason': 'No valid articles found'
-                })
-        except Exception as e:
-            validation_results.append({
-                'source': 'primary_tool',
-                'success': False,
-                'reason': str(e)
-            })
-        
-        # Analyze validation results
-        successful_sources = [r for r in validation_results if r.get('success', False)]
-        
-        if len(successful_sources) >= 1:
-            # For news, we consider it validated if we have at least one source with articles
-            best_source = max(successful_sources, key=lambda x: x['article_count'])
-            
-            if best_source['article_count'] >= 3:
-                return {
-                    'validated': True,
-                    'news_data': best_source['news_data'],
-                    'validation_info': {
-                        'validated': True,
-                        'confidence': min(0.8, 0.5 + len(successful_sources) * 0.1),
-                        'sources_used': len(successful_sources),
-                        'total_articles': best_source['article_count']
-                    }
-                }
-            else:
-                return {
-                    'validated': False,
-                    'news_data': best_source['news_data'],
-                    'reason': f'Insufficient articles: {best_source["article_count"]}',
-                    'validation_info': {
-                        'validated': False,
-                        'confidence': 0.3,
-                        'sources_used': len(successful_sources)
-                    }
-                }
-        else:
+            logger.error(f"NewsDataAnalyzer process_input failed: {e}")
             return {
-                'validated': False,
-                'news_data': {'articles': [], 'error': 'No news sources available'},
-                'reason': f'No successful news sources out of {sources_attempted} attempted',
-                'validation_info': {
-                    'validated': False,
-                    'confidence': 0.0,
-                    'sources_used': 0
-                }
+                "error": str(e),
+                "consolidated_data": {"articles_df": pd.DataFrame(), "sentiment_summary": {}},
+                "enhanced": False,
+                "quality_score": 0.0
             }
 
-    async def _analyze_news_data_llm(self, consolidated_data: Dict[str, Any]) -> Dict[str, Any]:
+    def _validate_news_quality(self, articles: List[NewsArticle], sentiment_results: Dict) -> float:
         """
-        Use LLM to analyze consolidated news data for market insights and sentiment.
+        Validate the quality of news data.
+        
+        Args:
+            articles: List of news articles
+            sentiment_results: Sentiment analysis results
+            
+        Returns:
+            Quality score between 0-10
         """
-        context_str = f"""
-        Symbol: {consolidated_data.get('symbol', 'Unknown')}
-        Sources Explored: {consolidated_data.get('sources_explored', [])}
-        Total Articles: {consolidated_data.get('total_articles', 0)}
-        Average Relevance: {consolidated_data.get('avg_relevance_score', 'N/A')}
-        Average Credibility: {consolidated_data.get('avg_credibility_score', 'N/A')}
-        Impact Distribution: {consolidated_data.get('impact_distribution', {})}
+        if not articles:
+            return 0.0
+        
+        total_score = 0
+        factors = 0
+        
+        # Diversity of sources
+        sources = [article.source for article in articles]
+        unique_sources = len(set(sources))
+        source_diversity = min(unique_sources / 5, 1.0)  # Max 5 sources
+        total_score += source_diversity * 2
+        factors += 2
+        
+        # Recency
+        now = datetime.now()
+        recent_articles = sum(1 for article in articles if (now - article.published_at).total_seconds() < 86400)  # 24 hours
+        recency_score = recent_articles / len(articles)
+        total_score += recency_score * 2
+        factors += 2
+        
+        # Sentiment confidence
+        if sentiment_results.get("confidence"):
+            total_score += min(sentiment_results["confidence"], 1.0) * 2
+            factors += 2
+        
+        # Relevance
+        relevant_count = sum(1 for article in articles if article.relevance_score and article.relevance_score > self.relevance_threshold)
+        relevance_score = relevant_count / len(articles)
+        total_score += relevance_score * 2
+        factors += 2
+        
+        # Content quality (length, completeness)
+        avg_length = sum(len(article.content.split()) for article in articles) / len(articles)
+        content_quality = min(avg_length / 200, 1.0)  # 200 words average
+        total_score += content_quality * 2
+        factors += 2
+        
+        return round((total_score / factors) * 10, 2)
 
-        News data has been consolidated from multiple sources with relevance and credibility scoring.
+    async def _fetch_news_concurrently(self, symbols: List[str], plan: Dict, time_period: str) -> List[NewsArticle]:
         """
-
-        question = f"""
-        Analyze the consolidated news data for {consolidated_data.get('symbol', 'the symbol')} and provide insights on:
-
-        1. Overall market sentiment from news coverage (bullish/bearish/neutral)
-        2. Key themes and narratives emerging from recent articles
-        3. Credibility assessment of major news stories and their potential market impact
-        4. Risk factors and warning signs from news analysis
-        5. Positive catalysts and opportunities identified in coverage
-        6. Information gaps or areas needing further monitoring
-        7. Trading implications and potential market-moving events
-
-        Provide actionable insights for investment decision-making based on the news landscape.
+        Fetch news concurrently from multiple sources based on exploration plan.
+        
+        Args:
+            symbols: List of symbols to search news for
+            plan: LLM exploration plan
+            time_period: Time period for news search
+            
+        Returns:
+            List of news articles
         """
+        tasks = []
+        all_articles = []
+        
+        for source in plan.get("sources", []):
+            if source in self.sources_priority:
+                priority = self.sources_priority[source]
+                if priority >= plan.get("priorities", {}).get(source, 0):
+                    task = self._fetch_from_source(source, symbols, time_period, plan)
+                    tasks.append((priority, task))
+        
+        # Sort by priority and execute concurrently
+        tasks.sort(key=lambda x: x[0], reverse=True)
+        concurrent_tasks = [task for _, task in tasks[:self.max_concurrent_requests]]
+        
+        if concurrent_tasks:
+            results = await asyncio.gather(*concurrent_tasks, return_exceptions=True)
+            for result in results:
+                if isinstance(result, list):
+                    all_articles.extend(result)
+        
+        return all_articles
 
-        analysis_response = await self.reason_with_llm(context_str, question)
+    async def _fetch_from_source(self, source: str, symbols: List[str], time_period: str, plan: Dict) -> List[NewsArticle]:
+        """
+        Fetch news from a specific source.
+        
+        Args:
+            source: News source name
+            symbols: Symbols to search for
+            time_period: Time period
+            plan: Exploration plan
+            
+        Returns:
+            List of news articles from the source
+        """
+        try:
+            # Check cache first
+            cache_key = f"news:{source}:{symbols[0] if symbols else 'general'}:{time_period}"
+            cached_articles = self.cache_manager.get(cache_key)
+            if cached_articles:
+                logger.info(f"Cache hit for news from {source}")
+                return [NewsArticle(**article) for article in json.loads(cached_articles)]
+            
+            # Use the appropriate tool for the source
+            if source == "newsapi":
+                articles = await self._fetch_newsapi_articles(symbols, time_period)
+            elif source == "currentsapi":
+                articles = await self._fetch_currentsapi_articles(symbols, time_period)
+            elif source == "financial_times":
+                articles = await self._fetch_ft_articles(symbols, time_period)
+            else:
+                logger.warning(f"Source {source} not implemented")
+                articles = []
+            
+            # Convert to NewsArticle objects
+            news_articles = []
+            for article_data in articles:
+                try:
+                    news_article = NewsArticle(
+                        title=article_data.get("title", ""),
+                        content=article_data.get("content", article_data.get("description", "")),
+                        source=source,
+                        published_at=datetime.fromisoformat(article_data.get("published_at", datetime.now().isoformat())),
+                        url=article_data.get("url", ""),
+                        sentiment=None,  # Will be analyzed later
+                        relevance_score=None  # Will be calculated later
+                    )
+                    news_articles.append(news_article)
+                except Exception as e:
+                    logger.error(f"Failed to parse article from {source}: {e}")
+                    continue
+            
+            # Cache the results
+            cache_data = [article.__dict__ for article in news_articles]
+            self.cache_manager.set(cache_key, json.dumps(cache_data), ttl=1800)  # 30 minutes
+            
+            logger.info(f"Fetched {len(news_articles)} articles from {source}")
+            return news_articles
+            
+        except Exception as e:
+            logger.error(f"Failed to fetch news from {source}: {e}")
+            return []
 
-        return {
-            "llm_analysis": analysis_response,
-            "sentiment_summary": self._extract_news_sentiment(analysis_response),
-            "key_themes": self._extract_key_themes(analysis_response),
-            "risk_assessment": self._extract_news_risks(analysis_response),
-            "trading_implications": self._extract_trading_implications(analysis_response)
+    async def _fetch_newsapi_articles(self, symbols: List[str], time_period: str) -> List[Dict]:
+        """
+        Fetch articles from NewsAPI.
+        
+        Args:
+            symbols: Symbols to search
+            time_period: Time period
+            
+        Returns:
+            List of article dictionaries
+        """
+        try:
+            from src.utils.tools import news_data_tool
+            query = " OR ".join(symbols)
+            articles = await news_data_tool(query=query, language="en", limit=self.max_articles_per_query)
+            return articles.get("articles", [])
+        except Exception as e:
+            logger.error(f"NewsAPI fetch failed: {e}")
+            return []
+
+    async def _fetch_currentsapi_articles(self, symbols: List[str], time_period: str) -> List[Dict]:
+        """
+        Fetch articles from CurrentsAPI.
+        
+        Args:
+            symbols: Symbols to search
+            time_period: Time period
+            
+        Returns:
+            List of article dictionaries
+        """
+        try:
+            from src.utils.tools import news_data_tool
+            query = " OR ".join(symbols)
+            articles = await news_data_tool(query=query, language="en", limit=self.max_articles_per_query, source="currentsapi")
+            return articles.get("articles", [])
+        except Exception as e:
+            logger.error(f"CurrentsAPI fetch failed: {e}")
+            return []
+
+    async def _fetch_ft_articles(self, symbols: List[str], time_period: str) -> List[Dict]:
+        """
+        Fetch articles from Financial Times (placeholder).
+        
+        Args:
+            symbols: Symbols to search
+            time_period: Time period
+            
+        Returns:
+            List of article dictionaries
+        """
+        # FT API implementation would go here
+        logger.info("Financial Times API integration pending")
+        return []
+
+    def _filter_relevant_articles(self, articles: List[NewsArticle], symbols: List[str], focus_areas: List[str]) -> List[NewsArticle]:
+        """
+        Filter and rank news articles by relevance to symbols and focus areas.
+        
+        Args:
+            articles: All fetched articles
+            symbols: Target symbols
+            focus_areas: Focus areas for analysis
+            
+        Returns:
+            List of relevant articles
+        """
+        relevant_articles = []
+        
+        for article in articles:
+            # Calculate relevance score
+            relevance_score = self._calculate_relevance_score(article, symbols, focus_areas)
+            
+            if relevance_score > self.relevance_threshold:
+                article.relevance_score = relevance_score
+                # Extract topics
+                article.topics = self._extract_topics(article.content, focus_areas)
+                relevant_articles.append(article)
+        
+        # Sort by relevance
+        relevant_articles.sort(key=lambda x: x.relevance_score, reverse=True)
+        return relevant_articles[:self.max_articles_per_query]
+
+    def _calculate_relevance_score(self, article: NewsArticle, symbols: List[str], focus_areas: List[str]) -> float:
+        """
+        Calculate relevance score for an article.
+        
+        Args:
+            article: News article
+            symbols: Target symbols
+            focus_areas: Focus areas
+            
+        Returns:
+            Relevance score between 0-1
+        """
+        score = 0.0
+        
+        # Symbol mention score
+        content_lower = article.content.lower()
+        title_lower = article.title.lower()
+        symbol_mentions = sum(1 for symbol in symbols if symbol.lower() in content_lower or symbol.lower() in title_lower)
+        symbol_score = min(symbol_mentions / len(symbols), 1.0)
+        score += symbol_score * 0.4
+        
+        # Focus area score
+        focus_matches = sum(1 for area in focus_areas if area.lower() in content_lower or area.lower() in title_lower)
+        focus_score = focus_matches / len(focus_areas)
+        score += focus_score * 0.3
+        
+        # Source quality score
+        source_score = self.sources_priority.get(article.source, 0) / 10.0
+        score += source_score * 0.2
+        
+        # Recency score
+        recency_hours = (datetime.now() - article.published_at).total_seconds() / 3600
+        recency_score = max(0, 1 - (recency_hours / 24))  # 24 hour window
+        score += recency_score * 0.1
+        
+        return min(score, 1.0)
+
+    def _extract_topics(self, content: str, focus_areas: List[str]) -> List[str]:
+        """
+        Extract relevant topics from article content.
+        
+        Args:
+            content: Article content
+            focus_areas: Focus areas
+            
+        Returns:
+            List of extracted topics
+        """
+        topics = []
+        content_lower = content.lower()
+        
+        for area in focus_areas:
+            if area.lower() in content_lower:
+                topics.append(area)
+        
+        # Add general financial topics if relevant
+        if any(word in content_lower for word in ["earnings", "revenue", "profit", "loss"]):
+            topics.append("earnings")
+        if any(word in content_lower for word in ["merger", "acquisition", "deal"]):
+            topics.append("m&a")
+        if any(word in content_lower for word in ["regulation", "compliance", "law"]):
+            topics.append("regulatory")
+        
+        return list(set(topics))  # Remove duplicates
+
+    async def _analyze_news_sentiment(self, articles: List[NewsArticle]) -> Dict[str, Any]:
+        """
+        Analyze sentiment of news articles using multiple methods.
+        
+        Args:
+            articles: List of news articles
+            
+        Returns:
+            Sentiment analysis results
+        """
+        try:
+            # Use VADER for quick sentiment analysis
+            from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+            analyzer = SentimentIntensityAnalyzer()
+            
+            sentiments = []
+            total_compound = 0
+            
+            for article in articles:
+                # Analyze title and content
+                title_sentiment = analyzer.polarity_scores(article.title)
+                content_sentiment = analyzer.polarity_scores(article.content[:2000])  # Limit length
+                
+                # Combine sentiments
+                combined = {
+                    'neg': (title_sentiment['neg'] + content_sentiment['neg']) / 2,
+                    'neu': (title_sentiment['neu'] + content_sentiment['neu']) / 2,
+                    'pos': (title_sentiment['pos'] + content_sentiment['pos']) / 2,
+                    'compound': (title_sentiment['compound'] + content_sentiment['compound']) / 2
+                }
+                
+                article.sentiment = combined['compound']
+                sentiments.append(combined)
+                total_compound += combined['compound']
+            
+            # Overall sentiment
+            avg_compound = total_compound / len(articles) if articles else 0
+            
+            # Categorize sentiment
+            if avg_compound > 0.05:
+                overall_sentiment = "positive"
+                confidence = min(abs(avg_compound) * 10, 1.0)
+            elif avg_compound < -0.05:
+                overall_sentiment = "negative"
+                confidence = min(abs(avg_compound) * 10, 1.0)
+            else:
+                overall_sentiment = "neutral"
+                confidence = 0.5
+            
+            return {
+                "overall_sentiment": overall_sentiment,
+                "average_compound": round(avg_compound, 4),
+                "confidence": confidence,
+                "article_sentiments": sentiments,
+                "positive_articles": len([s for s in sentiments if s['compound'] > 0.05]),
+                "negative_articles": len([s for s in sentiments if s['compound'] < -0.05]),
+                "neutral_articles": len([s for s in sentiments if -0.05 <= s['compound'] <= 0.05])
+            }
+            
+        except Exception as e:
+            logger.error(f"News sentiment analysis failed: {e}")
+            return {
+                "overall_sentiment": "error",
+                "average_compound": 0.0,
+                "confidence": 0.0,
+                "error": str(e)
+            }
+
+    async def _detect_news_events(self, articles: List[NewsArticle], sentiment_results: Dict) -> Dict[str, Any]:
+        """
+        Detect significant events from news articles.
+        
+        Args:
+            articles: List of news articles
+            sentiment_results: Sentiment analysis results
+            
+        Returns:
+            Event detection results
+        """
+        events = {
+            "earnings_events": [],
+            "m_and_a_events": [],
+            "regulatory_events": [],
+            "significant_sentiment_shifts": [],
+            "event_confidence": {}
         }
+        
+        for i, article in enumerate(articles):
+            content_lower = article.content.lower()
+            
+            # Earnings events
+            if any(word in content_lower for word in ["earnings", "quarterly results", "eps", "revenue"]):
+                events["earnings_events"].append({
+                    "article_index": i,
+                    "title": article.title,
+                    "sentiment": article.sentiment,
+                    "confidence": 0.8
+                })
+            
+            # M&A events
+            if any(word in content_lower for word in ["acquisition", "merger", "deal", "buyout"]):
+                events["m_and_a_events"].append({
+                    "article_index": i,
+                    "title": article.title,
+                    "sentiment": article.sentiment,
+                    "confidence": 0.7
+                })
+            
+            # Regulatory events
+            if any(word in content_lower for word in ["regulation", "sec", "fda", "compliance", "lawsuit"]):
+                events["regulatory_events"].append({
+                    "article_index": i,
+                    "title": article.title,
+                    "sentiment": article.sentiment,
+                    "confidence": 0.6
+                })
+        
+        # Sentiment shift detection (compare to historical baseline)
+        if sentiment_results.get("average_compound"):
+            historical_sentiment = await self.memory_manager.retrieve_memory("market_sentiment_baseline")
+            if historical_sentiment:
+                shift = sentiment_results["average_compound"] - historical_sentiment
+                if abs(shift) > 0.1:  # Significant shift
+                    events["significant_sentiment_shifts"].append({
+                        "shift_magnitude": shift,
+                        "new_sentiment": sentiment_results["overall_sentiment"],
+                        "confidence": 0.75
+                    })
+        
+        return events
 
-    def _extract_news_sentiment(self, llm_response: str) -> Dict[str, Any]:
-        """Extract sentiment summary from LLM news analysis."""
-        return {"overall_sentiment": "neutral", "confidence": "moderate"}
+    async def _get_news_exploration_plan(self, symbols: List[str], focus_areas: List[str]) -> Dict:
+        """
+        Use LLM to determine optimal news exploration strategy.
+        
+        Args:
+            symbols: List of symbols
+            focus_areas: Focus areas for news search
+            
+        Returns:
+            Exploration plan dictionary
+        """
+        prompt = f"""
+        For symbols {symbols} and focus areas {focus_areas}, create a news exploration plan.
+        Consider source priorities, concurrent search opportunities, and content analysis needs.
+        Return JSON with sources, priorities, concurrent_groups, search_parameters, and exploration_strategy.
+        Sources available: newsapi, currentsapi, financial_times, reuters, bloomberg.
+        """
+        
+        try:
+            response = await self.llm.ainvoke(prompt)
+            plan = self._parse_llm_response(response.content)
+            return plan
+        except Exception as e:
+            logger.error(f"LLM news exploration plan failed: {e}")
+            return {
+                "sources": ["newsapi", "currentsapi"],
+                "priorities": {"newsapi": 9, "currentsapi": 8},
+                "concurrent_groups": [["newsapi"], ["currentsapi"]],
+                "search_parameters": {
+                    "language": "en",
+                    "limit": self.max_articles_per_query,
+                    "time_period": "last_24h"
+                },
+                "exploration_strategy": "source_priority"
+            }
 
-    def _extract_key_themes(self, llm_response: str) -> List[str]:
-        """Extract key themes from LLM news analysis."""
-        return ["Market stability", "Earnings focus"]
+    def _parse_llm_response(self, response: str) -> Dict:
+        """
+        Parse LLM response into structured exploration plan.
+        
+        Args:
+            response: LLM response string
+            
+        Returns:
+            Structured exploration plan
+        """
+        try:
+            # Extract JSON from response
+            start = response.find('{')
+            end = response.rfind('}') + 1
+            if start == -1 or end == 0:
+                raise ValueError("No JSON found in response")
+            json_str = response[start:end]
+            return json.loads(json_str)
+        except Exception as e:
+            logger.error(f"Failed to parse LLM news response: {e}")
+            return {}
 
-    def _extract_news_risks(self, llm_response: str) -> Dict[str, Any]:
-        """Extract risk assessment from LLM news analysis."""
-        return {"risk_level": "moderate", "key_risks": []}
+    async def _cross_validate_news(self, articles: List[NewsArticle], symbols: List[str]) -> Dict[str, Any]:
+        """
+        Cross-validate news articles across multiple sources and methods.
+        
+        Args:
+            articles: List of news articles
+            symbols: Target symbols
+            
+        Returns:
+            Validation results
+        """
+        try:
+            # Validate article authenticity and source credibility
+            validation_results = []
+            
+            for article in articles:
+                validation = {
+                    "article_id": id(article),
+                    "source_credible": self._validate_source_credibility(article.source),
+                    "content_consistency": await self._check_content_consistency(article),
+                    "fact_check_score": await self._perform_fact_check(article),
+                    "duplicate_check": self._check_for_duplicates(article, articles)
+                }
+                
+                # Overall validation score
+                validation["overall_score"] = sum([
+                    validation["source_credible"],
+                    validation["content_consistency"],
+                    validation["fact_check_score"],
+                    1 if not validation["duplicate_check"] else 0
+                ]) / 4
+                
+                validation_results.append(validation)
+            
+            # Overall validation summary
+            valid_articles = sum(1 for v in validation_results if v["overall_score"] > 0.7)
+            validation_summary = {
+                "total_articles": len(articles),
+                "valid_articles": valid_articles,
+                "validation_rate": valid_articles / len(articles) if articles else 0,
+                "common_issues": self._summarize_validation_issues(validation_results),
+                "validated": valid_articles > 0
+            }
+            
+            return {
+                "validation_results": validation_results,
+                "summary": validation_summary,
+                "news_data": [article.__dict__ for article in articles]
+            }
+            
+        except Exception as e:
+            logger.error(f"News cross-validation failed: {e}")
+            return {
+                "error": str(e),
+                "validated": False,
+                "news_data": []
+            }
 
-    def _extract_trading_implications(self, llm_response: str) -> List[str]:
-        """Extract trading implications from LLM news analysis."""
-        return ["Monitor earnings reports", "Watch for volatility spikes"]
+    def _validate_source_credibility(self, source: str) -> float:
+        """
+        Validate the credibility of a news source.
+        
+        Args:
+            source: News source name
+            
+        Returns:
+            Credibility score 0-1
+        """
+        credible_sources = {
+            "reuters": 0.95,
+            "bloomberg": 0.95,
+            "financial_times": 0.92,
+            "wsj": 0.90,
+            "nytimes": 0.88,
+            "newsapi": 0.75,  # Aggregator
+            "currentsapi": 0.70  # Aggregator
+        }
+        
+        return credible_sources.get(source.lower(), 0.5)
 
-# Standalone test (run python src/agents/news_agent.py to verify)
-if __name__ == "__main__":
-    import asyncio
-    agent = NewsDatasub()
-    result = asyncio.run(agent.process_input({'symbol': 'SPY'}))
-    print("News Agent Test Result:\n", result)
+    async def _check_content_consistency(self, article: NewsArticle) -> float:
+        """
+        Check content consistency and factual accuracy.
+        
+        Args:
+            article: News article
+            
+        Returns:
+            Consistency score 0-1
+        """
+        # Placeholder for content analysis
+        # Would use NLP models to check for inconsistencies, bias, etc.
+        return 0.8  # Default score
+
+    async def _perform_fact_check(self, article: NewsArticle) -> float:
+        """
+        Perform fact-checking on article content.
+        
+        Args:
+            article: News article
+            
+        Returns:
+            Fact-check score 0-1
+        """
+        # Placeholder for fact-checking service integration
+        # Would use services like Google Fact Check Tools, ClaimBuster, etc.
+        return 0.85  # Default score
+
+    def _check_for_duplicates(self, article: NewsArticle, all_articles: List[NewsArticle]) -> bool:
+        """
+        Check if article is duplicate of existing articles.
+        
+        Args:
+            article: Article to check
+            all_articles: All articles
+            
+        Returns:
+            True if duplicate found
+        """
+        article_signature = (article.title.lower(), article.content[:100].lower())
+        
+        for other_article in all_articles:
+            if other_article != article:
+                other_signature = (other_article.title.lower(), other_article.content[:100].lower())
+                if article_signature == other_signature:
+                    return True
+        
+        return False
+
+    def _summarize_validation_issues(self, validation_results: List[Dict]) -> List[str]:
+        """
+        Summarize common validation issues.
+        
+        Args:
+            validation_results: List of validation results
+            
+        Returns:
+            List of common issues
+        """
+        issues = []
+        issue_counts = {
+            "low_source_credibility": 0,
+            "content_inconsistency": 0,
+            "fact_check_failures": 0,
+            "duplicates": 0
+        }
+        
+        for result in validation_results:
+            if result["source_credible"] < 0.7:
+                issue_counts["low_source_credibility"] += 1
+            if result["content_consistency"] < 0.7:
+                issue_counts["content_inconsistency"] += 1
+            if result["fact_check_score"] < 0.7:
+                issue_counts["fact_check_failures"] += 1
+            if result["duplicate_check"]:
+                issue_counts["duplicates"] += 1
+        
+        for issue, count in issue_counts.items():
+            if count > 0:
+                percentage = (count / len(validation_results)) * 100
+                issues.append(f"{count} articles ({percentage:.1f}%) with {issue.replace('_', ' ')}")
+        
+        return issues
+
+    async def _enhance_news_data(self, articles: List[NewsArticle], symbols: List[str]) -> List[NewsArticle]:
+        """
+        Enhance news articles with additional analysis and metadata.
+        
+        Args:
+            articles: List of news articles
+            symbols: Target symbols
+            
+        Returns:
+            Enhanced list of news articles
+        """
+        enhanced_articles = []
+        
+        for article in articles:
+            # Add symbol relevance
+            article.symbol_relevance = self._calculate_symbol_relevance(article, symbols)
+            
+            # Add entity recognition
+            article.named_entities = await self._extract_named_entities(article.content)
+            
+            # Add keyword extraction
+            article.keywords = self._extract_keywords(article.content)
+            
+            # Add readability score
+            article.readability_score = self._calculate_readability(article.content)
+            
+            enhanced_articles.append(article)
+        
+        return enhanced_articles
+
+    def _calculate_symbol_relevance(self, article: NewsArticle, symbols: List[str]) -> Dict[str, float]:
+        """
+        Calculate relevance of article to each symbol.
+        
+        Args:
+            article: News article
+            symbols: List of symbols
+            
+        Returns:
+            Dictionary of symbol relevance scores
+        """
+        relevance_scores = {}
+        content_lower = (article.title + " " + article.content).lower()
+        
+        for symbol in symbols:
+            # Count mentions and context
+            mentions = content_lower.count(symbol.lower())
+            # Check for positive/negative context around mentions
+            context_score = self._analyze_symbol_context(article.content, symbol)
+            
+            total_relevance = (mentions * 0.6) + (context_score * 0.4)
+            relevance_scores[symbol] = min(total_relevance, 1.0)
+        
+        return relevance_scores
+
+    async def _extract_named_entities(self, content: str) -> List[str]:
+        """
+        Extract named entities from content using NLP.
+        
+        Args:
+            content: Article content
+            
+        Returns:
+            List of named entities
+        """
+        # Placeholder for NER implementation
+        # Would use spaCy, NLTK, or HuggingFace transformers
+        return ["Apple Inc.", "Tim Cook", "iPhone"]  # Example entities
+
+    def _extract_keywords(self, content: str, top_n: int = 10) -> List[str]:
+        """
+        Extract key keywords from content.
+        
+        Args:
+            content: Article content
+            top_n: Number of keywords to extract
+            
+        Returns:
+            List of keywords
+        """
+        # Placeholder for keyword extraction
+        # Would use RAKE, YAKE, or TextRank
+        words = content.split()
+        # Simple frequency-based extraction
+        from collections import Counter
+        word_counts = Counter(words)
+        keywords = [word for word, count in word_counts.most_common(top_n) if len(word) > 3]
+        return keywords
+
+    def _calculate_readability(self, content: str) -> float:
+        """
+        Calculate readability score of content.
+        
+        Args:
+            content: Article content
+            
+        Returns:
+            Readability score 0-1
+        """
+        # Placeholder for readability calculation
+        # Would use Flesch-Kincaid, Gunning Fog, etc.
+        sentence_count = len(content.split('.')) if content else 0
+        word_count = len(content.split()) if content else 0
+        
+        if word_count == 0:
+            return 0.0
+        
+        # Simple heuristic: shorter sentences = higher readability
+        avg_sentence_length = word_count / max(sentence_count, 1)
+        readability = max(0, 1 - (avg_sentence_length / 25))  # 25 words per sentence ideal
+        
+        return readability
+
+    def _analyze_symbol_context(self, content: str, symbol: str) -> float:
+        """
+        Analyze the context around symbol mentions to determine sentiment.
+        
+        Args:
+            content: Article content
+            symbol: Symbol to analyze
+            
+        Returns:
+            Context sentiment score -1 to 1
+        """
+        # Placeholder for context analysis
+        # Would use dependency parsing and sentiment around mentions
+        return 0.0  # Neutral context
+
+    def _cross_validate_news(self, articles: List[NewsArticle], symbols: List[str]) -> Dict[str, Any]:
+        """
+        Cross-validate news articles across multiple sources and methods.
+        
+        Args:
+            articles: List of news articles
+            symbols: Target symbols
+            
+        Returns:
+            Validation results
+        """
+        try:
+            # Validate article authenticity and source credibility
+            validation_results = []
+            
+            for article in articles:
+                validation = {
+                    "article_id": id(article),
+                    "source_credible": self._validate_source_credibility(article.source),
+                    "content_consistency": self._check_content_consistency(article),
+                    "fact_check_score": self._perform_fact_check(article),
+                    "duplicate_check": self._check_for_duplicates(article, articles)
+                }
+                
+                # Overall validation score
+                validation["overall_score"] = sum([
+                    validation["source_credible"],
+                    validation["content_consistency"],
+                    validation["fact_check_score"],
+                    1 if not validation["duplicate_check"] else 0
+                ]) / 4
+                
+                validation_results.append(validation)
+            
+            # Overall validation summary
+            valid_articles = sum(1 for v in validation_results if v["overall_score"] > 0.7)
+            validation_summary = {
+                "total_articles": len(articles),
+                "valid_articles": valid_articles,
+                "validation_rate": valid_articles / len(articles) if articles else 0,
+                "common_issues": self._summarize_validation_issues(validation_results),
+                "validated": valid_articles > 0
+            }
+            
+            return {
+                "validation_results": validation_results,
+                "summary": validation_summary,
+                "news_data": [article.__dict__ for article in articles]
+            }
+            
+        except Exception as e:
+            logger.error(f"News cross-validation failed: {e}")
+            return {
+                "error": str(e),
+                "validated": False,
+                "news_data": []
+            }
+
+    def _validate_source_credibility(self, source: str) -> float:
+        """
+        Validate the credibility of a news source.
+        
+        Args:
+            source: News source name
+            
+        Returns:
+            Credibility score 0-1
+        """
+        credible_sources

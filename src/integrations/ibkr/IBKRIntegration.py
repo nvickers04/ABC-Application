@@ -4,7 +4,7 @@ class IBKRIntegration:
     def __init__(self):
         self.connected = False
 
-    def connect(self) -> bool:
+    async def connect(self) -> bool:
         """Connect to IBKR"""
         self.connected = True
         return True

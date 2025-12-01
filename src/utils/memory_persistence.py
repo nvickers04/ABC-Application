@@ -178,6 +178,138 @@ class MemoryPersistence:
             logger.error(f"Failed to save shared memory for namespace '{namespace}': {e}")
             return False
 
+    def save_long_term_memory(self, long_term_memory: Dict[str, Any],
+                             create_backup: bool = True) -> bool:
+        """
+        Save long-term memory to JSON file.
+
+        Args:
+            long_term_memory: Long-term memory data
+            create_backup: Whether to create backup
+
+        Returns:
+            bool: Success status
+        """
+        try:
+            memory_file = self.shared_memory_dir / "long_term_memory.json"
+            if create_backup and memory_file.exists():
+                self.create_backup("long_term_memory")
+
+            memory_with_meta = {
+                "timestamp": datetime.now().isoformat(),
+                "version": "1.0",
+                "data": long_term_memory
+            }
+
+            with open(memory_file, 'w', encoding='utf-8') as f:
+                json.dump(memory_with_meta, f, indent=2, ensure_ascii=False, default=str)
+
+            logger.info(f"Saved long-term memory to {memory_file}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to save long-term memory: {e}")
+            return False
+
+    async def save_agent_memory_spaces(self, agent_memory_spaces: Dict[str, Any],
+                                      create_backup: bool = True) -> bool:
+        """
+        Save agent memory spaces to JSON file.
+
+        Args:
+            agent_memory_spaces: Agent memory spaces data
+            create_backup: Whether to create backup
+
+        Returns:
+            bool: Success status
+        """
+        try:
+            memory_file = self.shared_memory_dir / "agent_memory_spaces.json"
+            if create_backup and memory_file.exists():
+                self.create_backup("agent_memory_spaces")
+
+            memory_with_meta = {
+                "timestamp": datetime.now().isoformat(),
+                "version": "1.0",
+                "data": agent_memory_spaces
+            }
+
+            with open(memory_file, 'w', encoding='utf-8') as f:
+                json.dump(memory_with_meta, f, indent=2, ensure_ascii=False, default=str)
+
+            logger.info(f"Saved agent memory spaces to {memory_file}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to save agent memory spaces: {e}")
+            return False
+
+    async def save_positions_memory(self, positions_memory: Dict[str, Any],
+                                   create_backup: bool = True) -> bool:
+        """
+        Save positions memory to JSON file.
+
+        Args:
+            positions_memory: Positions memory data
+            create_backup: Whether to create backup
+
+        Returns:
+            bool: Success status
+        """
+        try:
+            memory_file = self.shared_memory_dir / "positions_memory.json"
+            if create_backup and memory_file.exists():
+                self.create_backup("positions_memory")
+
+            memory_with_meta = {
+                "timestamp": datetime.now().isoformat(),
+                "version": "1.0",
+                "data": positions_memory
+            }
+
+            with open(memory_file, 'w', encoding='utf-8') as f:
+                json.dump(memory_with_meta, f, indent=2, ensure_ascii=False, default=str)
+
+            logger.info(f"Saved positions memory to {memory_file}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to save positions memory: {e}")
+            return False
+
+    async def save_memory_metadata(self, memory_metadata: Dict[str, Any],
+                                  create_backup: bool = True) -> bool:
+        """
+        Save memory metadata to JSON file.
+
+        Args:
+            memory_metadata: Memory metadata
+            create_backup: Whether to create backup
+
+        Returns:
+            bool: Success status
+        """
+        try:
+            memory_file = self.shared_memory_dir / "memory_metadata.json"
+            if create_backup and memory_file.exists():
+                self.create_backup("memory_metadata")
+
+            memory_with_meta = {
+                "timestamp": datetime.now().isoformat(),
+                "version": "1.0",
+                "data": memory_metadata
+            }
+
+            with open(memory_file, 'w', encoding='utf-8') as f:
+                json.dump(memory_with_meta, f, indent=2, ensure_ascii=False, default=str)
+
+            logger.info(f"Saved memory metadata to {memory_file}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to save memory metadata: {e}")
+            return False
+
     def load_shared_memory(self, namespace: str) -> Optional[Dict[str, Any]]:
         """
         Load shared memory from JSON file.

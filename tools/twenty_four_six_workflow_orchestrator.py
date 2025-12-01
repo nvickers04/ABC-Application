@@ -24,6 +24,9 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+import psutil
+from simulations.idle_training_workflow import IdleTrainingWorkflow
+
 from src.agents.live_workflow_orchestrator import LiveWorkflowOrchestrator
 from src.utils.vault_client import get_vault_secret
 import exchange_calendars as ecals
@@ -49,6 +52,8 @@ class ContinuousWorkflowOrchestrator(LiveWorkflowOrchestrator):
         self.market_calendar = ecals.get_calendar('NYSE')
         self.last_workflow_date = None
         self.continuous_mode = True
+        self.idle_trainer = IdleTrainingWorkflow()
+        self.idle_trainer = IdleTrainingWorkflow()
 
         # 24/6 Schedule configuration - All times in Eastern Time (ET)
         self.schedules = {
@@ -145,6 +150,10 @@ class ContinuousWorkflowOrchestrator(LiveWorkflowOrchestrator):
 
             except Exception as e:
                 logger.error(f"Market monitoring error: {e}")
+
+            # Check and run idle training if conditions allow
+            if self.idle_trainer.is_safe_to_run():
+                asyncio.create_task(self.idle_trainer.run_simulation_and_training())
 
             await asyncio.sleep(300)  # Check every 5 minutes
 

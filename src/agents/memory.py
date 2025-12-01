@@ -1362,14 +1362,24 @@ class MemoryAgent(BaseAgent):
         Check if memory matches filter criteria.
         """
         try:
+            # Check direct key in memory
             memory_value = memory.get(key)
-            if memory_value is None:
-                return False
+            if memory_value is not None:
+                if isinstance(value, str) and isinstance(memory_value, str):
+                    return value.lower() in memory_value.lower()
+                else:
+                    return memory_value == value
 
-            if isinstance(value, str) and isinstance(memory_value, str):
-                return value.lower() in memory_value.lower()
-            else:
-                return memory_value == value
+            # Check in content
+            content = memory.get('content', {})
+            memory_value = content.get(key)
+            if memory_value is not None:
+                if isinstance(value, str) and isinstance(memory_value, str):
+                    return value.lower() in memory_value.lower()
+                else:
+                    return memory_value == value
+
+            return False
 
         except Exception:
             return False

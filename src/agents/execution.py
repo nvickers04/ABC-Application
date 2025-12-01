@@ -40,7 +40,64 @@ from src.utils.timing_optimizer import TimingOptimizer
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.date import DateTrigger
 
-logger = logging.getLogger(__name__)
+# Add TigerBeetle imports
+try:
+    import tigerbeetle as tb
+    TIGERBEETLE_AVAILABLE = True
+    print("Real TigerBeetle client available")
+except ImportError:
+    print("TigerBeetle client not available - using mock fallback")
+    TIGERBEETLE_AVAILABLE = False
+
+    # Mock TigerBeetle classes for development fallback
+    class MockTigerBeetleClient:
+        def __init__(self, cluster_id=0, addresses=None):
+            logger.info(f"Mock TigerBeetle client initialized with cluster {cluster_id}")
+
+        def create_transfers(self, transfers):
+            logger.info(f"Mock TigerBeetle: Created {len(transfers)} transfers")
+            return []
+
+        def create_accounts(self, accounts):
+            logger.info(f"Mock TigerBeetle: Created {len(accounts)} accounts")
+            return []
+
+    class MockAccount:
+        def __init__(self, id, debits_pending, debits_posted, credits_pending, credits_posted,
+                     user_data_128, user_data_64, user_data_32, ledger, code, flags):
+            self.id = id
+            self.debits_pending = debits_pending
+            self.debits_posted = debits_posted
+            self.credits_pending = credits_pending
+            self.credits_posted = credits_posted
+            self.user_data_128 = user_data_128
+            self.user_data_64 = user_data_64
+            self.user_data_32 = user_data_32
+            self.ledger = ledger
+            self.code = code
+            self.flags = flags
+
+    class MockTransfer:
+        def __init__(self, id, debit_account_id, credit_account_id, amount, ledger, code):
+            self.id = id
+            self.debit_account_id = debit_account_id
+            self.credit_account_id = credit_account_id
+            self.amount = amount
+            self.ledger = ledger
+            self.code = code
+
+    class MockAccountFlags:
+        NONE = 0
+
+    # Use mock classes
+    class MockTB:
+        Client = MockTigerBeetleClient
+        Account = MockAccount
+        Transfer = MockTransfer
+        AccountFlags = MockAccountFlags
+
+    tb = MockTB()
+    logger.info("Using mock TigerBeetle client for development")
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +120,22 @@ class ExecutionAgent(BaseAgent):
         # Initialize task scheduler for delayed executions
         self.scheduler = AsyncIOScheduler()
         # Don't start scheduler here - will be started when needed
-        
+
+        # Initialize TigerBeetle client
+        self.tb_client = None
+        if TIGERBEETLE_AVAILABLE:
+            try:
+                # Connect to TigerBeetle (assuming it's running on localhost:3000)
+                # Use real TigerBeetle client when available
+                import tigerbeetle as tb_real
+                self.tb_client = tb_real.ClientSync(cluster_id=0, replica_addresses="3000")
+                logger.info("Connected to real TigerBeetle for transaction persistence")
+            except Exception as e:
+                logger.warning(f"Failed to connect to TigerBeetle: {e}")
+                self.tb_client = None
+        else:
+            logger.info("TigerBeetle not available - using mock client")
+
         # Initialize memory
         if not self.memory:
             self.memory = {"outcome_logs": [], "scaling_history": [], "delayed_orders": [], "scheduled_jobs": {}}
@@ -240,10 +312,13 @@ class ExecutionAgent(BaseAgent):
             
             # Execute the trade
             trade_result = await connector.place_order(symbol, quantity, order_type, action, price)
-            
+
+            # Log transaction to TigerBeetle
+            await self._log_trade_to_tigerbeetle(symbol, quantity, action, trade_result)
+
             # Post to trade alerts channel
             await self._post_to_trade_alerts(trade_result)
-            
+
             logger.info(f"Trade executed: {trade_result}")
             return {**result, **trade_result}
             
@@ -1527,6 +1602,84 @@ class ExecutionAgent(BaseAgent):
         except Exception as e:
             logger.error(f"Error executing trades: {e}")
             return {'success': False, 'error': str(e)}
+
+    async def _log_trade_to_tigerbeetle(self, symbol: str, quantity: int, action: str, trade_result: Dict[str, Any]):
+        """Log trade transaction to TigerBeetle for persistence."""
+        if not self.tb_client:
+            logger.debug("TigerBeetle not available - skipping transaction log")
+            return
+
+        try:
+            # Create account IDs (simple mapping: symbol -> account_id)
+            symbol_hash = hash(symbol) % 1000000  # Simple hash for account ID
+            account_id = symbol_hash
+
+            # Ensure account exists
+            self._ensure_account_exists(account_id, symbol)
+
+            # Create transfer for the trade
+            transfer_id = int(datetime.now().timestamp() * 1000000)  # Unique ID
+
+            amount = abs(quantity) * 100  # Scale for TigerBeetle (cents)
+
+            if action.upper() == 'BUY':
+                # Debit cash account, credit position account
+                transfers = [
+                    tb.Transfer(
+                        id=transfer_id,
+                        debit_account_id=999999,  # Cash account
+                        credit_account_id=account_id,
+                        amount=amount,
+                        ledger=1,
+                        code=1  # Trade code
+                    )
+                ]
+            else:  # SELL
+                # Debit position account, credit cash account
+                transfers = [
+                    tb.Transfer(
+                        id=transfer_id,
+                        debit_account_id=account_id,
+                        credit_account_id=999999,  # Cash account
+                        amount=amount,
+                        ledger=1,
+                        code=2  # Sell code
+                    )
+                ]
+
+            # Submit transfer
+            if self.tb_client:
+                result = self.tb_client.create_transfers(transfers)
+                logger.info(f"Trade logged to TigerBeetle: {symbol} {action} {quantity} (ID: {transfer_id})")
+
+        except Exception as e:
+            logger.error(f"Failed to log trade to TigerBeetle: {e}")
+
+    def _ensure_account_exists(self, account_id: int, symbol: str):
+        """Ensure account exists in TigerBeetle."""
+        if not self.tb_client:
+            return
+
+        try:
+            accounts = [
+                tb.Account(
+                    id=account_id,
+                    debits_pending=0,
+                    debits_posted=0,
+                    credits_pending=0,
+                    credits_posted=0,
+                    user_data_128=0,
+                    user_data_64=0,
+                    user_data_32=0,
+                    ledger=1,
+                    code=1,
+                    flags=tb.AccountFlags.NONE
+                )
+            ]
+            self.tb_client.create_accounts(accounts)
+        except Exception as e:
+            # Account might already exist
+            logger.debug(f"Account creation skipped (may already exist): {e}")
 
 # Standalone test (run python src/agents/execution.py to verify)
 if __name__ == "__main__":

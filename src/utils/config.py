@@ -13,7 +13,7 @@ import yaml
 logger = logging.getLogger(__name__)
 
 # Load environment variables from .env file
-load_dotenv()
+_loaded = False
 
 def get_api_key(service_name: str, env_var: str = None) -> str:
     """
@@ -28,6 +28,11 @@ def get_api_key(service_name: str, env_var: str = None) -> str:
 
     Reasoning: Centralized key retrieval with logging; fails gracefully for development/testing.
     """
+    global _loaded
+    if not _loaded:
+        load_dotenv()
+        _loaded = True
+
     if env_var is None:
         env_var = f"{service_name.upper()}_API_KEY"
 

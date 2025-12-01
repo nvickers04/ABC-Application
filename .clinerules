@@ -1,0 +1,8 @@
+## .clinerules 
+checkpoints: disabled
+max_retries: 0
+fallback: write_to_file
+ban_replace: true
+diff_max_size: 300
+path_absolute: true
+normalize: trim

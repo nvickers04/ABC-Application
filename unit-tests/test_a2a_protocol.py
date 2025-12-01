@@ -254,8 +254,9 @@ class TestA2AProtocol:
         # Register mock agents
         mock_agents = {}
         for role in ["macro", "data", "strategy", "risk", "execution", "reflection", "learning"]:
-            mock_agent = AsyncMock()
-            mock_agent.process_input.return_value = {f"{role}_result": True}
+            mock_agent = Mock()
+            mock_agent.langchain_agent = None
+            mock_agent.process_input = AsyncMock(return_value={f"{role}_result": True, "selected_sectors": [{"ticker": "AAPL"}], "regime": "bull"} if role == "macro" else {f"{role}_result": True})
             mock_agents[role] = mock_agent
             a2a_protocol.register_agent(role, agent_instance=mock_agent)
 
@@ -263,8 +264,8 @@ class TestA2AProtocol:
         initial_data = {"symbols": ["AAPL"], "test": True}
         result = await a2a_protocol.run_orchestration(initial_data)
 
-        # Verify result is AgentState
-        assert isinstance(result, AgentState)
+        # Verify result is dict (LangGraph returns state as dict)
+        assert isinstance(result, dict)
 
         # Verify agents were called (at least some of them)
         # Note: The exact call pattern depends on the graph flow

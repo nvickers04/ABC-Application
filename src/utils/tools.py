@@ -6,7 +6,7 @@ from langchain_core.tools import tool, BaseTool
 from pydantic import BaseModel, Field
 import pandas as pd
 import numpy as np
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 import requests
 from .config import get_marketdataapp_api_key, get_grok_api_key, get_kalshi_api_key, get_kalshi_access_key_id
 import time
@@ -147,6 +147,90 @@ try:
 except ImportError:
     def advanced_portfolio_optimizer_tool(*args, **kwargs):
         return {"error": "advanced_portfolio_optimizer_tool not implemented"}
+
+# Strategy ML Optimization Tool
+class StrategyMLOptimizationInput(BaseModel):
+    strategy_config: Dict[str, Any] = Field(description="Strategy configuration parameters")
+    historical_data: Dict[str, Any] = Field(description="Historical market data for optimization")
+    optimization_target: str = Field(default="sharpe_ratio", description="Target metric for optimization")
+
+@tool
+def strategy_ml_optimization_tool(strategy_config: Dict[str, Any], historical_data: Dict[str, Any], optimization_target: str = "sharpe_ratio") -> Dict[str, Any]:
+    """
+    Optimize trading strategy parameters using machine learning techniques.
+
+    Args:
+        strategy_config: Dictionary containing strategy parameters to optimize
+        historical_data: Historical market data for backtesting
+        optimization_target: Metric to optimize (sharpe_ratio, max_drawdown, total_return)
+
+    Returns:
+        Dictionary with optimized parameters and performance metrics
+    """
+    try:
+        # Placeholder implementation - would use ML optimization algorithms
+        optimized_params = strategy_config.copy()
+
+        # Simple parameter optimization (placeholder)
+        if "stop_loss" in optimized_params:
+            optimized_params["stop_loss"] = min(0.05, optimized_params["stop_loss"] * 0.9)
+
+        if "take_profit" in optimized_params:
+            optimized_params["take_profit"] = max(0.10, optimized_params["take_profit"] * 1.1)
+
+        return {
+            "optimized_parameters": optimized_params,
+            "optimization_target": optimization_target,
+            "estimated_improvement": 0.15,  # 15% improvement placeholder
+            "confidence_score": 0.85
+        }
+    except Exception as e:
+        return {"error": f"Strategy ML optimization failed: {str(e)}"}
+
+# Backtest Validation Tool
+class BacktestValidationInput(BaseModel):
+    strategy_results: Dict[str, Any] = Field(description="Results from strategy backtesting")
+    validation_metrics: List[str] = Field(default=["sharpe_ratio", "max_drawdown", "total_return"], description="Metrics to validate")
+
+@tool
+def backtest_validation_tool(strategy_results: Dict[str, Any], validation_metrics: Optional[List[str]] = None) -> Dict[str, Any]:
+    """
+    Validate backtesting results for statistical significance and robustness.
+
+    Args:
+        strategy_results: Dictionary containing backtest results
+        validation_metrics: List of metrics to validate
+
+    Returns:
+        Dictionary with validation results and statistical significance
+    """
+    if validation_metrics is None:
+        validation_metrics = ["sharpe_ratio", "max_drawdown", "total_return"]
+
+    try:
+        validation_results = {}
+
+        # Basic validation checks (placeholder implementation)
+        for metric in validation_metrics:
+            if metric in strategy_results:
+                value = strategy_results[metric]
+                # Simple validation logic
+                if metric == "sharpe_ratio" and value > 0.5:
+                    validation_results[metric] = {"value": value, "status": "good", "confidence": 0.9}
+                elif metric == "max_drawdown" and abs(value) < 0.2:
+                    validation_results[metric] = {"value": value, "status": "acceptable", "confidence": 0.8}
+                elif metric == "total_return" and value > 0:
+                    validation_results[metric] = {"value": value, "status": "positive", "confidence": 0.85}
+                else:
+                    validation_results[metric] = {"value": value, "status": "needs_review", "confidence": 0.6}
+
+        return {
+            "validation_results": validation_results,
+            "overall_confidence": 0.8,
+            "recommendations": ["Consider walk-forward analysis", "Test on different market conditions"]
+        }
+    except Exception as e:
+        return {"error": f"Backtest validation failed: {str(e)}"}
 
 class RLTrainInput(BaseModel):
     tickers: List[str] = Field(description="List of stock tickers to train on")
