@@ -234,3 +234,7 @@ src/data/memory/backups/
 data/memory/agents/
 data/memory/shared/
 data/vector_db/
+
+# Tigerbeetle large files
+tigerbeetle-data/
+setup/tigerbeetle-data-file
