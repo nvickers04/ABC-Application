@@ -63,6 +63,15 @@ python -m pytest unit-tests/ -k "agent" -v
 
 # Risk tests only
 python -m pytest unit-tests/ -k "risk" -v
+
+### Optimized Running
+```bash
+# Run only changed tests (testmon)
+python -m pytest --testmon unit-tests/
+
+# Run in parallel (optimized for Windows)
+python -m pytest -n 4 --testmon --ff --dist=loadscope unit-tests/
+```
 ```
 
 ## Test Structure
@@ -101,4 +110,18 @@ python -m pytest unit-tests/ -m "not slow" --tb=short
 
 # Full unit test suite with coverage
 python -m pytest unit-tests/ --cov=src --cov-report=xml --cov-fail-under=85
+
+## Optimized Test Running
+
+### Parallel Execution
+Run unit tests in parallel for faster execution:
+```bash
+pytest -n auto
+```
+
+### Change-Based Testing with Testmon
+Run only tests affected by recent code changes:
+```bash
+pytest --testmon
+```
 ```

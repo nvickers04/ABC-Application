@@ -88,6 +88,12 @@ pytest -m ibkr
 
 # Run in parallel
 pytest -n auto
+
+# Run only changed tests (testmon)
+pytest --testmon
+
+# Optimized parallel with testmon (start small on Windows)
+pytest -n 4 --testmon --ff --dist=loadscope
 ```
 
 ### Test Dependencies
@@ -171,3 +177,17 @@ When adding new integration tests:
 3. Add documentation in this README
 4. Ensure tests can run in CI environment
 5. Include performance metrics where applicable
+
+## Optimized Test Running
+
+### Parallel Execution
+Run integration tests in parallel for faster execution:
+```bash
+pytest -n auto
+```
+
+### Change-Based Testing with Testmon
+Run only tests affected by recent code changes:
+```bash
+pytest --testmon
+```
