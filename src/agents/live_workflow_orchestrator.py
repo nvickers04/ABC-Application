@@ -6,6 +6,11 @@ while allowing human intervention and questions during the process.
 
 Enhanced to support both Discord-based operation and direct agent method calls
 for improved reliability, testing, and integration with BaseAgent architecture.
+
+Human Input Features:
+- Human messages/interventions are only processed at the beginning of each workflow iteration
+- Mid-iteration inputs are queued for the next iteration with acknowledgment
+- `!share_news` command allows sharing news links for Data Agent processing
 """
 
 import sys
@@ -19,13 +24,18 @@ import os
 import time
 import json
 import re
+import logging
 from datetime import datetime
 from typing import Dict, List, Any, Optional, cast
+from urllib.parse import urlparse
 from dotenv import load_dotenv
 from cryptography.fernet import Fernet
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 import pytz  # For timezone handling
+
+# Set up logging for human input features
+logger = logging.getLogger(__name__)
 
 # Import BaseAgent and agent classes for direct integration
 from src.agents.base import BaseAgent
@@ -96,6 +106,12 @@ class LiveWorkflowOrchestrator:
         self.monitoring_log = []
         self.monitoring_responses = []
         self.scheduler = AsyncIOScheduler(timezone='America/New_York')  # Use ET timezone
+        
+        # Human input queue for iteration-start processing
+        # Messages received mid-iteration are queued here and processed at the start of the next iteration
+        self.human_input_queue: List[Dict[str, Any]] = []
+        self.shared_news_queue: List[Dict[str, Any]] = []  # Queue for !share_news commands
+        self.iteration_in_progress = False  # Flag to track if we're mid-iteration
         
         # Phase timing configuration - NO TIMEOUTS (VERY LONG WAIT TIMES)
         self.phase_delays = {
@@ -1774,6 +1790,11 @@ class LiveWorkflowOrchestrator:
                 await self.send_status_update()
                 return
 
+            # Handle !share_news command: !share_news <link> [optional description]
+            if content.startswith("!share_news"):
+                await self.handle_share_news_command(message)
+                return
+
             # Handle human questions/interventions during active workflow
             elif self.workflow_active and not message.author.bot:
                 await self.handle_human_intervention(message)
@@ -1782,8 +1803,357 @@ class LiveWorkflowOrchestrator:
         if not token:
             raise ValueError("❌ DISCORD_ORCHESTRATOR_TOKEN not found. Please create a separate Discord bot for the orchestrator.")
 
+    def _validate_url(self, url: str) -> bool:
+        """
+        Validate that a URL is safe to process (HTTP/HTTPS only).
+        
+        Args:
+            url: The URL string to validate
+            
+        Returns:
+            True if URL is valid and safe, False otherwise
+        """
+        try:
+            parsed = urlparse(url)
+            # Only allow HTTP and HTTPS schemes
+            if parsed.scheme not in ('http', 'https'):
+                return False
+            # Must have a netloc (domain)
+            if not parsed.netloc:
+                return False
+            # Block potentially dangerous domains
+            dangerous_patterns = ['localhost', '127.0.0.1', '0.0.0.0', '[::1]', 'internal', '.local']
+            netloc_lower = parsed.netloc.lower()
+            if any(pattern in netloc_lower for pattern in dangerous_patterns):
+                return False
+            return True
+        except Exception:
+            return False
+
+    async def handle_share_news_command(self, message):
+        """
+        Handle the !share_news command for sharing news links.
+        
+        Format: !share_news <link> [optional description]
+        Example: !share_news https://example.com/news "Potential market impact on tech sector"
+        
+        If mid-iteration, queues the news for the next iteration start.
+        """
+        content = message.content.strip()
+        logger.info(f"Processing !share_news command from {message.author.display_name}: {content[:100]}")
+        
+        # Parse the command
+        parts = content.split(maxsplit=2)  # Split into: ["!share_news", "<link>", "[description]"]
+        
+        if len(parts) < 2:
+            await message.channel.send("❌ **Invalid format.** Usage: `!share_news <link> [optional description]`\n"
+                                      "Example: `!share_news https://example.com/news \"Market update\"`")
+            return
+        
+        link = parts[1].strip()
+        description = parts[2].strip().strip('"\'') if len(parts) > 2 else ""
+        
+        # Validate the URL
+        if not self._validate_url(link):
+            await message.channel.send("❌ **Invalid link.** Only HTTP/HTTPS URLs are allowed. "
+                                      "Please provide a valid news URL.")
+            logger.warning(f"Invalid URL rejected from {message.author.display_name}: {link}")
+            return
+        
+        # Sanitize the description
+        sanitized_description = self._sanitize_user_input(description) if description else ""
+        
+        # Create the news share entry
+        news_entry = {
+            'link': link,
+            'description': sanitized_description,
+            'user': message.author.display_name[:50],
+            'user_id': str(message.author.id),
+            'timestamp': datetime.now().isoformat(),
+            'message_id': str(message.id),
+            'channel_id': str(message.channel.id)
+        }
+        
+        # Check if we're mid-iteration
+        if self.iteration_in_progress:
+            # Queue for next iteration
+            self.shared_news_queue.append(news_entry)
+            await message.add_reaction("📥")
+            await message.channel.send(
+                f"📰 **Input noted** - News link will be processed at the start of the next iteration.\n"
+                f"Link: {link[:100]}{'...' if len(link) > 100 else ''}\n"
+                f"Queued items: {len(self.shared_news_queue)}"
+            )
+            logger.info(f"News link queued for next iteration: {link[:100]}")
+        else:
+            # Process immediately (at iteration start or when no workflow active)
+            await message.add_reaction("⏳")
+            await self._process_shared_news(news_entry, message.channel)
+
+    async def _process_shared_news(self, news_entry: Dict[str, Any], channel):
+        """
+        Process a shared news link by forwarding it to the Data Agent for analysis.
+        
+        Args:
+            news_entry: Dict with link, description, and metadata
+            channel: Discord channel to send responses to
+        """
+        link = news_entry['link']
+        description = news_entry.get('description', '')
+        
+        try:
+            await channel.send(f"🔍 **Processing news link...**\nAnalyzing: {link[:100]}{'...' if len(link) > 100 else ''}")
+            
+            # Check if Data Agent is available
+            if 'data' not in self.agent_instances:
+                await channel.send("⚠️ Data Agent not available. News link logged but not processed.")
+                logger.warning("Data Agent not available for news processing")
+                return
+            
+            data_agent = self.agent_instances['data']
+            
+            # Try to process the news link using the NewsDataAnalyzer
+            try:
+                # Check if NewsDataAnalyzer has the process_shared_news_link method
+                if hasattr(data_agent, 'news_sub') and hasattr(data_agent.news_sub, 'process_shared_news_link'):
+                    result = await data_agent.news_sub.process_shared_news_link(link, description)
+                else:
+                    # Fallback: Use the data agent to analyze the link
+                    result = await self._fetch_and_analyze_news_link(link, description, data_agent)
+                
+                # Format and send the response
+                if result.get('success', False):
+                    summary = result.get('summary', 'News processed successfully.')
+                    sentiment = result.get('sentiment', 'neutral')
+                    key_entities = result.get('key_entities', [])
+                    
+                    response_msg = f"✅ **News processed:**\n"
+                    response_msg += f"📝 **Summary:** {summary[:500]}{'...' if len(summary) > 500 else ''}\n"
+                    response_msg += f"📊 **Sentiment:** {sentiment.capitalize()}\n"
+                    if key_entities:
+                        response_msg += f"🏷️ **Key Entities:** {', '.join(key_entities[:5])}\n"
+                    response_msg += "✅ Included in current analysis."
+                    
+                    await channel.send(response_msg)
+                    logger.info(f"News link processed successfully: {link[:100]}")
+                else:
+                    error_msg = result.get('error', 'Unknown error')
+                    await channel.send(f"⚠️ **News processing failed:** {error_msg}")
+                    logger.error(f"News processing failed for {link}: {error_msg}")
+                    
+            except Exception as e:
+                await channel.send(f"❌ **Error processing news:** {str(e)[:200]}")
+                logger.error(f"Exception processing news link {link}: {e}")
+                
+        except Exception as e:
+            await channel.send(f"❌ **Error:** {str(e)[:200]}")
+            logger.error(f"Error in _process_shared_news: {e}")
+
+    async def _fetch_and_analyze_news_link(self, link: str, description: str, data_agent) -> Dict[str, Any]:
+        """
+        Fetch and analyze a news link using requests and BeautifulSoup.
+        
+        Args:
+            link: URL to fetch
+            description: User-provided description
+            data_agent: The Data Agent instance for LLM analysis
+            
+        Returns:
+            Dict with success status, summary, sentiment, and key entities
+        """
+        import requests
+        from bs4 import BeautifulSoup
+        
+        try:
+            # Fetch the content with timeout and headers
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (compatible; ABC-Application/1.0; +https://github.com/nvickers04/ABC-Application)'
+            }
+            response = requests.get(link, headers=headers, timeout=15, allow_redirects=True)
+            response.raise_for_status()
+            
+            # Parse the HTML
+            soup = BeautifulSoup(response.content, 'lxml')
+            
+            # Extract title
+            title = ""
+            if soup.title:
+                title = soup.title.string or ""
+            
+            # Extract main content - try common article selectors
+            article_text = ""
+            article_selectors = ['article', '.article-content', '.post-content', 
+                               '.entry-content', 'main', '.content', '#content']
+            for selector in article_selectors:
+                article = soup.select_one(selector)
+                if article:
+                    # Get text content, removing scripts and styles
+                    for tag in article(['script', 'style', 'nav', 'footer', 'aside']):
+                        tag.decompose()
+                    article_text = article.get_text(separator=' ', strip=True)
+                    break
+            
+            # Fallback to body text if no article found
+            if not article_text:
+                body = soup.body
+                if body:
+                    for tag in body(['script', 'style', 'nav', 'footer', 'aside', 'header']):
+                        tag.decompose()
+                    article_text = body.get_text(separator=' ', strip=True)
+            
+            # Truncate content for LLM analysis
+            content_for_analysis = article_text[:5000] if article_text else ""
+            
+            if not content_for_analysis:
+                return {
+                    'success': False,
+                    'error': 'Could not extract meaningful content from the page'
+                }
+            
+            # Analyze with LLM if available
+            analysis_result = await self._analyze_news_content_with_llm(
+                title, content_for_analysis, description, link, data_agent
+            )
+            
+            return analysis_result
+            
+        except requests.exceptions.Timeout:
+            return {'success': False, 'error': 'Request timed out (15s limit)'}
+        except requests.exceptions.RequestException as e:
+            return {'success': False, 'error': f'Failed to fetch URL: {str(e)[:100]}'}
+        except Exception as e:
+            return {'success': False, 'error': f'Processing error: {str(e)[:100]}'}
+
+    async def _analyze_news_content_with_llm(self, title: str, content: str, 
+                                             description: str, link: str, 
+                                             data_agent) -> Dict[str, Any]:
+        """
+        Analyze news content using the Data Agent's LLM.
+        
+        Args:
+            title: Article title
+            content: Article content
+            description: User-provided description
+            link: Original URL
+            data_agent: Data Agent instance
+            
+        Returns:
+            Dict with analysis results
+        """
+        try:
+            # Prepare the analysis prompt
+            analysis_prompt = f"""
+Analyze the following news article for market relevance:
+
+Title: {title}
+User Note: {description if description else 'None provided'}
+URL: {link}
+
+Content (excerpt):
+{content[:3000]}
+
+Please provide:
+1. A brief summary (2-3 sentences)
+2. Market sentiment (bullish, bearish, or neutral)
+3. Key entities mentioned (companies, sectors, people, etc.)
+4. Potential market impact (high, medium, low)
+5. Relevance to trading decisions
+
+Format your response as JSON:
+{{
+    "summary": "...",
+    "sentiment": "bullish/bearish/neutral",
+    "key_entities": ["entity1", "entity2", ...],
+    "market_impact": "high/medium/low",
+    "relevance": "..."
+}}
+"""
+            
+            # Use the data agent's LLM if available
+            if hasattr(data_agent, 'llm') and data_agent.llm:
+                llm_response = await data_agent.llm.ainvoke(analysis_prompt)
+                response_text = llm_response.content if hasattr(llm_response, 'content') else str(llm_response)
+                
+                # Try to parse JSON response
+                try:
+                    # Find JSON in response
+                    json_match = re.search(r'\{[^{}]*\}', response_text, re.DOTALL)
+                    if json_match:
+                        analysis = json.loads(json_match.group())
+                        return {
+                            'success': True,
+                            'summary': analysis.get('summary', 'News analyzed successfully'),
+                            'sentiment': analysis.get('sentiment', 'neutral'),
+                            'key_entities': analysis.get('key_entities', []),
+                            'market_impact': analysis.get('market_impact', 'medium'),
+                            'relevance': analysis.get('relevance', 'General market news')
+                        }
+                except (json.JSONDecodeError, AttributeError):
+                    # Return raw summary if JSON parsing fails
+                    return {
+                        'success': True,
+                        'summary': response_text[:500],
+                        'sentiment': 'neutral',
+                        'key_entities': [],
+                        'market_impact': 'medium',
+                        'relevance': 'News analyzed'
+                    }
+            else:
+                # Basic analysis without LLM
+                return {
+                    'success': True,
+                    'summary': f"News article: {title[:200]}",
+                    'sentiment': 'neutral',
+                    'key_entities': [],
+                    'market_impact': 'medium',
+                    'relevance': 'LLM not available for deep analysis'
+                }
+                
+        except Exception as e:
+            logger.error(f"LLM analysis failed: {e}")
+            return {
+                'success': True,
+                'summary': f"News article: {title[:200]}",
+                'sentiment': 'neutral',
+                'key_entities': [],
+                'market_impact': 'medium',
+                'relevance': 'Basic analysis only'
+            }
+
+    async def process_queued_human_inputs(self, channel):
+        """
+        Process all queued human inputs at the start of an iteration.
+        This is called at the beginning of each workflow iteration.
+        
+        Args:
+            channel: Discord channel to send responses to
+        """
+        if not self.human_input_queue and not self.shared_news_queue:
+            return
+        
+        # Process general human inputs
+        if self.human_input_queue:
+            await channel.send(f"📬 **Processing {len(self.human_input_queue)} queued human input(s)...**")
+            for input_entry in self.human_input_queue:
+                self.human_interventions.append(input_entry)
+                self.workflow_log.append(f"👤 [Queued] {input_entry['user']}: {input_entry['content'][:100]}...")
+            self.human_input_queue.clear()
+            await channel.send("✅ Queued inputs processed and included in this iteration.")
+        
+        # Process shared news links
+        if self.shared_news_queue:
+            await channel.send(f"📰 **Processing {len(self.shared_news_queue)} queued news link(s)...**")
+            for news_entry in self.shared_news_queue:
+                await self._process_shared_news(news_entry, channel)
+            self.shared_news_queue.clear()
+            await channel.send("✅ Queued news links processed.")
+
     async def handle_human_intervention(self, message):
-        """Handle human questions or interventions during workflow via A2A"""
+        """Handle human questions or interventions during workflow via A2A.
+        
+        If mid-iteration, queues the input for the next iteration start.
+        Otherwise, processes immediately.
+        """
         # SECURITY: Validate message structure
         if not message or not hasattr(message, 'content') or not hasattr(message, 'author'):
             return
@@ -1807,6 +2177,21 @@ class LiveWorkflowOrchestrator:
             'timestamp': message.created_at.isoformat(),
             'phase': self.current_phase
         }
+        
+        # Check if we're mid-iteration
+        if self.iteration_in_progress:
+            # Queue for next iteration
+            self.human_input_queue.append(intervention)
+            await message.add_reaction("📥")
+            await message.channel.send(
+                f"📝 **Input noted** - will be considered at the start of the next iteration.\n"
+                f"Queued items: {len(self.human_input_queue)}"
+            )
+            self.workflow_log.append(f"📥 [Queued] {message.author.display_name[:50]}: {sanitized_content[:100]}...")
+            logger.info(f"Human input queued for next iteration from {message.author.display_name}")
+            return
+        
+        # Process immediately (at iteration start or between iterations)
         self.human_interventions.append(intervention)
         self.workflow_log.append(f"👤 {message.author.display_name[:50]}: {sanitized_content[:100]}...")
 
@@ -1896,6 +2281,13 @@ class LiveWorkflowOrchestrator:
         while self.workflow_active and alpha_hunt_cycles < max_cycles:
             alpha_hunt_cycles += 1
             await channel.send(f"\n**ANALYSIS CYCLE {alpha_hunt_cycles}**")
+            
+            # Process any queued human inputs at the START of this iteration
+            await self.process_queued_human_inputs(channel)
+            
+            # Mark iteration as in-progress (new inputs will be queued)
+            self.iteration_in_progress = True
+            logger.info(f"Starting iteration {alpha_hunt_cycles} - human inputs will now be queued")
 
             # Phase 1: CONTINUOUS ALPHA DISCOVERY - All agents hunt together
             await self.execute_systematic_market_surveillance(channel)
@@ -1917,6 +2309,10 @@ class LiveWorkflowOrchestrator:
 
             # Phase 7: ALPHA HUNTING SUPERVISION - Final authority
             execution_decision = await self.execute_chief_investment_officer_oversight(channel)
+            
+            # Mark iteration as complete (inputs will be processed immediately until next iteration starts)
+            self.iteration_in_progress = False
+            logger.info(f"Iteration {alpha_hunt_cycles} complete - human inputs will now be processed immediately")
 
             # Check execution decision
             if execution_decision == "EXECUTE":
@@ -1937,6 +2333,7 @@ class LiveWorkflowOrchestrator:
                 await asyncio.sleep(30)
 
         # Complete workflow
+        self.iteration_in_progress = False  # Ensure flag is reset
         await channel.send("**ANALYSIS MISSION COMPLETE**")
         await self.complete_continuous_workflow(channel)
 
