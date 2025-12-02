@@ -63,11 +63,11 @@ class IterativeReasoningWorkflow:
                     'timestamp': message.created_at.isoformat()
                 })
 
-        token = os.getenv('DISCORD_MACRO_AGENT_TOKEN')  # Use macro token for orchestration
+        token = os.getenv('DISCORD_ORCHESTRATOR_TOKEN')  # Use orchestrator token for all agents
         if token:
             await self.client.start(token)
         else:
-            raise ValueError("No Discord token found")
+            raise ValueError("No Discord orchestrator token found")
 
     async def send_command_and_wait(self, command: str, wait_seconds: int = 5) -> List[Dict]:
         """Send a command and wait for agent responses"""

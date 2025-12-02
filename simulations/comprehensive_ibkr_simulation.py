@@ -11,7 +11,7 @@ import json
 from datetime import datetime
 from src.agents.data import DataAgent
 from src.agents.risk import RiskAgent
-from integrations.ibkr_historical_data import IBKRHistoricalDataProvider
+from src.integrations.ibkr_historical_data import IBKRHistoricalDataProvider
 from src.utils.historical_simulation_engine import HistoricalSimulationEngine, SimulationConfig
 
 async def run_comprehensive_ibkr_simulation():

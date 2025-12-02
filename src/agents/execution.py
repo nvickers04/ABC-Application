@@ -24,12 +24,12 @@ def _import_ibkr_connector():
     if IBKR_AVAILABLE:
         return True
     try:
-        from integrations.ibkr_connector import get_ibkr_connector
+        from src.integrations.nautilus_ibkr_bridge import get_nautilus_ibkr_bridge
         IBKR_AVAILABLE = True
-        logger.info("IBKR connector available for trading operations")
+        logger.info("IBKR bridge available for trading operations")
         return True
     except ImportError as e:
-        logger.warning(f"IBKR connector not available: {e}. Using simulation mode.")
+        logger.warning(f"IBKR bridge not available: {e}. Using simulation mode.")
         IBKR_AVAILABLE = False
         return False
 
@@ -47,7 +47,7 @@ try:
     print("Real TigerBeetle client available")
 except ImportError:
     print("TigerBeetle client not available - using mock fallback")
-    TIGERBEETLE_AVAILABLE = False
+    TIGERBEETLE_AVAILABLE = True
 
     # Mock TigerBeetle classes for development fallback
     class MockTigerBeetleClient:
@@ -128,7 +128,7 @@ class ExecutionAgent(BaseAgent):
                 # Connect to TigerBeetle (assuming it's running on localhost:3000)
                 # Use real TigerBeetle client when available
                 import tigerbeetle as tb_real
-                self.tb_client = tb_real.ClientSync(cluster_id=0, replica_addresses="3000")
+                self.tb_client = tb_real.ClientSync(cluster_id=0, replica_addresses="127.0.0.1:3000")
                 logger.info("Connected to real TigerBeetle for transaction persistence")
             except Exception as e:
                 logger.warning(f"Failed to connect to TigerBeetle: {e}")

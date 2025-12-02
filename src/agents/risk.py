@@ -39,10 +39,11 @@ try:
     import tensorflow_probability as tfp
     TFP_AVAILABLE = True
     logger.info("TensorFlow Probability available for advanced stochastic simulations")
-except ImportError as e:
+except BaseException as e:
     logger.warning(f"TensorFlow Probability not available: {e}. Using numpy fallback.")
     TFP_AVAILABLE = False
     tf = None
+    tfp = None
     tfp = None
 # Import scipy.stats for fallback if TensorFlow fails
 try:

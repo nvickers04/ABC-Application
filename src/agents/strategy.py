@@ -1698,7 +1698,7 @@ Format each proposal clearly with headers like "TRADE PROPOSAL 1:", "TRADE PROPO
             }
 
             # Get IBKR connector for market data
-            from integrations.ibkr_connector import get_ibkr_connector
+            from src.integrations.ibkr_connector import get_ibkr_connector
             ibkr_connector = get_ibkr_connector()
 
             # Get market data for key indices and stocks
@@ -1767,7 +1767,7 @@ Format each proposal clearly with headers like "TRADE PROPOSAL 1:", "TRADE PROPO
         Get news data from IBKR news feeds.
         """
         try:
-            from integrations.ibkr_connector import get_ibkr_connector
+            from src.integrations.ibkr_connector import get_ibkr_connector
             ibkr_connector = get_ibkr_connector()
 
             # Check subscription status
@@ -2064,11 +2064,11 @@ Format each proposal clearly with headers like "TRADE PROPOSAL 1:", "TRADE PROPO
 
             # Calculate position size based on account value and risk limits
             try:
-                # Get account value from IBKR
-                from integrations.ibkr_connector import get_ibkr_connector
-                ibkr_connector = get_ibkr_connector()
-                account_info = await ibkr_connector.get_account_summary()
-                account_value = float(account_info.get('NetLiquidation', 1000000))  # Default to $1M if not available
+                # Get account value from IBKR via bridge
+                from src.integrations.nautilus_ibkr_bridge import get_nautilus_ibkr_bridge
+                bridge = get_nautilus_ibkr_bridge()
+                account_info = await bridge.get_account_summary()
+                account_value = float(account_info.get('NetLiquidation', 1000000) if account_info else 1000000)  # Default to $1M if not available
                 
                 # Use 1% of account value as base position size
                 max_position_value = account_value * 0.01  # 1% of account
@@ -2152,7 +2152,7 @@ Format each proposal clearly with headers like "TRADE PROPOSAL 1:", "TRADE PROPO
             filtered_out_signals = []
 
             # Get IBKR connector for trading permissions
-            from integrations.ibkr_connector import get_ibkr_connector
+            from src.integrations.ibkr_connector import get_ibkr_connector
             ibkr_connector = get_ibkr_connector()
 
             for signal in signals:
@@ -2926,13 +2926,13 @@ Format each proposal clearly with headers like "TRADE PROPOSAL 1:", "TRADE PROPO
             Dict with current portfolio holdings and allocations
         """
         try:
-            # Try to get from IBKR first
-            from integrations.ibkr_connector import get_ibkr_connector
-            ibkr_connector = get_ibkr_connector()
+            # Try to get from IBKR first via bridge
+            from src.integrations.nautilus_ibkr_bridge import get_nautilus_ibkr_bridge
+            bridge = get_nautilus_ibkr_bridge()
 
             try:
-                account_summary = await ibkr_connector.get_account_summary()
-                positions = await ibkr_connector.get_positions()
+                account_summary = await bridge.get_account_summary()
+                positions = await bridge.get_positions()
 
                 portfolio = {
                     'total_value': float(account_summary.get('NetLiquidation', 1000000)),

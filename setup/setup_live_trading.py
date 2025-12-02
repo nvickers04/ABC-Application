@@ -142,14 +142,14 @@ def test_ibkr_connection():
     print_header("Testing IBKR Connection")
 
     try:
-        # Import the connector
-        from integrations.ibkr_connector import IBKRConnector
+        # Import the bridge
+        from src.integrations.nautilus_ibkr_bridge import get_nautilus_ibkr_bridge
 
-        print("✅ IBKR connector imports successfully")
+        print("✅ IBKR bridge imports successfully")
 
-        # Try to create connector (but don't connect yet)
-        connector = IBKRConnector()
-        print("✅ IBKR connector initialized")
+        # Try to get bridge instance
+        bridge = get_nautilus_ibkr_bridge()
+        print("✅ IBKR bridge initialized")
 
         return True
 

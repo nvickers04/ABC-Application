@@ -47,21 +47,14 @@ async def check_bot_status(token, name):
         print(f'{name}: Error - {e}')
 
 async def main():
-    tokens = {
-        'Macro': get_vault_secret('DISCORD_MACRO_AGENT_TOKEN'),
-        'Data': get_vault_secret('DISCORD_DATA_AGENT_TOKEN'),
-        'Strategy': get_vault_secret('DISCORD_STRATEGY_AGENT_TOKEN'),
-        'Risk': get_vault_secret('DISCORD_RISK_AGENT_TOKEN'),
-        'Reflection': get_vault_secret('DISCORD_REFLECTION_AGENT_TOKEN'),
-        'Execution': get_vault_secret('DISCORD_EXECUTION_AGENT_TOKEN'),
-        'Learning': get_vault_secret('DISCORD_LEARNING_AGENT_TOKEN')
-    }
+    # Use orchestrator token for all agents
+    orchestrator_token = get_vault_secret('DISCORD_ORCHESTRATOR_TOKEN')
 
-    for name, token in tokens.items():
-        if token:
-            await check_bot_status(token, name)
-            await asyncio.sleep(1)  # Small delay between checks
-        else:
-            print(f'{name}: No token found')
+    if orchestrator_token:
+        print("🔍 Checking Discord orchestrator bot status...")
+        await check_bot_status(orchestrator_token, 'Orchestrator')
+        print("✅ All agents use the same orchestrator token")
+    else:
+        print('❌ DISCORD_ORCHESTRATOR_TOKEN not found')
 
 asyncio.run(main())

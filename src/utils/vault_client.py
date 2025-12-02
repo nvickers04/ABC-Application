@@ -1,8 +1,10 @@
 import hvac
 import os
 import logging
+from .alert_manager import get_alert_manager
 
 logger = logging.getLogger(__name__)
+alert_manager = get_alert_manager()
 
 class VaultClient:
     def __init__(self):
@@ -18,6 +20,11 @@ class VaultClient:
                 return read_response['data']['data'][key]
             except Exception as e:
                 logger.warning(f"Failed to get secret {key} from Vault {path}: {e} - falling back to environment variables")
+                alert_manager.warning(
+                    f"Vault secret retrieval failed, using fallback: {key}",
+                    {"path": path, "key": key, "error": str(e)},
+                    "vault_client"
+                )
 
         # Fallback to environment variables
         env_key = key.upper()
@@ -26,7 +33,13 @@ class VaultClient:
             logger.info(f"Using environment variable for {key}")
             return value
         else:
-            raise ValueError(f"Secret {key} not found in Vault or environment variables")
+            error_msg = f"Secret {key} not found in Vault or environment variables"
+            alert_manager.error(
+                error_msg,
+                {"path": path, "key": key, "env_key": env_key},
+                "vault_client"
+            )
+            raise ValueError(error_msg)
 
     def store_secret(self, path: str, data: dict) -> bool:
         """Store secret in Vault or fallback."""
@@ -36,6 +49,11 @@ class VaultClient:
                 return True
             except Exception as e:
                 logger.warning(f"Failed to store secret in Vault {path}: {e}")
+                alert_manager.error(
+                    f"Failed to store secret in Vault: {path}",
+                    {"path": path, "data_keys": list(data.keys()), "error": str(e)},
+                    "vault_client"
+                )
                 return False
         # Fallback: do nothing, assume stored
         return True

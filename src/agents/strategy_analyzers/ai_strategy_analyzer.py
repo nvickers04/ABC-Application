@@ -66,8 +66,8 @@ class AIMemory:
         return self.session_insights[-limit:]
 
 if RL_AVAILABLE:
-    import gym
-    from gym import spaces
+    import gymnasium as gym
+    from gymnasium import spaces
 
     class TradingEnv(gym.Env):
         """Custom trading environment for reinforcement learning."""

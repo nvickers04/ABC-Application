@@ -1,10 +1,12 @@
 import asyncio
 import sys
 import os
+import pytest
 sys.path.append('src')
 
 from agents.data import DataAgent
 
+@pytest.mark.asyncio
 async def test_integration():
     print("Testing enhanced DataAgent integration...")
     agent = DataAgent()

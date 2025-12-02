@@ -15,7 +15,7 @@ async def test_ibkr():
     try:
         print("🔌 Testing IBKR Connection...")
 
-        from integrations.ibkr_connector import get_ibkr_connector
+        from src.integrations.ibkr_connector import get_ibkr_connector
 
         connector = get_ibkr_connector()
         print("📡 Attempting to connect...")

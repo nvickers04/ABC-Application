@@ -12,13 +12,13 @@ ABC-Application/
 ├── data/                       # Data files, logs, cache
 ├── docs/                       # Documentation
 ├── integration-tests/          # Integration tests
-├── integrations/               # External service integrations
 ├── logs/                       # Application logs
 ├── myenv/                      # Python virtual environment
 ├── redis/                      # Redis server files
 ├── setup/                      # Setup and installation scripts
 ├── simulations/                # Backtesting and simulation scripts
 ├── src/                        # Source code (PRIMARY LOCATION)
+│   └── integrations/           # External service integrations
 ├── tools/                      # Utility scripts and tools
 ├── unit-tests/                 # Unit tests
 ├── AI_DEVELOPMENT_INSTRUCTIONS.md  # Development guidelines

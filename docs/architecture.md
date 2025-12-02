@@ -333,6 +333,42 @@ token = get_vault_secret('DISCORD_ORCHESTRATOR_TOKEN')
 - **Alternative Data**: Novel data sources and signals
 - **Portfolio Optimization**: Advanced allocation algorithms
 
+## Server Startup Procedures
+
+### Redis
+1. Download Redis for Windows from https://github.com/microsoftarchive/redis/releases (e.g., Redis-x64-3.0.504.msi)
+2. Install the MSI file
+3. Open a terminal and run: `redis-server.exe --port 6380`
+4. Verify connection in code - the warning should disappear if running
+
+### TigerBeetle
+1. Ensure TigerBeetle is installed (via requirements.txt or manually)
+2. Start the server on port 3000 (specific startup command may vary; check TigerBeetle documentation)
+3. The health check uses ClientSync to connect
+
+## Troubleshooting Common Connection Issues
+
+### Redis Connection Refused
+- Ensure Redis server is running on localhost:6380
+- Check if port is blocked by firewall
+- Verify redis-py is installed: `pip install redis`
+- If using fallback to JSON, it's non-critical but persistence may be limited
+
+### TigerBeetle Issues
+- Verify server is running on port 3000
+- Check import: from tigerbeetle import ClientSync
+- Ensure package is installed: pip install tigerbeetle
+
+### IBKR Connection
+- Ensure TWS/Gateway is running and API enabled
+- Check client ID conflicts
+- Verify host/port in config
+
+### General
+- Run health checks: python check_deps.py
+- Check logs in data/logs/
+- Verify all dependencies in requirements.txt are installed
+
 ---
 
 ## Additional Utilities\n\n### Adaptive Scheduler\nThe adaptive_scheduler.py provides dynamic scheduling for agent tasks, adjusting based on market conditions and system load. It integrates with the A2A protocol for real-time task management.\n\n### Historical Simulation Engine\nThe historical_simulation_engine.py enables backtesting of strategies using historical data, supporting multiple scenarios and performance metrics calculation.\n\n---\n\n*This architecture document provides the foundation for understanding the ABC Application system. For detailed implementation guides, refer to the AGENTS and IMPLEMENTATION sections.*

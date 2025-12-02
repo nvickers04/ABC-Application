@@ -20,7 +20,7 @@ sys.path.insert(0, os.path.abspath('src'))
 
 from src.utils.advanced_memory import get_memory_health_status
 from src.utils.api_health_monitor import get_api_health_summary
-from integrations.ibkr_connector import get_ibkr_connector
+from src.integrations.nautilus_ibkr_bridge import get_nautilus_ibkr_bridge
 
 # Setup logging
 logging.basicConfig(
@@ -143,7 +143,8 @@ class TradingDayMonitor:
 
             # IBKR Status
             try:
-                connector = get_ibkr_connector()
+                bridge = get_nautilus_ibkr_bridge()
+                connector = bridge.ibkr_connector  # Access internal connector for status
                 ibkr_status = {
                     'connected': connector.connected if hasattr(connector, 'connected') else False,
                     'account_id': getattr(connector, 'account_id', 'unknown'),

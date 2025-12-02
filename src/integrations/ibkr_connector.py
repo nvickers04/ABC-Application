@@ -45,7 +45,7 @@ class IBKRConnector:
                     cls._instance = super().__new__(cls)
         return cls._instance
 
-    def __init__(self, config_path: str = 'config/ibkr_config.ini'):
+    def __init__(self, config_path: str = None):
         """
         Initialize IBKR connector with paper trading configuration
         Note: This may be called multiple times due to singleton pattern,
@@ -54,6 +54,9 @@ class IBKRConnector:
         # Check if already initialized (singleton pattern)
         if hasattr(self, '_initialized'):
             return
+
+        if config_path is None:
+            config_path = os.path.join(os.path.dirname(__file__), '..', '..', 'config', 'ibkr_config.ini')
 
         self.config = self._load_config(config_path)
 
@@ -136,7 +139,7 @@ class IBKRConnector:
     def _load_config(self, config_path: str) -> Dict[str, Any]:
         """Load IBKR configuration from file"""
         try:
-            config_file = Path(__file__).parent.parent / config_path
+            config_file = Path(config_path)
             if config_file.exists():
                 with open(config_file, 'r') as f:
                     # Parse simple key=value format
@@ -157,7 +160,7 @@ class IBKRConnector:
 
     async def connect(self) -> bool:
         """
-        Connect to IBKR paper trading account with direct async handling.
+        Connect to IBKR paper trading account with direct async handling and retry logic.
 
         Returns:
             bool: True if connection successful
@@ -170,31 +173,42 @@ class IBKRConnector:
             logger.error("IBKR credentials not available. Please set IBKR_USERNAME and IBKR_PASSWORD in .env file.")
             return False
 
-        # Generate a new random client ID for each connection attempt to avoid conflicts
-        self.client_id = random.randint(1, 999)
-        logger.info(f"Using client ID {self.client_id} for connection")
+        max_retries = 3
+        retry_delay = 5
 
-        try:
-            # Create IB instance
-            self.ib = IB()
-            await self.ib.connectAsync(self.host, self.port, self.client_id, timeout=10)
-            
-            # Wait for connection to be fully established
-            await asyncio.sleep(2)
-            
-            if self.ib.isConnected():
-                logger.info("Connection established, getting managed accounts...")
-                self.account_id = self.ib.managedAccounts()[0] if self.ib.managedAccounts() else self.account_id_env
-                self.connected = True
-                logger.info(f"Successfully connected to IBKR Paper Trading. Account: {self.account_id}")
-                return True
-            else:
-                logger.warning("Connection timeout")
-                return False
+        for attempt in range(max_retries):
+            try:
+                # Generate a new random client ID for each connection attempt to avoid conflicts
+                self.client_id = random.randint(1, 999)
+                logger.info(f"Connection attempt {attempt + 1}/{max_retries} using client ID {self.client_id}")
 
-        except Exception as e:
-            logger.error(f"Connection error: {e}")
-            return False
+                # Create IB instance
+                self.ib = IB()
+                await self.ib.connectAsync(self.host, self.port, self.client_id, timeout=10)
+
+                # Wait for connection to be fully established
+                await asyncio.sleep(2)
+
+                if self.ib.isConnected():
+                    logger.info("Connection established, getting managed accounts...")
+                    self.account_id = self.ib.managedAccounts()[0] if self.ib.managedAccounts() else self.account_id_env
+                    self.connected = True
+                    logger.info(f"Successfully connected to IBKR Paper Trading. Account: {self.account_id}")
+                    return True
+                else:
+                    logger.warning(f"Connection timeout on attempt {attempt + 1}")
+                    if attempt < max_retries - 1:
+                        logger.info(f"Retrying in {retry_delay} seconds...")
+                        await asyncio.sleep(retry_delay)
+
+            except Exception as e:
+                logger.error(f"Connection error on attempt {attempt + 1}: {e}")
+                if attempt < max_retries - 1:
+                    logger.info(f"Retrying in {retry_delay} seconds...")
+                    await asyncio.sleep(retry_delay)
+
+        logger.error(f"Failed to connect after {max_retries} attempts")
+        return False
 
     async def _wait_for_connection(self) -> None:
         """

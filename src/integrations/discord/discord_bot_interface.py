@@ -1146,11 +1146,14 @@ class DiscordInterfaceSystem:
         """Load Discord agent configuration from environment variables"""
         try:
             # Load configuration from environment variables
+            # Use orchestrator token for all agents
+            orchestrator_token = get_vault_secret('DISCORD_ORCHESTRATOR_TOKEN')
+
             agents_config = {
                 "macro": {
                     "name": "Macro Analyst",
                     "role": "macro",
-                    "token": get_vault_secret('DISCORD_MACRO_AGENT_TOKEN') or 'YOUR_MACRO_BOT_TOKEN',
+                    "token": orchestrator_token or 'YOUR_ORCHESTRATOR_BOT_TOKEN',
                     "color": 0x3498db,
                     "status_channel_id": None,
                     "command_prefix": "!m"
@@ -1158,7 +1161,7 @@ class DiscordInterfaceSystem:
                 "data": {
                     "name": "Data Collector",
                     "role": "data",
-                    "token": get_vault_secret('DISCORD_DATA_AGENT_TOKEN') or 'YOUR_DATA_BOT_TOKEN',
+                    "token": orchestrator_token or 'YOUR_ORCHESTRATOR_BOT_TOKEN',
                     "color": 0x2ecc71,
                     "status_channel_id": None,
                     "command_prefix": "!d"
@@ -1166,7 +1169,7 @@ class DiscordInterfaceSystem:
                 "strategy": {
                     "name": "Strategy Advisor",
                     "role": "strategy",
-                    "token": get_vault_secret('DISCORD_STRATEGY_AGENT_TOKEN') or 'YOUR_STRATEGY_BOT_TOKEN',
+                    "token": orchestrator_token or 'YOUR_ORCHESTRATOR_BOT_TOKEN',
                     "color": 0xe67e22,
                     "status_channel_id": None,
                     "command_prefix": "!s"
@@ -1174,7 +1177,7 @@ class DiscordInterfaceSystem:
                 "reflection": {
                     "name": "Reflection Agent",
                     "role": "reflection",
-                    "token": get_vault_secret('DISCORD_REFLECTION_AGENT_TOKEN') or 'YOUR_REFLECTION_BOT_TOKEN',
+                    "token": orchestrator_token or 'YOUR_ORCHESTRATOR_BOT_TOKEN',
                     "color": 0x9b59b6,
                     "status_channel_id": None,
                     "command_prefix": "!ref"
@@ -1182,36 +1185,28 @@ class DiscordInterfaceSystem:
                 "execution": {
                     "name": "Trade Executor",
                     "role": "execution",
-                    "token": get_vault_secret('DISCORD_EXECUTION_AGENT_TOKEN') or 'YOUR_EXECUTION_BOT_TOKEN',
+                    "token": orchestrator_token or 'YOUR_ORCHESTRATOR_BOT_TOKEN',
                     "color": 0x1abc9c,
                     "status_channel_id": None,
                     "command_prefix": "!exec"
-                }
-            }
-
-            # Conditionally add risk agent if token is available
-            risk_token = get_vault_secret('DISCORD_RISK_AGENT_TOKEN')
-            if risk_token:
-                agents_config["risk"] = {
+                },
+                "risk": {
                     "name": "Risk Manager",
                     "role": "risk",
-                    "token": risk_token,
+                    "token": orchestrator_token or 'YOUR_ORCHESTRATOR_BOT_TOKEN',
                     "color": 0xe74c3c,
                     "status_channel_id": None,
                     "command_prefix": "!r"
-                }
-
-            # Conditionally add learning agent if token is available
-            learning_token = get_vault_secret('DISCORD_LEARNING_AGENT_TOKEN')
-            if learning_token:
-                agents_config["learning"] = {
+                },
+                "learning": {
                     "name": "Learning Agent",
                     "role": "learning",
-                    "token": learning_token,
+                    "token": orchestrator_token or 'YOUR_ORCHESTRATOR_BOT_TOKEN',
                     "color": 0xf39c12,
                     "status_channel_id": None,
                     "command_prefix": "!l"
                 }
+            }
 
             config = {
                 "guild_id": get_vault_secret('DISCORD_GUILD_ID') or 'YOUR_GUILD_ID',

@@ -44,7 +44,7 @@ scipy>=1.14.1,<2.0  # For scientific computing and statistical functions; latest
 statsmodels>=0.14.4,<1.0  # For statistical modeling and cointegration tests; latest stable is 0.14.4
 scikit-learn>=1.5.2,<2.0  # For machine learning algorithms; latest stable is 1.5.2
 stable-baselines3>=2.0.0,<3.0  # For reinforcement learning algorithms; latest stable is 2.x
-gym>=0.26.0,<1.0  # For reinforcement learning environments; latest stable is 0.26.x
+gymnasium>=0.29.0,<1.0  # For reinforcement learning environments; maintained replacement for gym
 
 # Additional API Dependencies for Data Sources
 alpha-vantage>=1.0.0,<2.0  # For Alpha Vantage financial data API
@@ -80,3 +80,4 @@ pytest-mock>=3.10.0,<4.0  # For mocking in tests
 
 # Additional dependencies identified in testing
 apscheduler>=3.11.0,<4.0  # For async scheduling and background jobs
+tigerbeetle>=0.16.0,<1.0  # For high-performance financial transaction processing

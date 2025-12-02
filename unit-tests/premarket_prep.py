@@ -13,7 +13,7 @@ import os
 # Add project root to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from integrations.ibkr_connector import get_ibkr_connector
+from src.integrations.ibkr_connector import get_ibkr_connector
 
 # Configure logging
 logging.basicConfig(

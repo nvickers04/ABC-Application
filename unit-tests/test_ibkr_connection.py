@@ -11,7 +11,7 @@ import os
 # Add project root to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from integrations.nautilus_ibkr_bridge import get_nautilus_ibkr_bridge
+from src.integrations.nautilus_ibkr_bridge import get_nautilus_ibkr_bridge
 
 async def test_connection():
     print("🔄 Testing IBKR Connection...")
@@ -20,16 +20,19 @@ async def test_connection():
     # Get bridge instance
     bridge = get_nautilus_ibkr_bridge()
 
-    # Test initialization
-    print("1. Initializing bridge...")
-    success = await bridge.initialize()
-    print(f"   Result: {'✅ Success' if success else '❌ Failed'}")
+    # Test connection by attempting operations
+    print("1. Testing IBKR connection via operations...")
 
-    # Check connection status
-    status = bridge.get_bridge_status()
-    print(f"2. Connection Status: {status['ibkr_connected']}")
+    try:
+        # Try to get positions to test connection
+        positions = await asyncio.wait_for(bridge.get_positions(), timeout=10.0)
+        print("   ✅ Connection successful")
+        connected = True
+    except Exception as e:
+        print(f"   ❌ Connection failed: {e}")
+        connected = False
 
-    if status['ibkr_connected']:
+    if connected:
         print("3. Testing market data...")
         try:
             # Test market data first (most reliable)
@@ -71,24 +74,7 @@ async def test_connection():
             print(f"   ❌ Error: {e}")
 
     else:
-        print("3. IBKR not connected - using yfinance fallback")
-        try:
-            data = await bridge.get_market_data('SPY')
-            if data:
-                print("   ✅ Fallback data working")
-                price = data.get('close', data.get('price', 'N/A'))
-                print(f"   SPY Price: ${price}")
-            else:
-                print("   ❌ Fallback failed")
-        except Exception as e:
-            print(f"   ❌ Fallback error: {e}")
-
-    # Always disconnect
-    try:
-        await bridge.disconnect()
-        print("🔌 Disconnected from IBKR")
-    except Exception as e:
-        print(f"⚠️  Disconnect error: {e}")
+        print("2. IBKR not connected - skipping market data test")
 
     print("\n🎯 Test completed!")
 

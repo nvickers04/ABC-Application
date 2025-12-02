@@ -19,6 +19,10 @@ except ImportError:
     REDIS_AVAILABLE = False
     redis = None
 
+from .alert_manager import get_alert_manager
+
+alert_manager = get_alert_manager()
+
 logger = logging.getLogger(__name__)
 
 class RedisCacheManager:
@@ -354,13 +358,45 @@ def get_redis_cache_manager() -> Optional[RedisCacheManager]:
 # Convenience functions for common operations
 def cache_get(namespace: str, key: str) -> Optional[Any]:
     """Convenience function to get from cache."""
-    manager = get_redis_cache_manager()
-    return manager.get(namespace, key) if manager else None
+    try:
+        manager = get_redis_cache_manager()
+        if manager:
+            return manager.get(namespace, key)
+        else:
+            alert_manager.warning(
+                "Cache manager not available for get operation",
+                {"namespace": namespace, "key": key},
+                "redis_cache"
+            )
+            return None
+    except Exception as e:
+        alert_manager.error(
+            f"Cache get operation failed: {namespace}:{key}",
+            {"namespace": namespace, "key": key, "error": str(e)},
+            "redis_cache"
+        )
+        return None
 
 def cache_set(namespace: str, key: str, value: Any, ttl_seconds: Optional[int] = None) -> bool:
     """Convenience function to set in cache."""
-    manager = get_redis_cache_manager()
-    return manager.set(namespace, key, value, ttl_seconds) if manager else False
+    try:
+        manager = get_redis_cache_manager()
+        if manager:
+            return manager.set(namespace, key, value, ttl_seconds)
+        else:
+            alert_manager.warning(
+                "Cache manager not available for set operation",
+                {"namespace": namespace, "key": key, "ttl_seconds": ttl_seconds},
+                "redis_cache"
+            )
+            return False
+    except Exception as e:
+        alert_manager.error(
+            f"Cache set operation failed: {namespace}:{key}",
+            {"namespace": namespace, "key": key, "ttl_seconds": ttl_seconds, "error": str(e)},
+            "redis_cache"
+        )
+        return False
 
 def cache_delete(namespace: str, key: str) -> bool:
     """Convenience function to delete from cache."""

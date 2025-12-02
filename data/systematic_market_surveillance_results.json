@@ -1,28 +1,10 @@
 {
-  "completed_at": "2025-11-24T09:18:13.488680-06:00",
+  "completed_at": "2025-12-02T09:24:25.746109-06:00",
   "mission_type": "systematic_market_surveillance",
   "total_cycles": 0,
   "total_responses": 0,
-  "human_interventions": 2,
+  "human_interventions": 0,
   "responses": [],
-  "interventions": [
-    {
-      "user": "Noah",
-      "user_id": "1006590853273374941",
-      "content": "!start_market_open_execution",
-      "timestamp": "2025-11-24T12:22:24.900000+00:00",
-      "phase": "systematic_market_surveillance"
-    },
-    {
-      "user": "Noah",
-      "user_id": "1006590853273374941",
-      "content": "!start_workflow",
-      "timestamp": "2025-11-24T15:08:58.801000+00:00",
-      "phase": "systematic_market_surveillance"
-    }
-  ],
-  "workflow_log": [
-    "\ud83d\udc64 Noah: !start_market_open_execution...",
-    "\ud83d\udc64 Noah: !start_workflow..."
-  ]
+  "interventions": [],
+  "workflow_log": []
 }

@@ -25,6 +25,7 @@ project_root = Path(__file__).parent.parent.parent  # From src/agents/base.py ->
 sys.path.insert(0, str(project_root))
 
 from src.utils.utils import load_yaml, load_prompt_template  # Absolute from src/utils.py (now discoverable).
+from src.utils.alert_manager import get_alert_manager
 
 # Try to import BaseTool for type hints, fallback to Any if not available
 try:
@@ -562,6 +563,9 @@ class BaseAgent(abc.ABC):
             logger.warning(f"Shared memory coordinator initialization failed: {e}, operating without coordination")
             self.shared_memory_coordinator = None
 
+        # Initialize AlertManager for error handling
+        self.alert_manager = get_alert_manager()
+
         # Initialize memory structures safely
         self.memory = {}
         if self.memory_persistence:
@@ -572,6 +576,11 @@ class BaseAgent(abc.ABC):
                 logger.info("Memory persistence initialized successfully")
             except Exception as e:
                 logger.warning(f"Failed to load persistent memory: {e}, starting with empty memory")
+                self.alert_manager.warning(
+                    f"Memory load failed for agent {role}",
+                    {"role": role, "error": str(e)},
+                    "base_agent"
+                )
         else:
             logger.info("Operating without memory persistence")
 
@@ -1037,6 +1046,11 @@ Consider market conditions, risk factors, and alignment with our goals (10-20% m
                 return False
         except Exception as e:
             logger.error(f"Failed to save memory for {self.role}: {e}")
+            self.alert_manager.error(
+                f"Memory save failed for agent {self.role}",
+                {"role": self.role, "create_backup": create_backup, "error": str(e)},
+                "base_agent"
+            )
             return False
     
     def load_memory(self) -> bool:
@@ -1064,6 +1078,11 @@ Consider market conditions, risk factors, and alignment with our goals (10-20% m
                 return False
         except Exception as e:
             logger.error(f"Failed to load memory for {self.role}: {e}")
+            self.alert_manager.error(
+                f"Memory load failed for agent {self.role}",
+                {"role": self.role, "error": str(e)},
+                "base_agent"
+            )
             # Initialize empty memory on error
             self.memory = {}
             return False

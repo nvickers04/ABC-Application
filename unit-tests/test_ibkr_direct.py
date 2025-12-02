@@ -6,7 +6,7 @@ import os
 sys.path.insert(0, os.path.abspath('.'))
 sys.path.insert(0, os.path.abspath('src'))
 
-from integrations.ibkr_connector import get_ibkr_connector
+from src.integrations.ibkr_connector import get_ibkr_connector
 
 async def test_ibkr_direct():
     print("🔄 Testing IBKR Direct Connection...")

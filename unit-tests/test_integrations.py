@@ -18,10 +18,10 @@ from datetime import datetime
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from integrations.ibkr_connector import IBKRConnector
-from integrations.ibkr_historical_data import IBKRHistoricalDataProvider
-from integrations.nautilus_ibkr_bridge import NautilusIBKRBridge
-from integrations.live_trading_safeguards import LiveTradingSafeguards
+from src.integrations.ibkr_connector import IBKRConnector
+from src.integrations.ibkr_historical_data import IBKRHistoricalDataProvider
+from src.integrations.nautilus_ibkr_bridge import NautilusIBKRBridge
+from src.integrations.live_trading_safeguards import LiveTradingSafeguards
 
 
 class TestIBKRConnector:

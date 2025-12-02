@@ -34,8 +34,16 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 import pytz  # For timezone handling
 
+# Suppress TensorFlow deprecation warnings
+import warnings
+warnings.filterwarnings('ignore', category=DeprecationWarning, module='tensorflow.*')
+warnings.filterwarnings('ignore', category=DeprecationWarning, module='tensorflow_probability.*')
+
 # Set up logging for human input features
 logger = logging.getLogger(__name__)
+
+# Import AlertManager for error handling
+from src.utils.alert_manager import get_alert_manager
 
 # Import BaseAgent and agent classes for direct integration
 from src.agents.base import BaseAgent
@@ -43,7 +51,8 @@ from src.agents.base import BaseAgent
 # Import agent scope definitions for intelligent command routing
 from src.agents.agent_scopes import get_agent_scope_definitions
 
-# Try to import agents, fallback to None if not available
+# Try to import agents with alert handling
+alert_manager = get_alert_manager()
 try:
     from src.agents.macro import MacroAgent
     from src.agents.data import DataAgent
@@ -54,16 +63,8 @@ try:
     from src.agents.learning import LearningAgent
     AGENTS_AVAILABLE = True
 except ImportError as e:
-    print(f"⚠️ Some agents not available due to import error: {e}")
-    print("   Discord-only mode will be used")
-    AGENTS_AVAILABLE = False
-    MacroAgent = None
-    DataAgent = None
-    StrategyAgent = None
-    RiskAgent = None
-    ReflectionAgent = None
-    ExecutionAgent = None
-    LearningAgent = None
+    alert_manager.critical(e, {"component": "agent_imports"}, "orchestrator")
+    # This will raise HealthAlertError and abort startup
 from src.utils.a2a_protocol import A2AProtocol
 from src.utils.vault_client import get_vault_secret
 
@@ -131,6 +132,12 @@ class LiveWorkflowOrchestrator:
         }
 
         self._initialize_workflow_commands()
+
+        # Initialize AlertManager instance
+        self.alert_manager = alert_manager
+
+        # Set orchestrator reference in AlertManager for Discord notifications
+        alert_manager.set_orchestrator(self)
 
     def _sanitize_user_input(self, input_text: str) -> str:
         """
@@ -268,6 +275,10 @@ class LiveWorkflowOrchestrator:
             
         end_time = time.time()
         print(f"🎯 Agent initialization completed in {end_time - start_time:.1f} seconds")
+
+        # Post system event
+        await self._post_system_event("agent_init", f"Agent initialization completed", f"Agents: {len(self.agent_instances)}, Duration: {end_time - start_time:.1f}s")
+
         self._initialize_agents()
 
     def get_command_channel(self, command: str) -> Optional[discord.TextChannel]:
@@ -324,6 +335,15 @@ class LiveWorkflowOrchestrator:
                 formatted_alert = f"{emoji} **TRADE ALERT** {emoji}\n{alert_message}"
                 await alerts_channel.send(formatted_alert)
                 print(f"✅ Trade alert sent to alerts channel: {alert_type}")
+
+                # Post system event for trade activity
+                await self._post_system_event(
+                    "trade_alert",
+                    f"Trade Alert Sent ({alert_type.upper()})",
+                    f"Alert delivered to #{alerts_channel.name}",
+                    {"alert_type": alert_type, "channel": alerts_channel.name}
+                )
+
                 return  # Success, exit
 
             except Exception as e:
@@ -785,13 +805,14 @@ class LiveWorkflowOrchestrator:
     async def _get_current_positions(self) -> Dict[str, Any]:
         """Get current position data from trading platform with error handling"""
         try:
-            # Integrate with IBKR
-            from integrations.ibkr_connector import get_ibkr_connector
-            ibkr_connector = get_ibkr_connector()
-            
-            positions = await ibkr_connector.get_positions()
-            cash_balance = await ibkr_connector.get_cash_balance()  # Assuming this method exists
-            
+            # Integrate with IBKR via Nautilus Bridge
+            from src.integrations.nautilus_ibkr_bridge import get_nautilus_ibkr_bridge
+            bridge = get_nautilus_ibkr_bridge()
+
+            positions = await bridge.get_positions()
+            account_summary = await bridge.get_account_summary()
+            cash_balance = account_summary.get('NetLiquidation', 0) if account_summary else 0  # Use NetLiquidation as cash balance
+
             return {
                 'timestamp': datetime.now().isoformat(),
                 'positions': positions,
@@ -865,6 +886,27 @@ class LiveWorkflowOrchestrator:
                 for (agent_name, command, _), result in zip(batch, results):
                     if isinstance(result, Exception):
                         print(f"⚠️ Parallel execution failed for {agent_name}: {result}")
+
+                        # Alert on agent command failure
+                        self.alert_manager.error(
+                            Exception(f"Agent command failed: {agent_name} - {str(result)}"),
+                            {
+                                "agent": agent_name,
+                                "command": command[:100],
+                                "phase": phase_key,
+                                "error_type": type(result).__name__
+                            },
+                            "orchestrator"
+                        )
+
+                        # Post system event for agent error
+                        await self._post_system_event(
+                            "agent_error",
+                            f"Agent Execution Failed: {agent_name}",
+                            f"Command: {command[:50]}...\nError: {str(result)[:100]}",
+                            {"agent": agent_name, "command_type": command.split()[0] if command else "unknown"}
+                        )
+
                         continue
 
                     if result:
@@ -1036,8 +1078,14 @@ class LiveWorkflowOrchestrator:
 
     async def execute_phase_with_agents(self, phase_key: str, phase_title: str):
         """Execute a phase using ENHANCED PARALLEL COLLABORATION - agents share full workflow context and collaborate simultaneously"""
+        logger.info(f"Discord bot connection status - ready: {self.discord_ready.is_set()}, channel: {self.channel is not None}, client: {self.client is not None}")
         if not self.channel:
-            print(f"❌ No channel available for phase {phase_key}")
+            logger.error(f"No channel available for phase {phase_key}")
+            self.alert_manager.error(
+                Exception(f"No Discord channel available for phase execution: {phase_key}"),
+                {"phase": phase_key, "phase_title": phase_title},
+                "orchestrator"
+            )
             return
 
         general_channel = cast(discord.TextChannel, self.channel)
@@ -1049,6 +1097,9 @@ class LiveWorkflowOrchestrator:
 
         commands = self.phase_commands.get(phase_key, [])
 
+        # Post system event - COMMENTED OUT FOR TROUBLESHOOTING
+        # await self._post_system_event("phase_start", f"{phase_key.replace('_', ' ').title()} phase beginning", f"Commands: {len(commands)}, Agents: {len(self.agent_instances)}")
+
         # ENHANCED PARALLEL EXECUTION: Share complete workflow context with all agents
         await self._share_full_workflow_context(phase_key, phase_title)
 
@@ -1059,22 +1110,49 @@ class LiveWorkflowOrchestrator:
         agent_responses = await self._execute_commands_parallel(commands, phase_key)
         self.responses_collected.extend(agent_responses)
 
+        # Generate and post debate summary - COMMENTED OUT FOR TROUBLESHOOTING
+        # await self._post_debate_summary(general_channel, agent_responses, phase_key)
+
         # Announce parallel execution with clear separation
         await general_channel.send(f"\n🎯 **PARALLEL EXECUTION:** {len(commands)} commands sent to {len(self.agent_instances)} agents simultaneously!")
         await general_channel.send("🤝 **Agents collaborating with full shared context - no silos!**")
 
         # Format and display agent responses with enhanced readability
         if agent_responses:
+            logger.info(f"Agent responses populated with {len(agent_responses)} items: {[r.get('agent', 'unknown') for r in agent_responses]}")
+            # Test Discord connection before sending responses
+            try:
+                await general_channel.send("🔄 **Testing Discord connection before sending agent responses...**")
+                logger.info("Discord test message sent successfully")
+            except Exception as e:
+                logger.error(f"Failed to send test message to Discord: {e}")
+                return  # Don't proceed if Discord is broken
             await self._present_agent_responses_enhanced(general_channel, agent_responses, phase_key)
         else:
             await general_channel.send("\n⏰ **No agent responses received** - but they're thinking hard! 🤔")
 
         await general_channel.send(f"\n✅ **{phase_title} Complete! Alpha discovered!** 🎉")
+
+        # Post system event - COMMENTED OUT FOR TROUBLESHOOTING
+        # await self._post_system_event("phase_end", f"{phase_key.replace('_', ' ').title()} phase completed", f"Responses: {len(agent_responses)}, Duration: ~{(time.time() - time.time()) if 'start_time' in locals() else 'unknown'}s")
+
         await asyncio.sleep(2)  # Reduced from 3 to speed up
 
     async def _present_agent_responses_enhanced(self, channel: discord.TextChannel, responses: List[Dict[str, Any]], phase_key: str):
         """Present agent responses in a professional format with logical segmentation"""
+        logger.info(f"_present_agent_responses_enhanced called with {len(responses)} responses for phase {phase_key}")
         if not responses:
+            return
+
+        # Verify channel is valid and bot has permissions
+        if not channel:
+            logger.error("general_channel is None, cannot send agent responses to Discord")
+            return
+        if not isinstance(channel, discord.TextChannel):
+            logger.error(f"general_channel is not a TextChannel: {type(channel)}")
+            return
+        if not channel.permissions_for(channel.guild.me).send_messages:
+            logger.error("Bot does not have send_messages permission in the general channel")
             return
 
         # Group responses by agent
@@ -1137,7 +1215,11 @@ class LiveWorkflowOrchestrator:
         summary_text = f"Collaborative analysis complete: {len(responses)} responses from {len(agent_summaries)} agents\n"
         for agent_name, summaries in agent_summaries.items():
             summary_text += f"• **{agent_name.title()}:** {len(summaries)} contributions\n"
-        await channel.send(summary_text)
+        try:
+            await channel.send(summary_text)
+            logger.info("Successfully sent agent response summary to Discord")
+        except Exception as e:
+            logger.error(f"Failed to send agent response summary to Discord: {e}")
         await asyncio.sleep(1)  # Rate limit prevention
 
         # Send detailed responses with logical segmentation
@@ -1146,7 +1228,11 @@ class LiveWorkflowOrchestrator:
             segments = self._break_into_logical_segments(detailed)
             for segment in segments:
                 if segment.strip():  # Only send non-empty segments
-                    await channel.send(segment)
+                    try:
+                        await channel.send(segment)
+                        logger.debug("Successfully sent agent response segment to Discord")
+                    except Exception as e:
+                        logger.error(f"Failed to send agent response segment to Discord: {e}")
                     await asyncio.sleep(1)  # Rate limit prevention
 
         # Check for trade-related content and send alerts
@@ -1190,6 +1276,266 @@ class LiveWorkflowOrchestrator:
 
         await channel.send("Parallel collaboration complete.")
         await asyncio.sleep(1)  # Rate limit prevention
+
+    async def _post_debate_summary(self, channel: discord.TextChannel, responses: List[Dict[str, Any]], phase_key: str):
+        """Generate and post a comprehensive summary of agent debates during collaborative sessions."""
+        if not responses:
+            return
+
+        try:
+            # Collect comprehensive insights from responses
+            key_insights = []
+            recommendations = []
+            risk_assessments = []
+            data_findings = []
+            strategy_proposals = []
+            consensus_points = []
+            active_debates = []
+            agent_contributions = {}
+            confidence_levels = []
+            execution_readiness = []
+
+            for response_data in responses:
+                agent_name = response_data['agent']
+                response = response_data['response']
+                command = response_data.get('command', '')
+
+                # Track agent contributions
+                if agent_name not in agent_contributions:
+                    agent_contributions[agent_name] = 0
+                agent_contributions[agent_name] += 1
+
+                # Extract comprehensive insights from response
+                if isinstance(response, dict):
+                    # Extract structured data
+                    if 'key_insights' in response:
+                        key_insights.extend([f"{agent_name}: {insight}" for insight in response['key_insights'][:3]])
+                    if 'recommendations' in response:
+                        recommendations.extend([f"{agent_name}: {rec}" for rec in response['recommendations'][:2]])
+                    if 'risk_assessment' in response:
+                        risk_assessments.append(f"{agent_name}: {response['risk_assessment']}")
+                    if 'data_findings' in response:
+                        data_findings.extend([f"{agent_name}: {finding}" for finding in response['data_findings'][:2]])
+                    if 'strategy_proposals' in response:
+                        strategy_proposals.extend([f"{agent_name}: {prop}" for prop in response['strategy_proposals'][:2]])
+                    if 'consensus' in response:
+                        consensus_points.append(f"{agent_name}: {response['consensus']}")
+                    if 'disagreements' in response or 'debates' in response:
+                        debates = response.get('disagreements', response.get('debates', []))
+                        active_debates.extend([f"{agent_name}: {debate}" for debate in debates[:2]])
+                    if 'confidence_level' in response:
+                        confidence_levels.append(f"{agent_name}: {response['confidence_level']}")
+                    if 'execution_readiness' in response:
+                        execution_readiness.append(f"{agent_name}: {response['execution_readiness']}")
+                else:
+                    # Extract from unstructured text response
+                    response_text = str(response).lower()
+                    if len(response_text) > 20:
+                        # Extract meaningful insights based on content
+                        if any(word in response_text for word in ['recommend', 'suggest', 'propose']):
+                            recommendations.append(f"{agent_name}: {response_text[:150]}...")
+                        elif any(word in response_text for word in ['risk', 'caution', 'warning']):
+                            risk_assessments.append(f"{agent_name}: {response_text[:150]}...")
+                        elif any(word in response_text for word in ['data', 'analysis', 'metric']):
+                            data_findings.append(f"{agent_name}: {response_text[:150]}...")
+                        elif any(word in response_text for word in ['strategy', 'approach', 'plan']):
+                            strategy_proposals.append(f"{agent_name}: {response_text[:150]}...")
+                        else:
+                            key_insights.append(f"{agent_name}: {response_text[:150]}...")
+
+            # Generate comprehensive summary
+            summary_parts = []
+            embed_fields = []
+
+            # Header with participation stats
+            active_agents = len(agent_contributions)
+            total_responses = sum(agent_contributions.values())
+            avg_confidence = "N/A"
+            if confidence_levels:
+                try:
+                    confidences = [float(level.split(':')[1].strip().rstrip('%')) for level in confidence_levels if '%' in level.split(':')[1]]
+                    if confidences:
+                        avg_confidence = f"{sum(confidences)/len(confidences):.1f}%"
+                except:
+                    pass
+
+            summary_parts.append(f"🤝 **Comprehensive Debate Summary**")
+            summary_parts.append(f"📊 **Participation:** {active_agents} agents, {total_responses} responses")
+            if avg_confidence != "N/A":
+                summary_parts.append(f"🎯 **Avg Confidence:** {avg_confidence}")
+
+            # Key Insights (most important section)
+            if key_insights:
+                embed_fields.append({
+                    "name": "💡 Key Insights",
+                    "value": "\n".join(key_insights[:5]) + (f"\n... and {len(key_insights)-5} more" if len(key_insights) > 5 else ""),
+                    "inline": False
+                })
+
+            # Strategic Recommendations
+            if recommendations:
+                embed_fields.append({
+                    "name": "🎯 Strategic Recommendations",
+                    "value": "\n".join(recommendations[:4]) + (f"\n... and {len(recommendations)-4} more" if len(recommendations) > 4 else ""),
+                    "inline": False
+                })
+
+            # Risk Assessments
+            if risk_assessments:
+                embed_fields.append({
+                    "name": "⚠️ Risk Assessments",
+                    "value": "\n".join(risk_assessments[:3]) + (f"\n... and {len(risk_assessments)-3} more" if len(risk_assessments) > 3 else ""),
+                    "inline": False
+                })
+
+            # Data Findings
+            if data_findings:
+                embed_fields.append({
+                    "name": "📈 Data & Analysis Findings",
+                    "value": "\n".join(data_findings[:3]) + (f"\n... and {len(data_findings)-3} more" if len(data_findings) > 3 else ""),
+                    "inline": False
+                })
+
+            # Strategy Proposals
+            if strategy_proposals:
+                embed_fields.append({
+                    "name": "🚀 Strategy Proposals",
+                    "value": "\n".join(strategy_proposals[:3]) + (f"\n... and {len(strategy_proposals)-3} more" if len(strategy_proposals) > 3 else ""),
+                    "inline": False
+                })
+
+            # Consensus & Active Debates
+            consensus_debate_parts = []
+            if consensus_points:
+                consensus_debate_parts.append(f"✅ **Consensus:** {consensus_points[0][:100]}{'...' if len(consensus_points[0]) > 100 else ''}")
+            if active_debates:
+                consensus_debate_parts.append(f"⚖️ **Active Debates:** {len(active_debates)} discussion points")
+
+            if consensus_debate_parts:
+                embed_fields.append({
+                    "name": "🤝 Consensus & Discussions",
+                    "value": "\n".join(consensus_debate_parts),
+                    "inline": False
+                })
+
+            # Execution Readiness
+            if execution_readiness:
+                embed_fields.append({
+                    "name": "⚡ Execution Readiness",
+                    "value": "\n".join(execution_readiness[:2]) + (f"\n... and {len(execution_readiness)-2} more" if len(execution_readiness) > 2 else ""),
+                    "inline": False
+                })
+
+            # Phase context
+            embed_fields.append({
+                "name": "📊 Phase Context",
+                "value": f"**Current Phase:** {phase_key.replace('_', ' ').title()}\n**Timestamp:** <t:{int(time.time())}:f>",
+                "inline": True
+            })
+
+            # Create and send embed
+            embed = discord.Embed(
+                title="🤖 **Real-Time Comprehensive Debate Summary**",
+                description="\n".join(summary_parts),
+                color=0x3498db,
+                timestamp=datetime.now()
+            )
+
+            for field in embed_fields:
+                embed.add_field(**field)
+
+            embed.set_footer(text="ABC Application - Agent Collaboration Summary")
+
+            await channel.send(embed=embed)
+
+        except Exception as e:
+            # Enhanced fallback with more details
+            try:
+                embed = discord.Embed(
+                    title="🤝 **Debate Summary**",
+                    description=f"Processed {len(responses)} agent responses in {phase_key.replace('_', ' ').title()} phase\nError in detailed analysis: {str(e)[:100]}",
+                    color=0xffa500,
+                    timestamp=datetime.now()
+                )
+                embed.add_field(name="📊 Basic Stats", value=f"**Agents:** {len(set(r['agent'] for r in responses))}\n**Responses:** {len(responses)}", inline=True)
+                await channel.send(embed=embed)
+            except:
+                await channel.send(f"🤝 **Debate Summary:** {len(responses)} agent responses processed in {phase_key} phase")
+
+    async def _post_system_event(self, event_type: str, message: str, details: str = "", embed_data: Optional[Dict[str, Any]] = None):
+        """Post comprehensive real-time system event summaries to Discord."""
+        try:
+            if self.channel and hasattr(self.channel, 'send'):
+                general_channel = cast(discord.TextChannel, self.channel)
+
+                # Enhanced event emojis and colors
+                event_config = {
+                    "workflow_start": {"emoji": "🚀", "color": 0x3498db, "title": "Workflow Initiated"},
+                    "workflow_end": {"emoji": "✅", "color": 0x2ecc71, "title": "Workflow Completed"},
+                    "workflow_pause": {"emoji": "⏸️", "color": 0xf39c12, "title": "Workflow Paused"},
+                    "workflow_resume": {"emoji": "▶️", "color": 0x3498db, "title": "Workflow Resumed"},
+                    "phase_start": {"emoji": "📊", "color": 0x9b59b6, "title": "Phase Started"},
+                    "phase_end": {"emoji": "🎯", "color": 0x2ecc71, "title": "Phase Completed"},
+                    "agent_init": {"emoji": "🤖", "color": 0x1abc9c, "title": "Agent Initialization"},
+                    "agent_error": {"emoji": "⚠️", "color": 0xe74c3c, "title": "Agent Error"},
+                    "health_check": {"emoji": "🔍", "color": 0x95a5a6, "title": "Health Check"},
+                    "trade_alert": {"emoji": "🚨", "color": 0xe67e22, "title": "Trade Alert"},
+                    "data_update": {"emoji": "📈", "color": 0x27ae60, "title": "Data Update"},
+                    "error": {"emoji": "❌", "color": 0xc0392b, "title": "System Error"},
+                    "success": {"emoji": "✅", "color": 0x27ae60, "title": "Success"},
+                    "warning": {"emoji": "⚠️", "color": 0xf39c12, "title": "Warning"},
+                    "info": {"emoji": "ℹ️", "color": 0x3498db, "title": "Information"}
+                }
+
+                config = event_config.get(event_type, {"emoji": "ℹ️", "color": 0x95a5a6, "title": "System Event"})
+
+                # Create embed for comprehensive events
+                embed = discord.Embed(
+                    title=f"{config['emoji']} **{config['title']}**",
+                    description=f"**{message}**",
+                    color=config['color'],
+                    timestamp=datetime.now()
+                )
+
+                if details:
+                    embed.add_field(name="📋 Details", value=details[:1000], inline=False)
+
+                # Add embed data if provided
+                if embed_data:
+                    for key, value in embed_data.items():
+                        if isinstance(value, dict):
+                            # Handle nested data
+                            formatted_value = "\n".join([f"• {k}: {v}" for k, v in value.items()][:5])
+                        elif isinstance(value, list):
+                            formatted_value = "\n".join([f"• {item}" for item in value][:5])
+                        else:
+                            formatted_value = str(value)
+
+                        if len(formatted_value) > 1000:
+                            formatted_value = formatted_value[:997] + "..."
+
+                        embed.add_field(name=f"📊 {key.replace('_', ' ').title()}", value=formatted_value, inline=True)
+
+                # Add system context
+                embed.add_field(
+                    name="🔧 System Context",
+                    value=f"**Active Agents:** {len(self.agent_instances)}\n**Current Phase:** {getattr(self, 'current_phase', 'None')}\n**Timestamp:** <t:{int(time.time())}:f>",
+                    inline=True
+                )
+
+                embed.set_footer(text="ABC Application - Real-Time System Monitor")
+
+                await general_channel.send(embed=embed)
+
+        except Exception as e:
+            print(f"Failed to post system event: {e}")
+            # Fallback to simple message
+            try:
+                if self.channel and hasattr(self.channel, 'send'):
+                    general_channel = cast(discord.TextChannel, self.channel)
+                    await general_channel.send(f"ℹ️ **System Event:** {message}")
+            except:
+                pass
 
     def _format_response_value(self, key: str, value: Any) -> str:
         """Format individual response values with appropriate Discord markdown"""
@@ -1629,6 +1975,391 @@ class LiveWorkflowOrchestrator:
         # Implement midday specific logic
         await self.execute_phase('active_position_management', "📊 MIDDAY POSITION CHECK")
 
+    async def perform_system_health_check(self):
+        """Perform comprehensive system health check before starting workflows."""
+        print("🔍 Performing system health check...")
+        if self.channel and hasattr(self.channel, 'send'):
+            await self.channel.send("🔍 **System Health Check Starting...**")
+
+        health_issues = []
+        health_warnings = []
+        total_checks = 0
+        passed_checks = 0
+
+        # Check Redis connection
+        total_checks += 1
+        try:
+            import redis
+            r = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
+            r.ping()
+            print("✅ Redis connection: OK")
+            if self.channel and hasattr(self.channel, 'send'):
+                general_channel = cast(discord.TextChannel, self.channel)
+                await general_channel.send("✅ Redis connection: OK")
+            passed_checks += 1
+        except Exception as e:
+            health_issues.append(f"Redis connection failed: {e}")
+
+        # Check TigerBeetle connection
+        total_checks += 1
+        try:
+            # Suppress warnings during TigerBeetle client creation
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                import tigerbeetle as tb
+                client = tb.ClientSync(cluster_id=0, replica_addresses="127.0.0.1:3000")
+            # Just test client creation - don't query to avoid hanging
+            print("✅ TigerBeetle client creation: OK")
+            if self.channel and hasattr(self.channel, 'send'):
+                general_channel = cast(discord.TextChannel, self.channel)
+                await general_channel.send("✅ TigerBeetle client creation: OK")
+            client.close()
+            passed_checks += 1
+        except Exception as e:
+            health_issues.append(f"TigerBeetle connection failed: {e}")
+
+        # Check LangChain imports
+        total_checks += 1
+        try:
+            import langchain
+            import langchain_community
+            import langchain_core
+            print("✅ LangChain imports: OK")
+            if self.channel and hasattr(self.channel, 'send'):
+                general_channel = cast(discord.TextChannel, self.channel)
+                await general_channel.send("✅ LangChain imports: OK")
+            passed_checks += 1
+        except ImportError as e:
+            health_warnings.append(f"LangChain import warning: {e}")
+
+        # Check IBKR connection (actual connection test via bridge)
+        total_checks += 1
+        try:
+            from src.integrations.nautilus_ibkr_bridge import get_nautilus_ibkr_bridge
+            bridge = get_nautilus_ibkr_bridge()
+            # Test connection by attempting to get positions with timeout
+            positions = await asyncio.wait_for(bridge.get_positions(), timeout=5.0)
+            print("✅ IBKR connection: OK")
+            if self.channel and hasattr(self.channel, 'send'):
+                general_channel = cast(discord.TextChannel, self.channel)
+                await general_channel.send("✅ IBKR connection: OK")
+            passed_checks += 1
+        except asyncio.TimeoutError:
+            health_warnings.append("IBKR connection timeout")
+        except Exception as e:
+            health_warnings.append(f"IBKR connection failed: {e}")
+
+        # Check MarketDataApp API
+        total_checks += 1
+        try:
+            from src.utils.vault_client import get_vault_secret
+            api_key = get_vault_secret('MARKETDATAAPP_API_KEY')
+            if api_key:
+                print("✅ MarketDataApp API key available")
+                if self.channel and hasattr(self.channel, 'send'):
+                    general_channel = cast(discord.TextChannel, self.channel)
+                    await general_channel.send("✅ MarketDataApp API key available")
+                passed_checks += 1
+            else:
+                health_warnings.append("MarketDataApp API key not configured")
+        except Exception as e:
+            health_warnings.append(f"MarketDataApp API check failed: {e}")
+
+        # Check FinanceDatabase
+        total_checks += 1
+        try:
+            import financedatabase as fd
+            print("✅ FinanceDatabase import: OK")
+            if self.channel and hasattr(self.channel, 'send'):
+                general_channel = cast(discord.TextChannel, self.channel)
+                await general_channel.send("✅ FinanceDatabase import: OK")
+            passed_checks += 1
+        except ImportError as e:
+            health_warnings.append(f"FinanceDatabase import failed: {e}")
+
+        # Check Stable-Baselines3
+        total_checks += 1
+        try:
+            import stable_baselines3
+            print("✅ Stable-Baselines3 import: OK")
+            if self.channel and hasattr(self.channel, 'send'):
+                general_channel = cast(discord.TextChannel, self.channel)
+                await general_channel.send("✅ Stable-Baselines3 import: OK")
+            passed_checks += 1
+        except ImportError as e:
+            health_warnings.append(f"Stable-Baselines3 import failed: {e}")
+
+        # Check scikit-learn
+        total_checks += 1
+        try:
+            import sklearn
+            print("✅ scikit-learn import: OK")
+            if self.channel and hasattr(self.channel, 'send'):
+                general_channel = cast(discord.TextChannel, self.channel)
+                await general_channel.send("✅ scikit-learn import: OK")
+            passed_checks += 1
+        except ImportError as e:
+            health_warnings.append(f"scikit-learn import failed: {e}")
+
+        # Check TensorFlow
+        total_checks += 1
+        try:
+            import tensorflow as tf
+            print("✅ TensorFlow import: OK")
+            if self.channel and hasattr(self.channel, 'send'):
+                general_channel = cast(discord.TextChannel, self.channel)
+                await general_channel.send("✅ TensorFlow import: OK")
+            passed_checks += 1
+        except ImportError as e:
+            health_warnings.append(f"TensorFlow import failed: {e}")
+
+        # Check yfinance
+        total_checks += 1
+        try:
+            import yfinance as yf
+            print("✅ yfinance import: OK")
+            if self.channel and hasattr(self.channel, 'send'):
+                general_channel = cast(discord.TextChannel, self.channel)
+                await general_channel.send("✅ yfinance import: OK")
+            passed_checks += 1
+        except ImportError as e:
+            health_warnings.append(f"yfinance import failed: {e}")
+
+        # Check FRED API
+        total_checks += 1
+        try:
+            import fredapi
+            print("✅ FRED API import: OK")
+            if self.channel and hasattr(self.channel, 'send'):
+                general_channel = cast(discord.TextChannel, self.channel)
+                await general_channel.send("✅ FRED API import: OK")
+            passed_checks += 1
+        except ImportError as e:
+            health_warnings.append(f"FRED API import failed: {e}")
+
+        # Check tools count
+        tool_count = 0
+        try:
+            from src.utils.tools import get_available_tools
+            tools = get_available_tools()
+            tool_count = len(tools)
+            print(f"🛠️ Tools available: {tool_count}")
+            if self.channel and hasattr(self.channel, 'send'):
+                general_channel = cast(discord.TextChannel, self.channel)
+                await general_channel.send(f"🛠️ Tools available: {tool_count}")
+            if tool_count < 10:  # Arbitrary minimum
+                health_warnings.append(f"Low tool count: {tool_count} tools available")
+        except Exception as e:
+            health_issues.append(f"Tools check failed: {e}")
+
+        # Check AlertManager error queue
+        total_checks += 1
+        try:
+            alert_health = alert_manager.check_health()
+            recent_critical = alert_health.get('recent_critical_alerts', 0)
+            recent_errors = alert_health.get('recent_error_alerts', 0)
+
+            if recent_critical > 5:
+                health_issues.append(f"High critical alert count: {recent_critical} in last 50 alerts")
+                # Auto-pause workflow
+                self.workflow_active = False
+                print("🚨 Auto-pausing workflow due to high alert count")
+            elif recent_errors > 10:
+                health_warnings.append(f"High error alert count: {recent_errors} in last 50 alerts")
+            else:
+                print("✅ Alert system: OK")
+                passed_checks += 1
+        except Exception as e:
+            health_warnings.append(f"Alert system check failed: {e}")
+
+        # Report connection stability
+        stability_ratio = f"{passed_checks}/{total_checks}"
+        alert_status = "ALERTING" if any("High critical alert count" in issue for issue in health_issues) else "NORMAL"
+
+        if passed_checks == total_checks and alert_status == "NORMAL":
+            print(f"🎯 System Stability: {stability_ratio} dependencies stable - FULLY OPERATIONAL")
+            if self.channel and hasattr(self.channel, 'send'):
+                general_channel = cast(discord.TextChannel, self.channel)
+                await general_channel.send(f"🎯 **System Stability: {stability_ratio} dependencies stable - FULLY OPERATIONAL**")
+        elif passed_checks >= total_checks * 0.8 and alert_status != "ALERTING":
+            print(f"⚠️ System Stability: {stability_ratio} dependencies stable - MOSTLY OPERATIONAL")
+            if self.channel and hasattr(self.channel, 'send'):
+                general_channel = cast(discord.TextChannel, self.channel)
+                await general_channel.send(f"⚠️ **System Stability: {stability_ratio} dependencies stable - MOSTLY OPERATIONAL**")
+        else:
+            status_msg = f"❌ System Stability: {stability_ratio} dependencies stable - LIMITED OPERATIONALITY"
+            if alert_status == "ALERTING":
+                status_msg += " (ALERTING - Workflow Auto-Paused)"
+            print(status_msg)
+            if self.channel and hasattr(self.channel, 'send'):
+                general_channel = cast(discord.TextChannel, self.channel)
+                await general_channel.send(f"**{status_msg}**")
+
+        # Report results
+        if health_issues:
+            print("❌ Critical health issues found:")
+            if self.channel and hasattr(self.channel, 'send'):
+                general_channel = cast(discord.TextChannel, self.channel)
+                await general_channel.send("❌ **Critical health issues found:**")
+                for issue in health_issues:
+                    await general_channel.send(f"  - {issue}")
+            for issue in health_issues:
+                print(f"  - {issue}")
+        else:
+            print("✅ All critical dependencies OK")
+            if self.channel and hasattr(self.channel, 'send'):
+                general_channel = cast(discord.TextChannel, self.channel)
+                await general_channel.send("✅ **All critical dependencies OK**")
+
+        if health_warnings:
+            print("⚠️ Health warnings:")
+            if self.channel and hasattr(self.channel, 'send'):
+                general_channel = cast(discord.TextChannel, self.channel)
+                await general_channel.send("⚠️ **Health warnings:**")
+                for warning in health_warnings:
+                    await general_channel.send(f"  - {warning}")
+            for warning in health_warnings:
+                print(f"  - {warning}")
+
+        # Post system event for health check completion
+        total_checks = 11  # Based on health check implementation
+        passed_checks = total_checks - len(health_issues) - len(health_warnings)
+        health_status = "success" if passed_checks == total_checks else "warning" if len(health_issues) == 0 else "error"
+
+        await self._post_system_event(
+            health_status,
+            f"System Health Check Completed ({passed_checks}/{total_checks} systems operational)",
+            f"Issues: {len(health_issues)}, Warnings: {len(health_warnings)}",
+            {
+                "stability_ratio": f"{passed_checks}/{total_checks}",
+                "critical_issues": len(health_issues),
+                "warnings": len(health_warnings),
+                "operational_status": "FULLY OPERATIONAL" if passed_checks == total_checks else "DEGRADED" if len(health_issues) == 0 else "CRITICAL"
+            }
+        )
+
+        return health_issues, health_warnings
+
+    async def recheck_errors(self):
+        """
+        On-demand error queue checking for manual health verification.
+        Returns alert health status and triggers notifications if needed.
+        """
+        try:
+            alert_health = self.alert_manager.check_health()
+            critical_count = alert_health.get('recent_critical_alerts', 0)
+            error_count = alert_health.get('recent_error_alerts', 0)
+
+            if critical_count > 5:
+                self.workflow_active = False
+                self.alert_manager.critical(
+                    Exception(f"System auto-paused due to {critical_count} critical alerts in queue"),
+                    {
+                        "action": "workflow_paused",
+                        "critical_alerts": critical_count,
+                        "total_errors": error_count
+                    },
+                    "orchestrator"
+                )
+
+            return {
+                "alert_status": "ALERTING" if critical_count > 0 else "NORMAL",
+                "critical_count": critical_count,
+                "error_count": error_count,
+                "workflow_active": self.workflow_active
+            }
+
+        except Exception as e:
+            self.alert_manager.critical(
+                Exception(f"Failed to recheck error queue: {str(e)}"),
+                {"error_type": type(e).__name__},
+                "orchestrator"
+            )
+            return {
+                "alert_status": "ERROR",
+                "critical_count": 0,
+                "error_count": 0,
+                "workflow_active": self.workflow_active
+            }
+
+    async def send_health_status(self, message):
+        """Send system health status as a Discord embed."""
+        try:
+            # Perform health check
+            health_issues, health_warnings = await self.perform_system_health_check()
+
+            # Calculate stability metrics
+            total_checks = 11  # Based on the health check method
+            passed_checks = total_checks - len(health_issues) - len(health_warnings)
+            stability_ratio = f"{passed_checks}/{total_checks}"
+
+            # Determine status color and message
+            if passed_checks == total_checks:
+                color = 0x00FF00  # Green
+                status_msg = "🎯 FULLY OPERATIONAL"
+            elif passed_checks >= total_checks * 0.8:
+                color = 0xFFFF00  # Yellow
+                status_msg = "⚠️ MOSTLY OPERATIONAL"
+            else:
+                color = 0xFF0000  # Red
+                status_msg = "❌ LIMITED OPERATIONALITY"
+
+            # Create embed
+            embed = discord.Embed(
+                title="🔍 System Health Status",
+                description=f"**Stability:** {stability_ratio} dependencies stable\n**Status:** {status_msg}",
+                color=color,
+                timestamp=datetime.now()
+            )
+
+            # Add critical issues field
+            if health_issues:
+                issues_text = "\n".join(f"❌ {issue}" for issue in health_issues[:5])  # Limit to 5
+                if len(health_issues) > 5:
+                    issues_text += f"\n... and {len(health_issues) - 5} more"
+                embed.add_field(name="Critical Issues", value=issues_text, inline=False)
+            else:
+                embed.add_field(name="Critical Issues", value="✅ None found", inline=False)
+
+            # Add warnings field
+            if health_warnings:
+                warnings_text = "\n".join(f"⚠️ {warning}" for warning in health_warnings[:5])  # Limit to 5
+                if len(health_warnings) > 5:
+                    warnings_text += f"\n... and {len(health_warnings) - 5} more"
+                embed.add_field(name="Warnings", value=warnings_text, inline=False)
+            else:
+                embed.add_field(name="Warnings", value="✅ None found", inline=False)
+
+            # Add workflow status
+            workflow_status = "🟢 Active" if self.workflow_active else "🔴 Inactive"
+            monitoring_status = "🟢 Active" if getattr(self, 'monitoring_active', False) else "🔴 Inactive"
+            embed.add_field(
+                name="Workflow Status",
+                value=f"**Main Workflow:** {workflow_status}\n**Trade Monitoring:** {monitoring_status}",
+                inline=True
+            )
+
+            # Add agent count
+            agent_count = len(self.agents) if hasattr(self, 'agents') else 0
+            embed.add_field(
+                name="Agents",
+                value=f"**Active Agents:** {agent_count}",
+                inline=True
+            )
+
+            # Add timestamp
+            embed.set_footer(text="ABC Application Health Check")
+
+            await message.channel.send(embed=embed)
+
+        except Exception as e:
+            error_embed = discord.Embed(
+                title="❌ Health Check Error",
+                description=f"Failed to perform health check: {str(e)}",
+                color=0xFF0000
+            )
+            await message.channel.send(embed=error_embed)
+
     async def initialize_discord_client(self):
         """Initialize Discord client for live orchestration"""
         intents = discord.Intents.default()
@@ -1681,13 +2412,16 @@ class LiveWorkflowOrchestrator:
                                 print(f"🚨 Alerts channel configured: #{self.alerts_channel.name}")
                             else:
                                 print(f"⚠️ Alerts channel ID {alerts_channel_id} not found")
-                                await general_channel.send("⚠️ **Configuration Warning**: Alerts channel not found. Trade alerts will use general channel.")
+                                if self.channel and isinstance(self.channel, discord.TextChannel):
+                                    await self.channel.send("⚠️ **Configuration Warning**: Alerts channel not found. Trade alerts will use general channel.")
                         except ValueError:
                             print(f"⚠️ Invalid alerts channel ID: {alerts_channel_id}")
-                            await general_channel.send("⚠️ **Configuration Warning**: Invalid alerts channel ID. Trade alerts will use general channel.")
+                            if self.channel and isinstance(self.channel, discord.TextChannel):
+                                await self.channel.send("⚠️ **Configuration Warning**: Invalid alerts channel ID. Trade alerts will use general channel.")
                     else:
                         print("⚠️ DISCORD_ALERTS_CHANNEL_ID not set, trade alerts will go to general channel")
-                        await general_channel.send("⚠️ **Configuration Warning**: DISCORD_ALERTS_CHANNEL_ID not set. Trade alerts will use general channel.")
+                        if self.channel and isinstance(self.channel, discord.TextChannel):
+                            await self.channel.send("⚠️ **Configuration Warning**: DISCORD_ALERTS_CHANNEL_ID not set. Trade alerts will use general channel.")
 
                     # Set up ranked trades channel for trade proposals
                     ranked_trades_channel_id = os.getenv('DISCORD_RANKED_TRADES_CHANNEL_ID')
@@ -1698,13 +2432,16 @@ class LiveWorkflowOrchestrator:
                                 print(f"📊 Ranked trades channel configured: #{self.ranked_trades_channel.name}")
                             else:
                                 print(f"⚠️ Ranked trades channel ID {ranked_trades_channel_id} not found")
-                                await general_channel.send("⚠️ **Configuration Warning**: Ranked trades channel not found. Trade proposals will use general channel.")
+                                if self.channel and isinstance(self.channel, discord.TextChannel):
+                                    await self.channel.send("⚠️ **Configuration Warning**: Ranked trades channel not found. Trade proposals will use general channel.")
                         except ValueError:
                             print(f"⚠️ Invalid ranked trades channel ID: {ranked_trades_channel_id}")
-                            await general_channel.send("⚠️ **Configuration Warning**: Invalid ranked trades channel ID. Trade proposals will use general channel.")
+                            if self.channel and isinstance(self.channel, discord.TextChannel):
+                                await self.channel.send("⚠️ **Configuration Warning**: Invalid ranked trades channel ID. Trade proposals will use general channel.")
                     else:
                         print("⚠️ DISCORD_RANKED_TRADES_CHANNEL_ID not set, ranked trades will go to general channel")
-                        await general_channel.send("⚠️ **Configuration Warning**: DISCORD_RANKED_TRADES_CHANNEL_ID not set. Trade proposals will use general channel.")
+                        if self.channel and isinstance(self.channel, discord.TextChannel):
+                            await self.channel.send("⚠️ **Configuration Warning**: DISCORD_RANKED_TRADES_CHANNEL_ID not set. Trade proposals will use general channel.")
 
                     if not self.channel and guild.text_channels:
                         self.channel = guild.text_channels[0]
@@ -1721,17 +2458,38 @@ class LiveWorkflowOrchestrator:
                         self.channel = guild.text_channels[0]
                         print(f"📝 Using default general channel: #{self.channel.name}")
 
+                    # Initialize agents after Discord connection
+                    if not hasattr(self, 'agents_initialized') or not self.agents_initialized:
+                        print("🤖 Initializing agent instances...")
+                        try:
+                            await self.initialize_agents_async()
+                            print(f"✅ Agent initialization complete: {len(self.agent_instances)} agents ready")
+                            self.agents_initialized = True
+                        except Exception as e:
+                            alert_manager.critical(e, {"component": "agent_initialization"}, "orchestrator")
+
+                    # Perform system health check
+                    health_issues, health_warnings = await self.perform_system_health_check()
+
+                    # Report health issues to Discord if critical
+                    if isinstance(self.channel, discord.TextChannel):
+                        if health_issues:
+                            issues_text = "\n".join(f"• {issue}" for issue in health_issues)
+                            await self.channel.send(f"❌ **Critical Health Issues Detected:**\n{issues_text}\n\n⚠️ System may not function properly. Please resolve these issues before starting workflows.")
+                        if health_warnings:
+                            warnings_text = "\n".join(f"• {warning}" for warning in health_warnings)
+                            await self.channel.send(f"⚠️ **Health Warnings:**\n{warnings_text}\n\n💡 Some features may be limited.")
+
                     # Announce orchestrator presence
-                    if self.channel and hasattr(self.channel, 'send'):
-                        general_channel = cast(discord.TextChannel, self.channel)
+                    if isinstance(self.channel, discord.TextChannel):
                         channel_status = "✅ Channel separation active" if self.alerts_channel else "⚠️ Alerts channel not configured"
                         ranked_trades_status = "✅ Ranked trades channel active" if self.ranked_trades_channel else "⚠️ Ranked trades channel not configured"
-                        await general_channel.send("**Live Workflow Orchestrator Online**\nReady to begin iterative reasoning workflow with unified agent coordination. Type `!start_workflow` to begin analysis, `!start_premarket_analysis` for premarket prep, `!start_market_open_execution` for fast execution, or `!start_trade_monitoring` for position monitoring!")
-                        await general_channel.send(f"📢 **Channel Configuration:** {channel_status}")
-                        if self.alerts_channel:
-                            await general_channel.send(f"🚨 Trade alerts will be sent to: #{self.alerts_channel.name}")
-                        if self.ranked_trades_channel:
-                            await general_channel.send(f"📊 Ranked trade proposals will be sent to: #{self.ranked_trades_channel.name}")
+                        await self.channel.send("**Live Workflow Orchestrator Online**\nReady to begin iterative reasoning workflow with unified agent coordination. Type `!start_workflow` to begin analysis, `!start_premarket_analysis` for premarket prep, `!start_market_open_execution` for fast execution, or `!start_trade_monitoring` for position monitoring!")
+                        await self.channel.send(f"📢 **Channel Configuration:** {channel_status}")
+                        if self.alerts_channel and isinstance(self.alerts_channel, discord.TextChannel):
+                            await self.channel.send(f"🚨 Trade alerts will be sent to: #{self.alerts_channel.name}")
+                        if self.ranked_trades_channel and isinstance(self.ranked_trades_channel, discord.TextChannel):
+                            await self.channel.send(f"📊 Ranked trade proposals will be sent to: #{self.ranked_trades_channel.name}")
 
                     # Signal that Discord is ready
                     self.discord_ready.set()
@@ -1788,6 +2546,10 @@ class LiveWorkflowOrchestrator:
 
             if content == "!workflow_status":
                 await self.send_status_update()
+                return
+
+            if content == "!status":
+                await self.send_health_status(message)
                 return
 
             # Handle !share_news command: !share_news <link> [optional description]
@@ -2244,6 +3006,9 @@ Format your response as JSON:
             await channel.send("⚠️ Workflow already active!")
             return
 
+        # Post system event - COMMENTED OUT FOR TROUBLESHOOTING
+        # await self._post_system_event("workflow_start", "Continuous Alpha Discovery Workflow initiated", f"Agents: {len(self.agent_instances)} ready for collaboration")
+
         # Check agent health before starting
         health_status = await self.check_agent_health()
         if health_status['overall_health'] == 'critical':
@@ -2272,11 +3037,10 @@ Format your response as JSON:
 
         await channel.send("**CONTINUOUS ANALYSIS WORKFLOW STARTED**")
         await channel.send("Multi-agent collaborative analysis mode activated.")
-        await channel.send("Human intervention available at any time during the process.")
-
-        # CONTINUOUS ALPHA DISCOVERY LOOP - No more artificial phase barriers!
+       
+       
         alpha_hunt_cycles = 0
-        max_cycles = 10  # Prevent infinite loops
+        max_cycles = 10  # Prevent infinite loops this may need to be configurable with scheduler
 
         while self.workflow_active and alpha_hunt_cycles < max_cycles:
             alpha_hunt_cycles += 1
@@ -2289,25 +3053,25 @@ Format your response as JSON:
             self.iteration_in_progress = True
             logger.info(f"Starting iteration {alpha_hunt_cycles} - human inputs will now be queued")
 
-            # Phase 1: CONTINUOUS ALPHA DISCOVERY - All agents hunt together
+            # Phase 1: SYSTEMATIC MARKET SURVEILLANCE - Deep dive
             await self.execute_systematic_market_surveillance(channel)
 
-            # Phase 2: PARALLEL AGENT COLLABORATION - Build on each other's insights
+            # Phase 2: PARALLEL COLLABORATION - Agents synergize
             await self.execute_parallel_collaboration(channel)
 
-            # Phase 3: EXCITED ALPHA STORM - Maximum enthusiasm!
+            # Phase 3: QUANTITATIVE OPPORTUNITY VALIDATION - Data-driven checks
             await self.execute_quantitative_opportunity_validation(channel)
 
-            # Phase 4: RAPID CONSENSUS BUILDING - Fast-track to decisions
+            # Phase 4: RAPID CONSENSUS BUILDING - Align on top ideas
             await self.execute_rapid_consensus(channel)
 
-            # Phase 5: SWIFT EXECUTION PREP - Get ready to deploy
+            # Phase 5: PORTFOLIO IMPLEMENTATION PLANNING - Strategy formulation
             await self.execute_portfolio_implementation_planning(channel)
 
-            # Phase 6: ENTHUSIASTIC LEARNING - Celebrate and improve
+            # Phase 6: PERFORMANCE ANALYTICS & REFINEMENT - Learn and adapt
             await self.execute_performance_analytics_and_refinement(channel)
 
-            # Phase 7: ALPHA HUNTING SUPERVISION - Final authority
+            # Phase 7: CHIEF INVESTMENT OFFICER OVERSIGHT - Final review
             execution_decision = await self.execute_chief_investment_officer_oversight(channel)
             
             # Mark iteration as complete (inputs will be processed immediately until next iteration starts)
@@ -2491,7 +3255,7 @@ Format your response as JSON:
         """Check if all monitored positions have been closed"""
         try:
             # Get current positions from IBKR
-            from integrations.ibkr_connector import get_ibkr_connector
+            from src.integrations.ibkr_connector import get_ibkr_connector
             ibkr_connector = get_ibkr_connector()
 
             positions = await ibkr_connector.get_positions()
@@ -2531,6 +3295,11 @@ Format your response as JSON:
         """Execute a single phase of the workflow"""
         if not self.channel:
             print(f"❌ No channel available for phase {phase_key}")
+            self.alert_manager.error(
+                Exception(f"No Discord channel available for phase execution: {phase_key}"),
+                {"phase": phase_key, "phase_title": phase_title},
+                "orchestrator"
+            )
             return
 
         general_channel = cast(discord.TextChannel, self.channel)
@@ -2593,6 +3362,11 @@ Format your response as JSON:
                 await general_channel.send(f"✅ **Phase {phase_key}**: {final_responses} responses received")
             else:
                 await general_channel.send(f"⏰ **Phase {phase_key}**: No responses within {max_wait_time}s")
+                self.alert_manager.warning(
+                    f"No agent responses received for phase: {phase_key}",
+                    {"phase": phase_key, "phase_title": phase_title, "timeout_seconds": max_wait_time},
+                    "orchestrator"
+                )
 
         # Phase complete
         await general_channel.send(f"✅ **{phase_title} Complete!**")
@@ -2609,6 +3383,14 @@ Format your response as JSON:
         self.workflow_active = False
         await channel.send("Workflow paused. Type `!resume_workflow` to continue.")
 
+        # Post system event
+        await self._post_system_event(
+            "workflow_pause",
+            "Workflow Execution Paused",
+            "Manual intervention requested. Awaiting resume command.",
+            {"current_phase": getattr(self, 'current_phase', 'Unknown'), "active_agents": len(self.agent_instances)}
+        )
+
     async def resume_workflow(self):
         """Resume a paused workflow"""
         if self.channel is None:
@@ -2618,6 +3400,15 @@ Format your response as JSON:
         if not self.workflow_active:
             self.workflow_active = True
             await channel.send("Workflow resumed. Continuing from current phase.")
+
+            # Post system event
+            await self._post_system_event(
+                "workflow_resume",
+                "Workflow Execution Resumed",
+                "Continuing from paused state with full agent collaboration.",
+                {"current_phase": getattr(self, 'current_phase', 'Unknown'), "active_agents": len(self.agent_instances)}
+            )
+
             # Could implement logic to resume from current phase
 
     async def stop_workflow(self):
@@ -2730,7 +3521,11 @@ Format your response as JSON:
 
     async def execute_systematic_market_surveillance(self, channel):
         """Phase 1: CONTINUOUS ALPHA DISCOVERY - All agents hunt together"""
-        await channel.send("**PHASE 1: MARKET ANALYSIS**")
+        phase_title = "PHASE 1: MARKET ANALYSIS"
+        phase_key = "alpha_discovery"
+
+        await channel.send(f"\n{phase_title}")
+        await channel.send("─" * 50)
         await channel.send("Scanning markets for alpha opportunities across all asset classes.")
 
         # Execute parallel commands for alpha discovery
@@ -2741,12 +3536,36 @@ Format your response as JSON:
             "Assess relative strength across sectors and identify potential opportunities."
         ]
 
-        max_wait_time = self.phase_delays.get("systematic_market_surveillance", 86400)
-        await self._execute_commands_parallel_old(alpha_commands, channel, "alpha_discovery", max_wait_time)
+        # ENHANCED PARALLEL EXECUTION: Share complete workflow context with all agents
+        await self._share_full_workflow_context(phase_key, phase_title)
+
+        # POSITION AWARENESS: Include current position data in context
+        await self._share_position_context()
+
+        # SEND ALL COMMANDS TO ALL AGENTS SIMULTANEOUSLY for maximum collaboration
+        agent_responses = await self._execute_commands_parallel(alpha_commands, phase_key)
+        self.responses_collected.extend(agent_responses)
+
+        # Announce parallel execution with clear separation
+        await channel.send(f"\n🎯 **PARALLEL EXECUTION:** {len(alpha_commands)} commands sent to {len(self.agent_instances)} agents simultaneously!")
+        await channel.send("🤝 **Agents collaborating with full shared context - no silos!**")
+
+        # Format and display agent responses with enhanced readability
+        if agent_responses:
+            await self._present_agent_responses_enhanced(channel, agent_responses, phase_key)
+        else:
+            await channel.send("\n⏰ **No agent responses received** - but they're thinking hard! 🤔")
+
+        await channel.send(f"\n✅ **{phase_title} Complete! Alpha discovered!** 🎉")
+        await asyncio.sleep(2)  # Reduced from 3 to speed up
 
     async def execute_parallel_collaboration(self, channel):
         """Phase 2: PARALLEL AGENT COLLABORATION - Build on each other's insights"""
-        await channel.send("**PHASE 2: COLLABORATIVE ANALYSIS**")
+        phase_title = "PHASE 2: COLLABORATIVE ANALYSIS"
+        phase_key = "parallel_collaboration"
+
+        await channel.send(f"\n{phase_title}")
+        await channel.send("─" * 50)
         await channel.send("Agents integrating findings and validating signals across methodologies.")
 
         # Execute collaborative commands
@@ -2757,12 +3576,36 @@ Format your response as JSON:
             "Prioritize opportunities based on combined analytical perspectives."
         ]
 
-        max_wait_time = self.phase_delays.get("multi_strategy_opportunity_synthesis", 86400)
-        await self._execute_commands_parallel_old(collab_commands, channel, "parallel_collaboration", max_wait_time)
+        # ENHANCED PARALLEL EXECUTION: Share complete workflow context with all agents
+        await self._share_full_workflow_context(phase_key, phase_title)
+
+        # POSITION AWARENESS: Include current position data in context
+        await self._share_position_context()
+
+        # SEND ALL COMMANDS TO ALL AGENTS SIMULTANEOUSLY for maximum collaboration
+        agent_responses = await self._execute_commands_parallel(collab_commands, phase_key)
+        self.responses_collected.extend(agent_responses)
+
+        # Announce parallel execution with clear separation
+        await channel.send(f"\n🎯 **PARALLEL EXECUTION:** {len(collab_commands)} commands sent to {len(self.agent_instances)} agents simultaneously!")
+        await channel.send("🤝 **Agents collaborating with full shared context - no silos!**")
+
+        # Format and display agent responses with enhanced readability
+        if agent_responses:
+            await self._present_agent_responses_enhanced(channel, agent_responses, phase_key)
+        else:
+            await channel.send("\n⏰ **No agent responses received** - but they're thinking hard! 🤔")
+
+        await channel.send(f"\n✅ **{phase_title} Complete! Signals validated!** 🎉")
+        await asyncio.sleep(2)  # Reduced from 3 to speed up
 
     async def execute_quantitative_opportunity_validation(self, channel):
         """Phase 3: OPPORTUNITY ASSESSMENT - Comprehensive evaluation"""
-        await channel.send("**PHASE 3: OPPORTUNITY ASSESSMENT**")
+        phase_title = "PHASE 3: OPPORTUNITY ASSESSMENT"
+        phase_key = "quantitative_opportunity_validation"
+
+        await channel.send(f"\n{phase_title}")
+        await channel.send("─" * 50)
         await channel.send("Conducting detailed evaluation of identified opportunities.")
 
         # Execute assessment commands
@@ -2773,12 +3616,36 @@ Format your response as JSON:
             "Develop execution plans with entry/exit criteria and position sizing."
         ]
 
-        max_wait_time = self.phase_delays.get("quantitative_opportunity_validation", 86400)
-        await self._execute_commands_parallel_old(storm_commands, channel, "quantitative_opportunity_validation", max_wait_time)
+        # ENHANCED PARALLEL EXECUTION: Share complete workflow context with all agents
+        await self._share_full_workflow_context(phase_key, phase_title)
+
+        # POSITION AWARENESS: Include current position data in context
+        await self._share_position_context()
+
+        # SEND ALL COMMANDS TO ALL AGENTS SIMULTANEOUSLY for maximum collaboration
+        agent_responses = await self._execute_commands_parallel(storm_commands, phase_key)
+        self.responses_collected.extend(agent_responses)
+
+        # Announce parallel execution with clear separation
+        await channel.send(f"\n🎯 **PARALLEL EXECUTION:** {len(storm_commands)} commands sent to {len(self.agent_instances)} agents simultaneously!")
+        await channel.send("🤝 **Agents collaborating with full shared context - no silos!**")
+
+        # Format and display agent responses with enhanced readability
+        if agent_responses:
+            await self._present_agent_responses_enhanced(channel, agent_responses, phase_key)
+        else:
+            await channel.send("\n⏰ **No agent responses received** - but they're thinking hard! 🤔")
+
+        await channel.send(f"\n✅ **{phase_title} Complete! Opportunities validated!** 🎉")
+        await asyncio.sleep(2)  # Reduced from 3 to speed up
 
     async def execute_rapid_consensus(self, channel):
         """Phase 4: CONSENSUS BUILDING - Fast-track to decisions"""
-        await channel.send("**PHASE 4: CONSENSUS BUILDING**")
+        phase_title = "PHASE 4: CONSENSUS BUILDING"
+        phase_key = "rapid_consensus"
+
+        await channel.send(f"\n{phase_title}")
+        await channel.send("─" * 50)
         await channel.send("Building consensus on opportunities and prioritizing actions.")
 
         # Execute consensus commands
@@ -2789,12 +3656,36 @@ Format your response as JSON:
             "Refine trade structures and optimize risk management parameters."
         ]
 
-        max_wait_time = self.phase_delays.get("investment_committee_review", 86400)
-        await self._execute_commands_parallel_old(consensus_commands, channel, "rapid_consensus", max_wait_time)
+        # ENHANCED PARALLEL EXECUTION: Share complete workflow context with all agents
+        await self._share_full_workflow_context(phase_key, phase_title)
+
+        # POSITION AWARENESS: Include current position data in context
+        await self._share_position_context()
+
+        # SEND ALL COMMANDS TO ALL AGENTS SIMULTANEOUSLY for maximum collaboration
+        agent_responses = await self._execute_commands_parallel(consensus_commands, phase_key)
+        self.responses_collected.extend(agent_responses)
+
+        # Announce parallel execution with clear separation
+        await channel.send(f"\n🎯 **PARALLEL EXECUTION:** {len(consensus_commands)} commands sent to {len(self.agent_instances)} agents simultaneously!")
+        await channel.send("🤝 **Agents collaborating with full shared context - no silos!**")
+
+        # Format and display agent responses with enhanced readability
+        if agent_responses:
+            await self._present_agent_responses_enhanced(channel, agent_responses, phase_key)
+        else:
+            await channel.send("\n⏰ **No agent responses received** - but they're thinking hard! 🤔")
+
+        await channel.send(f"\n✅ **{phase_title} Complete! Consensus reached!** 🎉")
+        await asyncio.sleep(2)  # Reduced from 3 to speed up
 
     async def execute_portfolio_implementation_planning(self, channel):
         """Phase 5: EXECUTION PREPARATION - Get ready to deploy"""
-        await channel.send("**PHASE 5: EXECUTION PREPARATION**")
+        phase_title = "PHASE 5: EXECUTION PREPARATION"
+        phase_key = "portfolio_implementation_planning"
+
+        await channel.send(f"\n{phase_title}")
+        await channel.send("─" * 50)
         await channel.send("Preparing for trade execution with comprehensive risk management.")
 
         # Execute preparation commands
@@ -2805,12 +3696,36 @@ Format your response as JSON:
             "Prepare detailed execution playbook with all trade parameters."
         ]
 
-        max_wait_time = self.phase_delays.get("portfolio_implementation_planning", 86400)
-        await self._execute_commands_parallel_old(prep_commands, channel, "portfolio_implementation_planning", max_wait_time)
+        # ENHANCED PARALLEL EXECUTION: Share complete workflow context with all agents
+        await self._share_full_workflow_context(phase_key, phase_title)
+
+        # POSITION AWARENESS: Include current position data in context
+        await self._share_position_context()
+
+        # SEND ALL COMMANDS TO ALL AGENTS SIMULTANEOUSLY for maximum collaboration
+        agent_responses = await self._execute_commands_parallel(prep_commands, phase_key)
+        self.responses_collected.extend(agent_responses)
+
+        # Announce parallel execution with clear separation
+        await channel.send(f"\n🎯 **PARALLEL EXECUTION:** {len(prep_commands)} commands sent to {len(self.agent_instances)} agents simultaneously!")
+        await channel.send("🤝 **Agents collaborating with full shared context - no silos!**")
+
+        # Format and display agent responses with enhanced readability
+        if agent_responses:
+            await self._present_agent_responses_enhanced(channel, agent_responses, phase_key)
+        else:
+            await channel.send("\n⏰ **No agent responses received** - but they're thinking hard! 🤔")
+
+        await channel.send(f"\n✅ **{phase_title} Complete! Ready for execution!** 🎉")
+        await asyncio.sleep(2)  # Reduced from 3 to speed up
 
     async def execute_performance_analytics_and_refinement(self, channel):
         """Phase 6: PROCESS IMPROVEMENT - Systematic learning"""
-        await channel.send("**PHASE 6: PROCESS IMPROVEMENT**")
+        phase_title = "PHASE 6: PROCESS IMPROVEMENT"
+        phase_key = "performance_analytics_and_refinement"
+
+        await channel.send(f"\n{phase_title}")
+        await channel.send("─" * 50)
         await channel.send("Analyzing performance and identifying optimization opportunities.")
 
         # Execute learning commands
@@ -2821,19 +3736,65 @@ Format your response as JSON:
             "Identify process improvements and develop recommendations for enhanced analysis."
         ]
 
-        max_wait_time = self.phase_delays.get("performance_analytics_and_refinement", 86400)
-        await self._execute_commands_parallel_old(learning_commands, channel, "performance_analytics_and_refinement", max_wait_time)
+        # ENHANCED PARALLEL EXECUTION: Share complete workflow context with all agents
+        await self._share_full_workflow_context(phase_key, phase_title)
+
+        # POSITION AWARENESS: Include current position data in context
+        await self._share_position_context()
+
+        # SEND ALL COMMANDS TO ALL AGENTS SIMULTANEOUSLY for maximum collaboration
+        agent_responses = await self._execute_commands_parallel(learning_commands, phase_key)
+        self.responses_collected.extend(agent_responses)
+
+        # Announce parallel execution with clear separation
+        await channel.send(f"\n🎯 **PARALLEL EXECUTION:** {len(learning_commands)} commands sent to {len(self.agent_instances)} agents simultaneously!")
+        await channel.send("🤝 **Agents collaborating with full shared context - no silos!**")
+
+        # Format and display agent responses with enhanced readability
+        if agent_responses:
+            await self._present_agent_responses_enhanced(channel, agent_responses, phase_key)
+        else:
+            await channel.send("\n⏰ **No agent responses received** - but they're thinking hard! 🤔")
+
+        await channel.send(f"\n✅ **{phase_title} Complete! Process optimized!** 🎉")
+        await asyncio.sleep(2)  # Reduced from 3 to speed up
 
     async def execute_chief_investment_officer_oversight(self, channel):
         """Phase 7: EXECUTIVE OVERSIGHT - Final decision authority"""
-        await channel.send("**PHASE 7: EXECUTIVE OVERSIGHT**")
+        phase_title = "PHASE 7: EXECUTIVE OVERSIGHT"
+        phase_key = "chief_investment_officer_oversight"
+
+        await channel.send(f"\n{phase_title}")
+        await channel.send("─" * 50)
         await channel.send("Final evaluation and execution decision.")
 
         # Execute supervision command
-        supervision_command = "Based on comprehensive analysis, recommend EXECUTE, HOLD, or RESTART. Provide detailed rationale for the recommended course of action considering opportunity quality, risk assessment, and market conditions."
+        supervision_commands = [
+            "Based on comprehensive analysis, recommend EXECUTE, HOLD, or RESTART. Provide detailed rationale for the recommended course of action considering opportunity quality, risk assessment, and market conditions."
+        ]
 
-        max_wait_time = self.phase_delays.get("chief_investment_officer_oversight", 86400)
-        await self._execute_single_command(supervision_command, channel, "chief_investment_officer_oversight", max_wait_time)
+        # ENHANCED PARALLEL EXECUTION: Share complete workflow context with all agents
+        await self._share_full_workflow_context(phase_key, phase_title)
+
+        # POSITION AWARENESS: Include current position data in context
+        await self._share_position_context()
+
+        # SEND COMMAND TO REFLECTION AGENT (Chief Investment Officer role)
+        agent_responses = await self._execute_commands_parallel(supervision_commands, phase_key)
+        self.responses_collected.extend(agent_responses)
+
+        # Announce parallel execution with clear separation
+        await channel.send(f"\n🎯 **PARALLEL EXECUTION:** {len(supervision_commands)} command sent to {len(self.agent_instances)} agents simultaneously!")
+        await channel.send("🤝 **Agents collaborating with full shared context - no silos!**")
+
+        # Format and display agent responses with enhanced readability
+        if agent_responses:
+            await self._present_agent_responses_enhanced(channel, agent_responses, phase_key)
+        else:
+            await channel.send("\n⏰ **No agent responses received** - but they're thinking hard! 🤔")
+
+        await channel.send(f"\n✅ **{phase_title} Complete! Decision made!** 🎉")
+        await asyncio.sleep(2)  # Reduced from 3 to speed up
 
         # Analyze responses for execution decision
         recent_responses = [r for r in self.responses_collected if r.get('phase') == 'chief_investment_officer_oversight']
@@ -3054,13 +4015,11 @@ Format your response as JSON:
         while True:  # Keep trying to reconnect
             try:
                 print("🔧 Initializing Discord client...")
-                await self.initialize_discord_client()
-                
-                # Initialize agents asynchronously
-                print("🤖 Initializing agent instances...")
-                await self.initialize_agents_async()
-                print(f"✅ Agent initialization complete: {len(self.agent_instances)} agents ready")
-                
+                try:
+                    await self.initialize_discord_client()
+                except Exception as e:
+                    alert_manager.critical(e, {"component": "discord_initialization"}, "orchestrator")
+
                 token = get_vault_secret('DISCORD_ORCHESTRATOR_TOKEN')
                 if not token:
                     raise ValueError("❌ DISCORD_ORCHESTRATOR_TOKEN not found")
@@ -3108,6 +4067,13 @@ async def main():
     print("  !stop_monitoring             - Stop monitoring workflow")
     print("  !workflow_status             - Get current status")
     print("💡 You can ask questions or intervene at any time!")
+
+    print("🔍 Checking Discord token...")
+    token = get_vault_secret('DISCORD_ORCHESTRATOR_TOKEN')
+    if token:
+        print(f"✅ Discord token found (length: {len(token)})")
+    else:
+        print("❌ Discord token not found")
 
     orchestrator = LiveWorkflowOrchestrator()
     await orchestrator.run_orchestrator()
