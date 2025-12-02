@@ -213,6 +213,7 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
+.testmondata
 # ABC Application specific exclusions
 # Result files and logs
 results/

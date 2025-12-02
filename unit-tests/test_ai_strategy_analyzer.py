@@ -11,6 +11,7 @@ from unittest.mock import patch, AsyncMock, MagicMock
 from src.agents.strategy_analyzers.ai_strategy_analyzer import AIStrategyAnalyzer
 
 @pytest.mark.asyncio
+@pytest.mark.parallel
 async def test_process_input_basic():
     analyzer = AIStrategyAnalyzer()
     input_data = {'symbols': ['AAPL']}
@@ -25,6 +26,7 @@ async def test_analyze_multi_symbol_ml(mock_api_calls):
     assert isinstance(result, dict)
 
 @pytest.mark.asyncio
+@pytest.mark.parallel
 async def test_generate_ml_alpha_signals():
     analyzer = AIStrategyAnalyzer()
     ml_analysis = {'AAPL': {'aggregate': {'weighted_signal_strength': 0.8, 'signal_consistency': 0.9}}}

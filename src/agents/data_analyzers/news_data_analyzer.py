@@ -681,6 +681,7 @@ class NewsDataAnalyzer(BaseAgent):
         
         return credible_sources.get(source.lower(), 0.5)
 
+<<<<<<< HEAD
     async def _check_content_consistency(self, article: NewsArticle) -> float:
         """
         Check content consistency and factual accuracy.
@@ -962,3 +963,188 @@ class NewsDataAnalyzer(BaseAgent):
             Credibility score 0-1
         """
         credible_sources
+=======
+    async def process_shared_news_link(self, link: str, description: str = "") -> Dict[str, Any]:
+        """
+        Process a news link shared via Discord !share_news command.
+        
+        Fetches the content, analyzes it for market relevance, and returns
+        a structured summary suitable for inclusion in the Data Agent's analysis.
+        
+        Args:
+            link: URL of the news article
+            description: Optional user-provided description
+            
+        Returns:
+            Dict with:
+                - success: bool
+                - summary: str (brief article summary)
+                - sentiment: str (bullish/bearish/neutral)
+                - key_entities: List[str]
+                - market_impact: str (high/medium/low)
+                - error: str (if success is False)
+        """
+        import requests
+        from bs4 import BeautifulSoup
+        
+        logger.info(f"Processing shared news link: {link[:100]}")
+        
+        try:
+            # Fetch the content
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (compatible; ABC-Application NewsAnalyzer/1.0)'
+            }
+            response = requests.get(link, headers=headers, timeout=15, allow_redirects=True)
+            response.raise_for_status()
+            
+            # Parse HTML
+            soup = BeautifulSoup(response.content, 'lxml')
+            
+            # Extract title
+            title = soup.title.string if soup.title else "Unknown Title"
+            
+            # Extract main content
+            article_text = ""
+            for selector in ['article', '.article-content', '.post-content', 
+                           '.entry-content', 'main', '.content']:
+                article = soup.select_one(selector)
+                if article:
+                    for tag in article(['script', 'style', 'nav', 'footer', 'aside']):
+                        tag.decompose()
+                    article_text = article.get_text(separator=' ', strip=True)
+                    break
+            
+            if not article_text and soup.body:
+                for tag in soup.body(['script', 'style', 'nav', 'footer', 'aside', 'header']):
+                    tag.decompose()
+                article_text = soup.body.get_text(separator=' ', strip=True)
+            
+            if not article_text:
+                return {
+                    'success': False,
+                    'error': 'Could not extract content from the page'
+                }
+            
+            # Truncate for LLM
+            content = article_text[:5000]
+            
+            # Analyze with LLM
+            if self.llm:
+                analysis_result = await self._analyze_shared_news_content(
+                    title, content, description, link
+                )
+                
+                # Store in shared memory for other agents
+                await self.store_shared_memory("shared_news", link, {
+                    "link": link,
+                    "title": title,
+                    "description": description,
+                    "analysis": analysis_result,
+                    "timestamp": datetime.now().isoformat()
+                })
+                
+                return analysis_result
+            else:
+                # Basic analysis without LLM
+                return {
+                    'success': True,
+                    'summary': f"News article: {title[:200]}",
+                    'sentiment': 'neutral',
+                    'key_entities': self._extract_basic_entities(content),
+                    'market_impact': 'medium'
+                }
+                
+        except requests.exceptions.Timeout:
+            logger.error(f"Timeout fetching {link}")
+            return {'success': False, 'error': 'Request timed out'}
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Request error for {link}: {e}")
+            return {'success': False, 'error': f'Failed to fetch: {str(e)[:100]}'}
+        except Exception as e:
+            logger.error(f"Error processing shared news: {e}")
+            return {'success': False, 'error': f'Processing error: {str(e)[:100]}'}
+
+    async def _analyze_shared_news_content(self, title: str, content: str, 
+                                          description: str, link: str) -> Dict[str, Any]:
+        """Analyze shared news content using LLM."""
+        import json
+        import re
+        
+        prompt = f"""
+Analyze this news article for market relevance and trading implications:
+
+Title: {title}
+User Note: {description if description else 'None'}
+URL: {link}
+
+Content:
+{content[:3000]}
+
+Provide your analysis as JSON:
+{{
+    "summary": "2-3 sentence summary",
+    "sentiment": "bullish/bearish/neutral",
+    "key_entities": ["company1", "sector1", ...],
+    "market_impact": "high/medium/low",
+    "trading_relevance": "brief note on trading implications"
+}}
+"""
+        
+        try:
+            llm_response = await self.llm.ainvoke(prompt)
+            response_text = llm_response.content if hasattr(llm_response, 'content') else str(llm_response)
+            
+            # Extract JSON
+            json_match = re.search(r'\{[^{}]*\}', response_text, re.DOTALL)
+            if json_match:
+                analysis = json.loads(json_match.group())
+                return {
+                    'success': True,
+                    'summary': analysis.get('summary', f'News: {title[:100]}'),
+                    'sentiment': analysis.get('sentiment', 'neutral'),
+                    'key_entities': analysis.get('key_entities', []),
+                    'market_impact': analysis.get('market_impact', 'medium'),
+                    'trading_relevance': analysis.get('trading_relevance', '')
+                }
+        except Exception as e:
+            logger.warning(f"LLM analysis failed: {e}")
+        
+        # Fallback
+        return {
+            'success': True,
+            'summary': f"News article: {title[:200]}",
+            'sentiment': 'neutral',
+            'key_entities': [],
+            'market_impact': 'medium'
+        }
+
+    def _extract_basic_entities(self, content: str) -> List[str]:
+        """Extract basic entities from content without LLM."""
+        # Simple extraction of capitalized phrases
+        import re
+        entities = set()
+        
+        # Find multi-word capitalized phrases (potential company names)
+        pattern = r'\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+\b'
+        matches = re.findall(pattern, content)
+        for match in matches[:10]:
+            if len(match) > 3:
+                entities.add(match)
+        
+        # Find stock ticker patterns (1-5 uppercase letters)
+        ticker_pattern = r'\b[A-Z]{1,5}\b'
+        tickers = re.findall(ticker_pattern, content)
+        common_words = {'THE', 'AND', 'FOR', 'ARE', 'BUT', 'NOT', 'YOU', 'ALL', 'CAN', 'HAD', 'HER', 'WAS', 'ONE', 'OUR', 'OUT'}
+        for ticker in tickers[:20]:
+            if ticker not in common_words and len(ticker) >= 2:
+                entities.add(ticker)
+        
+        return list(entities)[:10]
+
+# Standalone test (run python src/agents/news_agent.py to verify)
+if __name__ == "__main__":
+    import asyncio
+    agent = NewsDataAnalyzer()
+    result = asyncio.run(agent.process_input({'symbol': 'SPY'}))
+    print("News Agent Test Result:\n", result)
+>>>>>>> copilot/intellectual-iguana
