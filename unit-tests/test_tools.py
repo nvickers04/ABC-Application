@@ -6,7 +6,13 @@ import json
 import tempfile
 import os
 from datetime import datetime, timedelta
-import tweepy
+import pytest
+
+# Handle optional imports
+try:
+    import tweepy
+except ImportError:
+    tweepy = None
 
 # Import tools from src.utils.tools
 from src.utils.tools import (
@@ -39,7 +45,7 @@ class TestCircuitBreaker(unittest.TestCase):
 
     def test_circuit_breaker_failure_then_success(self):
         """Test circuit breaker opens after failures then recovers"""
-        breaker = CircuitBreaker("test", failure_threshold=2, recovery_timeout=1)
+        breaker = CircuitBreaker("test_fail_success", failure_threshold=2, recovery_timeout=1)
 
         def failing_func():
             raise Exception("Test failure")
@@ -56,9 +62,9 @@ class TestCircuitBreaker(unittest.TestCase):
         self.assertEqual(breaker.failure_count, 2)
         self.assertEqual(breaker.state, 'open')
 
-        # Wait for recovery
+        # Wait for recovery (must be longer than recovery_timeout)
         import time
-        time.sleep(0.2)
+        time.sleep(1.2)
 
         def successful_func():
             return "recovered"
@@ -66,24 +72,27 @@ class TestCircuitBreaker(unittest.TestCase):
         result = breaker.call(successful_func)
         self.assertEqual(result, "recovered")
         self.assertEqual(breaker.failure_count, 0)
-        self.assertEqual(breaker.state, 'CLOSED')
+        self.assertEqual(breaker.state, 'closed')  # Use lowercase to match implementation
 
 
 class TestYFinanceDataTool(unittest.TestCase):
     """Test yfinance data fetching tool"""
 
-    @patch('yfinance.download')
-    def test_yfinance_data_success(self, mock_download):
+    @patch('yfinance.Ticker')
+    def test_yfinance_data_success(self, mock_ticker):
         """Test successful yfinance data retrieval"""
         # Create mock data
         dates = pd.date_range('2023-01-01', periods=5)
         data = pd.DataFrame({
-            ('Close', 'AAPL'): [150, 152, 148, 155, 160],
-            ('Volume', 'AAPL'): [1000000, 1200000, 900000, 1100000, 1300000]
+            'Close': [150, 152, 148, 155, 160],
+            'Volume': [1000000, 1200000, 900000, 1100000, 1300000]
         })
-        data.columns = pd.MultiIndex.from_tuples(data.columns)
         data.index = dates
-        mock_download.return_value = data
+        
+        mock_ticker_instance = MagicMock()
+        mock_ticker_instance.history.return_value = data
+        mock_ticker_instance.info = {'marketCap': 2000000000}
+        mock_ticker.return_value = mock_ticker_instance
 
         result = yfinance_data_tool.invoke({"symbol": "AAPL"})
 
@@ -91,10 +100,12 @@ class TestYFinanceDataTool(unittest.TestCase):
         self.assertEqual(result["stock"], "AAPL")
         self.assertIn("latest_price", result)
 
-    @patch('yfinance.download')
-    def test_yfinance_data_empty(self, mock_download):
+    @patch('yfinance.Ticker')
+    def test_yfinance_data_empty(self, mock_ticker):
         """Test yfinance data with empty result"""
-        mock_download.return_value = pd.DataFrame()
+        mock_ticker_instance = MagicMock()
+        mock_ticker_instance.history.return_value = pd.DataFrame()
+        mock_ticker.return_value = mock_ticker_instance
 
         result = yfinance_data_tool.invoke({"symbol": "INVALID"})
 
