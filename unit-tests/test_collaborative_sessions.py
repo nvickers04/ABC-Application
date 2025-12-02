@@ -471,6 +471,12 @@ class TestBaseAgentCollaborativeIntegration:
         import tempfile
         import os
 
+        # Create a concrete implementation for testing
+        class TestAgent(BaseAgent):
+            """Concrete test agent implementation."""
+            async def process_input(self, input_data):
+                return {"status": "success", "data": input_data}
+
         # Create temporary config files
         self.temp_dir = tempfile.mkdtemp()
         self.config_path = os.path.join(self.temp_dir, "test_config.yaml")
@@ -483,8 +489,8 @@ risk:
     max_drawdown: 0.05
 """)
 
-        # Create agent
-        self.agent = BaseAgent(
+        # Create agent using concrete implementation
+        self.agent = TestAgent(
             role="test_agent",
             config_paths={"risk": self.config_path},
             prompt_paths={"base": "base_prompt.txt", "role": "agents/test_agent_prompt.md"}
