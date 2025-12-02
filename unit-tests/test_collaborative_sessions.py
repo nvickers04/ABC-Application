@@ -483,8 +483,13 @@ risk:
     max_drawdown: 0.05
 """)
 
-        # Create agent
-        self.agent = BaseAgent(
+        # Create a concrete test agent subclass that implements abstract methods
+        class ConcreteTestAgent(BaseAgent):
+            async def process_input(self, input_data):
+                return {"status": "success", "data": input_data}
+        
+        # Create agent using concrete class
+        self.agent = ConcreteTestAgent(
             role="test_agent",
             config_paths={"risk": self.config_path},
             prompt_paths={"base": "base_prompt.txt", "role": "agents/test_agent_prompt.md"}
