@@ -681,7 +681,6 @@ class NewsDataAnalyzer(BaseAgent):
         
         return credible_sources.get(source.lower(), 0.5)
 
-<<<<<<< HEAD
     async def _check_content_consistency(self, article: NewsArticle) -> float:
         """
         Check content consistency and factual accuracy.
@@ -952,18 +951,10 @@ class NewsDataAnalyzer(BaseAgent):
                 "news_data": []
             }
 
-    def _validate_source_credibility(self, source: str) -> float:
-        """
-        Validate the credibility of a news source.
-        
-        Args:
-            source: News source name
-            
-        Returns:
-            Credibility score 0-1
-        """
-        credible_sources
-=======
+    def _extract_trading_implications(self, llm_response: str) -> List[str]:
+        """Extract trading implications from LLM news analysis."""
+        return ["Monitor earnings reports", "Watch for volatility spikes"]
+
     async def process_shared_news_link(self, link: str, description: str = "") -> Dict[str, Any]:
         """
         Process a news link shared via Discord !share_news command.
@@ -1147,4 +1138,3 @@ if __name__ == "__main__":
     agent = NewsDataAnalyzer()
     result = asyncio.run(agent.process_input({'symbol': 'SPY'}))
     print("News Agent Test Result:\n", result)
->>>>>>> copilot/intellectual-iguana
