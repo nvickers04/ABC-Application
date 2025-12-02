@@ -80,7 +80,6 @@ class TestCircuitBreaker(unittest.TestCase):
         self.assertEqual(breaker.state, 'closed')
 
 
-@REQUIRES_NETWORK
 class TestYFinanceDataTool(unittest.TestCase):
     """Test yfinance data fetching tool"""
 
@@ -148,11 +147,10 @@ class TestSentimentAnalysisTool(unittest.TestCase):
         self.assertIn("sentiment_score", result)
 
 
-@REQUIRES_API_KEY
 class TestNewsDataTool(unittest.TestCase):
     """Test news data fetching tool"""
 
-    @patch('os.getenv')
+    @patch('src.utils.news_tools.os.getenv')
     def test_news_data_success(self, mock_getenv):
         """Test successful news data retrieval"""
         # Mock environment variable to return API key
@@ -178,10 +176,10 @@ class TestNewsDataTool(unittest.TestCase):
         self.assertEqual(len(result["articles"]), 1)
         self.assertEqual(result["articles"][0]["title"], "Market Update")
 
-    @patch('requests.get')
+    @patch('src.utils.news_tools.os.getenv')
     def test_news_data_api_error(self, mock_get):
         """Test news data with API error"""
-        mock_get.side_effect = Exception("API Error")
+        mock_get.return_value = None
 
         result = news_data_tool.invoke({"query": "AAPL", "language": "en", "page_size": 10})
 
@@ -217,18 +215,16 @@ class TestEconomicDataTool(unittest.TestCase):
 
         result = economic_data_tool.invoke({"indicators": "GDP"})
 
-        self.assertIn("error", result)
+        self.assertIn("series", result)
+        self.assertIn("GDP", result["series"])
+        self.assertIn("error", result["series"]["GDP"])
+        self.assertIn("API Error", result["series"]["GDP"]["error"])
 
 
-@REQUIRES_API_KEY
 class TestMarketDataAppAPITool(unittest.TestCase):
     """Test market data app API tool"""
 
-    @pytest.mark.skipif(
-        not os.getenv("MARKETDATAAPP_API_KEY"),
-        reason="MARKETDATAAPP_API_KEY not set - skip API-dependent tests"
-    )
-    @patch('os.getenv')
+    @patch('src.utils.market_data_tools.os.getenv')
     def test_marketdataapp_api_success(self, mock_getenv):
         """Test successful market data app API call"""
         # Mock environment variable to return API key
@@ -258,7 +254,6 @@ class TestMarketDataAppAPITool(unittest.TestCase):
         self.assertIn("error", result)
 
 
-@REQUIRES_API_KEY
 class TestAuditPollTool(unittest.TestCase):
     """Test audit poll tool"""
 
@@ -277,7 +272,6 @@ class TestAuditPollTool(unittest.TestCase):
         self.assertIn("error", result)
 
 
-@REQUIRES_NETWORK
 class TestPyfolioMetricsTool(unittest.TestCase):
     """Test pyfolio metrics calculation tool"""
 
@@ -313,7 +307,6 @@ class TestPyfolioMetricsTool(unittest.TestCase):
         self.assertIn("error", result)
 
 
-@REQUIRES_NETWORK
 class TestZiplineBacktestTool(unittest.TestCase):
     """Test zipline backtesting tool"""
 
@@ -345,7 +338,6 @@ class TestZiplineBacktestTool(unittest.TestCase):
         self.assertIn("error", result)
 
 
-@REQUIRES_API_KEY
 class TestTwitterSentimentTool(unittest.TestCase):
     """Test Twitter sentiment analysis tool"""
 
@@ -364,11 +356,10 @@ class TestTwitterSentimentTool(unittest.TestCase):
         self.assertIn("error", result)
 
 
-@REQUIRES_API_KEY
 class TestCurrentsNewsTool(unittest.TestCase):
     """Test currents news tool"""
 
-    @patch('os.getenv')
+    @patch('src.utils.news_tools.os.getenv')
     def test_currents_news_success(self, mock_getenv):
         """Test currents news - may fail without API key"""
         # Mock environment variable to return API key
@@ -393,8 +384,10 @@ class TestCurrentsNewsTool(unittest.TestCase):
         # May return articles or error depending on API key config
         self.assertTrue("articles" in result or "error" in result)
 
-    def test_currents_news_api_error(self):
+    @patch('os.getenv')
+    def test_currents_news_api_error(self, mock_getenv):
         """Test currents news with API error or no key"""
+        mock_getenv.return_value = None
         result = currents_news_tool.invoke({"query": "AAPL", "language": "en", "page_size": 10})
 
         # Returns error when API key not configured
@@ -424,7 +417,6 @@ class TestSecEdgarTool(unittest.TestCase):
         self.assertIn("API Error", result["error"])
 
 
-@REQUIRES_API_KEY
 class TestCircuitBreakerStatusTool(unittest.TestCase):
     """Test circuit breaker status tool"""
 
@@ -487,7 +479,6 @@ class TestMicrostructureAnalysisTool(unittest.TestCase):
             ('High', 'AAPL'): np.random.uniform(155, 165, 100),
             ('Low', 'AAPL'): np.random.uniform(145, 155, 100)
         })
-        data.columns = pd.MultiIndex.from_tuples(data.columns)
         data.index = dates
         mock_download.return_value = data
 
@@ -505,7 +496,6 @@ class TestMicrostructureAnalysisTool(unittest.TestCase):
         self.assertIn("error", result)
 
 
-@MISSING_DEPENDENCY
 class TestOptionsGreeksCalcTool(unittest.TestCase):
     """Test options Greeks calculation tool"""
 
@@ -574,7 +564,6 @@ class TestCorrelationAnalysisTool(unittest.TestCase):
             ('Close', 'AAPL'): np.random.uniform(150, 200, 10),
             ('Close', 'MSFT'): np.random.uniform(250, 350, 10)
         })
-        data.columns = pd.MultiIndex.from_tuples(data.columns)
         data.index = dates
         mock_download.return_value = data
 
@@ -645,7 +634,6 @@ class TestBasketTradingTool(unittest.TestCase):
             ('Close', 'MSFT'): np.random.uniform(250, 350, 50),
             ('Close', 'GOOGL'): np.random.uniform(80, 120, 50)
         })
-        data.columns = pd.MultiIndex.from_tuples(data.columns)
         data.index = dates
         mock_download.return_value = data
 

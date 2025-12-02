@@ -1,0 +1,13 @@
+[tool.pytest.ini_options]
+addopts = "--testmon --ff --tb=short --color=yes"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "fast: marks tests as fast",
+    "parallel: marks tests that can run in parallel safely",
+    "integration: integration tests that may require external services",
+    "asyncio_mode = auto"
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning"
+]
