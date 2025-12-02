@@ -19,6 +19,8 @@ The Discord Agent Integration System creates a collaborative environment where y
 - Participate in discussions and share insights
 - Moderate agent conversations and request specific analyses
 - Create voting polls for agent consensus
+- Share relevant news links at the beginning of each iteration, which are processed by the Data Agent for inclusion in analysis
+- Human input is only considered at the start of each workflow iteration to maintain process integrity
 
 ### 🎯 **Enhanced Collaboration Tools**
 - **Workflow Control**: Start, pause, resume, and stop the iterative reasoning process
@@ -150,5 +152,4 @@ The Discord system is designed as a **communication interface** that:
 - Keep general channels available for cross-agent discussions
 - Archive completed workflow summaries for reference
 
-This system transforms your AI trading platform into a collaborative human-AI decision-making environment while preserving the sophisticated agent processes that make your system effective.</content>
-<parameter name="filePath">c:\Users\nvick\ABC-Application\docs\discord-agent-integration.md
+This system transforms your AI trading platform into a collaborative human-AI decision-making environment while preserving the sophisticated agent processes that make your system effective.
