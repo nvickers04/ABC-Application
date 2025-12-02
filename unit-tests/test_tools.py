@@ -49,7 +49,8 @@ class TestCircuitBreaker(unittest.TestCase):
 
     def test_circuit_breaker_failure_then_success(self):
         """Test circuit breaker opens after failures then recovers"""
-        breaker = CircuitBreaker("test_recovery", failure_threshold=2, recovery_timeout=1)
+        # Use unique name to avoid state conflicts with other tests
+        breaker = CircuitBreaker("test_failure_recovery", failure_threshold=2, recovery_timeout=1)
 
         def failing_func():
             raise Exception("Test failure")

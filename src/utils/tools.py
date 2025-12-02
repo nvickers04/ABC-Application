@@ -394,11 +394,13 @@ def strategy_ml_optimization_tool(strategy_params: Dict[str, Any], historical_da
         # Simple grid search optimization
         if optimization_type == "grid":
             best_params = strategy_params.copy()
-            best_score = 0.0
+            best_score = 0.75  # Default baseline score
             
-            for params in ParameterGrid(param_ranges):
-                # Simulate performance with these parameters
-                score = np.random.uniform(0.5, 1.5)  # Placeholder for actual backtesting
+            for i, params in enumerate(ParameterGrid(param_ranges)):
+                # Deterministic scoring based on parameter values
+                # TODO: Replace with actual backtesting implementation
+                param_sum = sum(v for v in params.values() if isinstance(v, (int, float)))
+                score = 0.5 + (hash(str(params)) % 100) / 100.0  # Deterministic pseudo-score
                 if score > best_score:
                     best_score = score
                     best_params = params
@@ -408,7 +410,8 @@ def strategy_ml_optimization_tool(strategy_params: Dict[str, Any], historical_da
                 "optimized_params": best_params,
                 "optimization_score": best_score,
                 "optimization_type": optimization_type,
-                "iterations": len(list(ParameterGrid(param_ranges)))
+                "iterations": len(list(ParameterGrid(param_ranges))),
+                "note": "Placeholder scoring - implement actual backtesting for production use"
             }
         else:
             return {

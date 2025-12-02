@@ -14,7 +14,7 @@ def test_initialization(orchestrator):
 
 def test_phase_delays(orchestrator):
     for delay in orchestrator.phase_delays.values():
-        assert delay == 300  # Verify phase delay is 5 minutes (300 seconds)
+        assert delay == 300  # Phase delays are 5 minutes (300 seconds) in current implementation
 
 def test_agent_initialization(orchestrator):
     # Assuming async init is called separately, test structure
