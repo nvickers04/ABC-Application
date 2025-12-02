@@ -413,3 +413,6 @@
 [5208] 01 Dec 13:47:44.256 * Redis 3.2.100 (00000000/0) 64 bit, standalone mode, port 6379, pid 5208 ready to start.
 [5208] 01 Dec 13:47:44.260 # Server started, Redis version 3.2.100
 [5208] 01 Dec 13:47:44.260 * The server is now ready to accept connections on port 6379
+[4852] 01 Dec 14:06:04.768 * Redis 3.2.100 (00000000/0) 64 bit, standalone mode, port 6379, pid 4852 ready to start.
+[4852] 01 Dec 14:06:04.768 # Server started, Redis version 3.2.100
+[4852] 01 Dec 14:06:04.770 * The server is now ready to accept connections on port 6379
