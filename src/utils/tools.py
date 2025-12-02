@@ -58,6 +58,10 @@ from .agent_tools import (
     audit_poll_tool, agent_coordination_tool, shared_memory_broadcast_tool,
     agent_health_check_tool, collaborative_decision_tool
 )
+from .learning_tools import (
+    zipline_sim_tool as learning_zipline_sim_tool, tf_quant_projection_tool as learning_tf_quant_projection_tool,
+    backtest_validation_tool, strategy_ml_optimization_tool
+)
 
 # Additional imports for backward compatibility
 # These functions may need to be implemented in appropriate modules
