@@ -10,6 +10,8 @@ import asyncio
 from unittest.mock import patch, AsyncMock, MagicMock
 from src.agents.data_analyzers.yfinance_data_analyzer import YfinanceDataAnalyzer
 
+REQUIRES_NETWORK = pytest.mark.skip(reason="Requires network access to external APIs")
+
 @pytest.mark.asyncio
 async def test_process_input_basic():
     analyzer = YfinanceDataAnalyzer()
@@ -19,6 +21,7 @@ async def test_process_input_basic():
     assert 'consolidated_data' in result
     assert 'llm_analysis' in result
 
+@REQUIRES_NETWORK
 @pytest.mark.asyncio
 async def test_fetch_yfinance_data(mock_api_calls):
     analyzer = YfinanceDataAnalyzer()

@@ -13,7 +13,8 @@ from src.utils.optimization_proposal_validator import OptimizationProposalValida
 import pandas as pd
 import numpy as np
 
-@pytest.mark.skip(reason="Optimization regression tests require unimplemented agent methods - future feature tests")
+# Skip marker - tests are testing methods that don't exist in current LearningAgent implementation
+@pytest.mark.skip(reason="Tests need refactoring - LearningAgent API has changed significantly")
 class TestOptimizationRegression:
     """Regression tests for optimization proposals and learning agent"""
 

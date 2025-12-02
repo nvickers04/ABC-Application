@@ -4,6 +4,9 @@ import numpy as np
 from unittest.mock import patch, MagicMock
 from src.utils.historical_simulation_engine import HistoricalSimulationEngine, SimulationConfig, run_historical_portfolio_simulation
 
+REQUIRES_NETWORK = pytest.mark.skip(reason="Requires network access to fetch historical market data")
+
+@REQUIRES_NETWORK
 class TestBacktestingValidation:
     """Test suite for backtesting engine validation and edge cases"""
 

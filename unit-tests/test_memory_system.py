@@ -334,7 +334,8 @@ class TestMemorySecurity:
         assert result is None
 
 
-@pytest.mark.skip(reason="MultiAgentMemoryCoordinator interface changed - methods store/retrieve not available")
+# Skip this class - the MultiAgentMemoryCoordinator API has changed significantly
+@pytest.mark.skip(reason="MultiAgentMemoryCoordinator API has changed - tests need refactoring")
 class TestMultiAgentMemoryCoordinator:
     """Test cases for MultiAgentMemoryCoordinator functionality.
     

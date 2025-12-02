@@ -100,7 +100,7 @@ class A2AProtocol:
         self.graph.add_node("execution", self._run_execution_agent)
         self.graph.add_node("reflection", self._run_reflection_agent)
         self.graph.add_node("learning", self._run_learning_agent)
-
+        
         # Edges: Macro -> Data -> Strategy -> Risk -> Execution -> Reflection -> Learning -> End
         self.graph.add_edge("macro", "data")
         self.graph.add_edge("data", "strategy")
@@ -109,8 +109,10 @@ class A2AProtocol:
         self.graph.add_edge("execution", "reflection")
         self.graph.add_edge("reflection", "learning")
         self.graph.add_edge("learning", END)  # End after learning
+        
         # Conditional edges
         self.graph.add_conditional_edges("risk", self._check_risk_approval, {True: "execution", False: "reflection"})
+        
         self.graph.set_entry_point("macro")
 
     async def _run_langchain_agent(self, langchain_agent: Any, input_data: Dict[str, Any]) -> Dict[str, Any]:
