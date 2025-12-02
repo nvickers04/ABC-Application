@@ -110,6 +110,19 @@ def backtest_validation_tool(strategy: Dict[str, Any], data: pd.DataFrame) -> Di
     except Exception as e:
         return {"error": f"Backtest validation failed: {str(e)}"}
 
+# Default configuration for ML optimization
+ML_OPTIMIZATION_DEFAULTS = {
+    'window_size': 5,           # Number of lagged returns to use as features
+    'min_data_points': 10,      # Minimum data points required for optimization
+    'stop_loss_multiplier': 1.5,  # Volatility multiplier for stop loss
+    'take_profit_multiplier': 3.0, # Volatility multiplier for take profit
+    'stop_loss_min': 0.01,      # Minimum stop loss (1%)
+    'stop_loss_max': 0.10,      # Maximum stop loss (10%)
+    'take_profit_min': 0.02,    # Minimum take profit (2%)
+    'take_profit_max': 0.20,    # Maximum take profit (20%)
+    'position_size_volatility_factor': 10,  # Volatility factor for position sizing
+}
+
 @tool
 def strategy_ml_optimization_tool(strategy: Dict[str, Any], historical_returns: List[float], optimization_params: Dict[str, Any] = None) -> Dict[str, Any]:
     """
@@ -118,7 +131,12 @@ def strategy_ml_optimization_tool(strategy: Dict[str, Any], historical_returns: 
     Args:
         strategy: Dict describing the current strategy parameters
         historical_returns: List of historical return values for training
-        optimization_params: Optional optimization configuration
+        optimization_params: Optional optimization configuration. Supports:
+            - n_estimators: Number of trees in random forest (default: 100)
+            - cv_folds: Number of cross-validation folds (default: 5)
+            - window_size: Number of lagged features (default: 5)
+            - stop_loss_multiplier, take_profit_multiplier: Volatility multipliers
+            - stop_loss_min/max, take_profit_min/max: Parameter bounds
         
     Returns:
         Dict with optimized strategy parameters and metrics
@@ -127,18 +145,21 @@ def strategy_ml_optimization_tool(strategy: Dict[str, Any], historical_returns: 
         from sklearn.ensemble import RandomForestRegressor
         from sklearn.model_selection import cross_val_score
         
-        optimization_params = optimization_params or {}
-        n_estimators = optimization_params.get('n_estimators', 100)
-        cv_folds = optimization_params.get('cv_folds', 5)
+        # Merge defaults with provided params
+        params = {**ML_OPTIMIZATION_DEFAULTS, **(optimization_params or {})}
+        n_estimators = params.get('n_estimators', 100)
+        cv_folds = params.get('cv_folds', 5)
+        window_size = params.get('window_size', ML_OPTIMIZATION_DEFAULTS['window_size'])
+        min_data_points = params.get('min_data_points', ML_OPTIMIZATION_DEFAULTS['min_data_points'])
         
         # Prepare features from historical returns
         returns_array = np.array(historical_returns)
-        if len(returns_array) < 10:
-            return {"error": "Insufficient data for ML optimization (need at least 10 data points)"}
+        if len(returns_array) < min_data_points:
+            return {"error": f"Insufficient data for ML optimization (need at least {min_data_points} data points)"}
         
-        # Create lagged features
-        X = np.array([returns_array[i:i+5] for i in range(len(returns_array)-5)])
-        y = returns_array[5:]
+        # Create lagged features using configurable window size
+        X = np.array([returns_array[i:i+window_size] for i in range(len(returns_array)-window_size)])
+        y = returns_array[window_size:]
         
         if len(X) < cv_folds:
             return {"error": f"Insufficient data for {cv_folds}-fold cross-validation"}
@@ -156,11 +177,20 @@ def strategy_ml_optimization_tool(strategy: Dict[str, Any], historical_returns: 
         current_stop_loss = strategy.get('stop_loss', 0.02)
         current_take_profit = strategy.get('take_profit', 0.04)
         
-        # Optimize parameters
+        # Use configurable multipliers and bounds
+        stop_loss_mult = params.get('stop_loss_multiplier', ML_OPTIMIZATION_DEFAULTS['stop_loss_multiplier'])
+        take_profit_mult = params.get('take_profit_multiplier', ML_OPTIMIZATION_DEFAULTS['take_profit_multiplier'])
+        stop_loss_min = params.get('stop_loss_min', ML_OPTIMIZATION_DEFAULTS['stop_loss_min'])
+        stop_loss_max = params.get('stop_loss_max', ML_OPTIMIZATION_DEFAULTS['stop_loss_max'])
+        take_profit_min = params.get('take_profit_min', ML_OPTIMIZATION_DEFAULTS['take_profit_min'])
+        take_profit_max = params.get('take_profit_max', ML_OPTIMIZATION_DEFAULTS['take_profit_max'])
+        pos_vol_factor = params.get('position_size_volatility_factor', ML_OPTIMIZATION_DEFAULTS['position_size_volatility_factor'])
+        
+        # Optimize parameters with configurable bounds
         optimized_params = {
-            'stop_loss': round(min(max(volatility * 1.5, 0.01), 0.10), 4),
-            'take_profit': round(min(max(volatility * 3.0, 0.02), 0.20), 4),
-            'position_size_multiplier': round(1.0 / (1.0 + volatility * 10), 2)
+            'stop_loss': round(min(max(volatility * stop_loss_mult, stop_loss_min), stop_loss_max), 4),
+            'take_profit': round(min(max(volatility * take_profit_mult, take_profit_min), take_profit_max), 4),
+            'position_size_multiplier': round(1.0 / (1.0 + volatility * pos_vol_factor), 2)
         }
         
         # Calculate expected improvement
