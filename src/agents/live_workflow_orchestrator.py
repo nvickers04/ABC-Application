@@ -84,6 +84,7 @@ class LiveWorkflowOrchestrator:
         self.channel = None  # General channel for summaries
         self.alerts_channel = None  # Dedicated channel for trade alerts
         self.ranked_trades_channel = None  # Dedicated channel for ranked trade proposals
+        self.commands_channel = None  # Dedicated channel for command documentation
         self.agent_channels = {}  # Map agent types to their channels
         
         # Discord readiness synchronization
@@ -138,6 +139,19 @@ class LiveWorkflowOrchestrator:
 
         # Set orchestrator reference in AlertManager for Discord notifications
         alert_manager.set_orchestrator(self)
+
+        # Initialize ConsensusPoller for agent consensus workflows
+        from src.workflows.consensus_poller import ConsensusPoller
+        self.consensus_poller = ConsensusPoller(
+            poll_interval=30,  # 30 second intervals
+            default_timeout=300,  # 5 minute timeout
+            min_confidence=0.6,  # 60% confidence threshold
+            persistence_file="data/consensus_polls.json",
+            alert_manager=alert_manager
+        )
+
+        # Add callback for consensus state changes to notify Discord
+        self.consensus_poller.add_state_change_callback(self._handle_consensus_state_change)
 
     def _sanitize_user_input(self, input_text: str) -> str:
         """
@@ -2497,6 +2511,125 @@ class LiveWorkflowOrchestrator:
         intents.members = True
 
         self.client = discord.Client(intents=intents)
+        self.tree = discord.app_commands.CommandTree(self.client)
+
+        # Slash Commands Setup
+        @self.tree.command(name="consensus_status", description="Show current consensus poll status")
+        async def consensus_status_slash(interaction: discord.Interaction):
+            """Slash command version of consensus status"""
+            try:
+                active_polls = self.consensus_poller.get_active_polls()
+                completed_polls = self.consensus_poller.get_completed_polls(limit=5)
+
+                if not active_polls and not completed_polls:
+                    await interaction.response.send_message("🤝 **No consensus polls found**")
+                    return
+
+                embed = discord.Embed(
+                    title="🤝 Consensus Poll Status",
+                    color=0x3498DB,
+                    timestamp=datetime.now()
+                )
+
+                if active_polls:
+                    active_list = []
+                    for poll in active_polls[:3]:  # Show up to 3 active polls
+                        status = f"**{poll.state.value.replace('_', ' ').title()}**"
+                        votes = sum(1 for v in poll.votes.values() if v.get("status") == "responded")
+                        total = len(poll.votes)
+                        active_list.append(f"• {poll.question[:50]}... ({votes}/{total} votes) - {status}")
+                    embed.add_field(name="Active Polls", value="\n".join(active_list), inline=False)
+
+                if completed_polls:
+                    completed_list = []
+                    for poll in completed_polls:
+                        result = "✅" if poll.state.value == "consensus_reached" else "⏰" if poll.state.value == "timeout" else "❌"
+                        completed_list.append(f"{result} {poll.question[:40]}...")
+                    embed.add_field(name="Recent Results", value="\n".join(completed_list), inline=False)
+
+                await interaction.response.send_message(embed=embed)
+
+            except Exception as e:
+                logger.error(f"Error in consensus_status slash command: {e}")
+                await interaction.response.send_message(f"❌ **Error:** {str(e)}")
+
+        @self.tree.command(name="poll_consensus", description="Start a new consensus poll")
+        @discord.app_commands.describe(
+            question="The question to ask agents",
+            agents="Comma-separated list of agents to poll (e.g., risk_agent,strategy_agent)"
+        )
+        async def poll_consensus_slash(interaction: discord.Interaction, question: str, agents: str):
+            """Slash command version of poll consensus"""
+            try:
+                # Parse agents
+                agents_to_poll = [agent.strip() for agent in agents.split(",") if agent.strip()]
+
+                if len(agents_to_poll) < 2:
+                    await interaction.response.send_message("❌ **Need at least 2 agents to poll**")
+                    return
+
+                # Validate agents exist
+                valid_agents = ["risk_agent", "strategy_agent", "data_agent", "execution_agent", "reflection_agent"]
+                invalid_agents = [agent for agent in agents_to_poll if agent not in valid_agents]
+
+                if invalid_agents:
+                    await interaction.response.send_message(f"❌ **Invalid agents:** {', '.join(invalid_agents)}\n**Valid agents:** {', '.join(valid_agents)}")
+                    return
+
+                # Create the poll
+                poll_id = await self.consensus_poller.create_poll(question, agents_to_poll)
+
+                # Start the poll
+                success = await self.consensus_poller.start_poll(poll_id)
+
+                if success:
+                    embed = discord.Embed(
+                        title="🤝 Consensus Poll Started",
+                        description=f"**Question:** {question}",
+                        color=0x00ff00,
+                        timestamp=datetime.now()
+                    )
+                    embed.add_field(name="Poll ID", value=poll_id, inline=True)
+                    embed.add_field(name="Agents Polled", value=", ".join(agents_to_poll), inline=True)
+                    embed.add_field(name="Timeout", value="5 minutes", inline=True)
+
+                    await interaction.response.send_message(embed=embed)
+                else:
+                    await interaction.response.send_message(f"❌ **Failed to start consensus poll**")
+
+            except Exception as e:
+                logger.error(f"Error in poll_consensus slash command: {e}")
+                await interaction.response.send_message(f"❌ **Poll consensus failed:** {str(e)}")
+
+        @self.tree.command(name="commands", description="Show all available Discord commands")
+        async def commands_slash(interaction: discord.Interaction):
+            """Slash command to display all available commands"""
+            try:
+                from src.utils.command_registry import get_command_registry
+                registry = get_command_registry()
+                embed_data = registry.generate_discord_embed_data()
+
+                embed = discord.Embed(
+                    title=embed_data["title"],
+                    description=embed_data["description"],
+                    color=0x3498DB,
+                    timestamp=datetime.now()
+                )
+
+                for field in embed_data["fields"]:
+                    embed.add_field(
+                        name=field["name"],
+                        value=field["value"],
+                        inline=field["inline"]
+                    )
+
+                embed.set_footer(text="💡 Use /commands for slash command version | Visit #commands for detailed docs")
+
+                await interaction.response.send_message(embed=embed)
+
+            except Exception as e:
+                logger.error(f"Error in commands slash command: {e}")
+                await interaction.response.send_message(f"❌ **Error displaying commands:** {str(e)}")
 
         @self.client.event
         async def on_ready():
@@ -2576,6 +2709,14 @@ class LiveWorkflowOrchestrator:
                     # Signal that Discord is ready
                     self.discord_ready.set()
                     print("🎯 Discord client fully ready - channels configured and orchestrator online")
+
+                    # Sync slash commands
+                    try:
+                        await self.tree.sync()
+                        print("🔄 Slash commands synced successfully")
+                    except Exception as e:
+                        print(f"⚠️ Failed to sync slash commands: {e}")
+
                     self.setup_scheduler()  # Start scheduler after Discord is ready
                     
 #                    # Automatically start the continuous workflow
@@ -2655,6 +2796,19 @@ class LiveWorkflowOrchestrator:
                 await self.handle_alert_stats_command(message)
                 return
 
+            if content == "!commands" or content == "!help":
+                await self.handle_commands_command(message)
+                return
+
+            if content == "!consensus_status":
+                await self.handle_consensus_status_command(message)
+                return
+
+            # Handle !poll_consensus command: !poll_consensus "Question?" agent1 agent2 agent3
+            if content.startswith("!poll_consensus"):
+                await self.handle_poll_consensus_command(message)
+                return
+
             # Handle !schedule_workflow command: !schedule_workflow <type> <time>
             if content.startswith("!schedule_workflow"):
                 await self.handle_schedule_workflow_command(message)
@@ -2663,6 +2817,11 @@ class LiveWorkflowOrchestrator:
             # Handle !share_news command: !share_news <link> [optional description]
             if content.startswith("!share_news"):
                 await self.handle_share_news_command(message)
+                return
+
+            # Handle !set_commands_channel command: !set_commands_channel <channel_id>
+            if content.startswith("!set_commands_channel"):
+                await self.handle_set_commands_channel_command(message)
                 return
 
             # Handle human questions/interventions during active workflow
@@ -3345,6 +3504,189 @@ Format your response as JSON:
         except Exception as e:
             logger.error(f"Error in alert stats command: {e}")
             await message.channel.send(f"❌ **Alert stats failed:** {str(e)}")
+
+    async def handle_commands_command(self, message):
+        """Handle the !commands command to show all available commands."""
+        try:
+            from src.utils.command_registry import get_command_registry
+            registry = get_command_registry()
+            embed_data = registry.generate_discord_embed_data()
+
+            embed = discord.Embed(
+                title=embed_data["title"],
+                description=embed_data["description"],
+                color=0x3498DB,
+                timestamp=datetime.now()
+            )
+
+            for field in embed_data["fields"]:
+                embed.add_field(
+                    name=field["name"],
+                    value=field["value"],
+                    inline=field["inline"]
+                )
+
+            embed.set_footer(text="💡 Use /commands for slash command version | Visit #commands for detailed docs")
+
+            await message.channel.send(embed=embed)
+
+        except Exception as e:
+            logger.error(f"Error in commands command: {e}")
+            await message.channel.send(f"❌ **Commands display failed:** {str(e)}")
+
+    async def handle_set_commands_channel_command(self, message):
+        """Handle the !set_commands_channel command to configure the dedicated commands channel."""
+        try:
+            # Parse channel ID from command: !set_commands_channel <channel_id>
+            parts = message.content.strip().split()
+            if len(parts) != 2:
+                await message.channel.send("❌ **Usage:** `!set_commands_channel <channel_id>`\n\nGet the channel ID by right-clicking the #commands channel and selecting 'Copy ID' (Developer Mode must be enabled).")
+                return
+
+            channel_id_str = parts[1]
+            try:
+                channel_id = int(channel_id_str)
+            except ValueError:
+                await message.channel.send("❌ **Invalid channel ID:** Must be a numeric Discord channel ID.")
+                return
+
+            # Get the channel
+            commands_channel = self.client.get_channel(channel_id)
+            if not commands_channel:
+                await message.channel.send(f"❌ **Channel not found:** Could not find channel with ID `{channel_id}`. Make sure the bot has access to this channel.")
+                return
+
+            # Set the commands channel
+            self.commands_channel = commands_channel
+
+            # Generate and post detailed documentation
+            from src.utils.command_registry import get_command_registry
+            registry = get_command_registry()
+            markdown_docs = registry.generate_markdown_docs()
+
+            # Send as a file attachment to avoid message length limits
+            import io
+            file_content = f"# 🤖 ABC-Application Command Reference\n\n{markdown_docs}"
+            file_obj = io.BytesIO(file_content.encode('utf-8'))
+            file_obj.seek(0)
+
+            await self.commands_channel.send(
+                content="📚 **Command Reference Documentation**",
+                file=discord.File(file_obj, filename="command_reference.md")
+            )
+
+            # Confirm to user
+            await message.channel.send(f"✅ **Commands channel configured!**\n\n📚 Detailed command documentation has been posted to {self.commands_channel.mention}\n\nUsers can now visit {self.commands_channel.mention} for comprehensive command help.")
+
+        except Exception as e:
+            logger.error(f"Error in set commands channel command: {e}")
+            await message.channel.send(f"❌ **Failed to configure commands channel:** {str(e)}")
+
+    async def handle_consensus_status_command(self, message):
+        """Handle the !consensus_status command to show current consensus polls."""
+        try:
+            active_polls = self.consensus_poller.get_active_polls()
+            completed_polls = self.consensus_poller.get_completed_polls(limit=5)
+
+            if not active_polls and not completed_polls:
+                await message.channel.send("🤝 **No consensus polls found**")
+                return
+
+            embed = discord.Embed(
+                title="🤝 Consensus Poll Status",
+                color=0x3498DB,
+                timestamp=datetime.now()
+            )
+
+            if active_polls:
+                active_list = []
+                for poll in active_polls[:3]:  # Show up to 3 active polls
+                    status = f"**{poll.state.value.replace('_', ' ').title()}**"
+                    votes = sum(1 for v in poll.votes.values() if v.get("status") == "responded")
+                    total = len(poll.votes)
+                    active_list.append(f"• `{poll.poll_id}`: {status} ({votes}/{total} votes)")
+
+                embed.add_field(
+                    name="Active Polls",
+                    value="\n".join(active_list) if active_list else "None",
+                    inline=False
+                )
+
+            if completed_polls:
+                completed_list = []
+                for poll in completed_polls:
+                    result = "✅" if poll.state.value == "consensus_reached" else "⏰" if poll.state.value == "timeout" else "❌"
+                    status = poll.state.value.replace("_", " ").title()
+                    completed_list.append(f"{result} `{poll.poll_id}`: {status}")
+
+                embed.add_field(
+                    name="Recent Results",
+                    value="\n".join(completed_list[:3]) if completed_list else "None",
+                    inline=False
+                )
+
+            await message.channel.send(embed=embed)
+
+        except Exception as e:
+            logger.error(f"Error in consensus status command: {e}")
+            await message.channel.send(f"❌ **Consensus status failed:** {str(e)}")
+
+    async def handle_poll_consensus_command(self, message):
+        """Handle the !poll_consensus command to start a new consensus poll."""
+        try:
+            # Parse command: !poll_consensus "Question?" agent1 agent2 agent3
+            content = message.content.strip()
+            parts = content.split('"')
+
+            if len(parts) < 3:
+                await message.channel.send("❌ **Usage:** `!poll_consensus \"Your question?\" agent1 agent2 agent3`")
+                return
+
+            question = parts[1].strip()
+            if not question:
+                await message.channel.send("❌ **Question cannot be empty**")
+                return
+
+            # Parse agents (everything after the closing quote)
+            remaining = parts[2].strip()
+            agents_to_poll = [agent.strip() for agent in remaining.split() if agent.strip()]
+
+            if len(agents_to_poll) < 2:
+                await message.channel.send("❌ **Need at least 2 agents to poll**")
+                return
+
+            # Validate agents exist (basic check)
+            valid_agents = ["risk_agent", "strategy_agent", "data_agent", "execution_agent", "reflection_agent"]
+            invalid_agents = [agent for agent in agents_to_poll if agent not in valid_agents]
+
+            if invalid_agents:
+                await message.channel.send(f"❌ **Invalid agents:** {', '.join(invalid_agents)}\n**Valid agents:** {', '.join(valid_agents)}")
+                return
+
+            # Create the poll
+            poll_id = await self.consensus_poller.create_poll(question, agents_to_poll)
+
+            # Start the poll
+            success = await self.consensus_poller.start_poll(poll_id)
+
+            if success:
+                embed = discord.Embed(
+                    title="🤝 Consensus Poll Started",
+                    description=f"**Question:** {question}",
+                    color=0x00ff00,
+                    timestamp=datetime.now()
+                )
+                embed.add_field(name="Poll ID", value=poll_id, inline=True)
+                embed.add_field(name="Agents Polled", value=", ".join(agents_to_poll), inline=True)
+                embed.add_field(name="Timeout", value="5 minutes", inline=True)
+
+                await message.channel.send(embed=embed)
+            else:
+                await message.channel.send(f"❌ **Failed to start consensus poll**")
+
+        except Exception as e:
+            logger.error(f"Error in poll consensus command: {e}")
+            await message.channel.send(f"❌ **Poll consensus failed:** {str(e)}")
 
     async def handle_human_intervention(self, message):
         """Handle human questions or interventions during workflow via A2A.
@@ -4251,6 +4593,106 @@ Format your response as JSON:
             await channel.send("✅ **Supervision decision received and displayed**")
         else:
             await channel.send(f"⏰ **No supervision response received within {max_wait_time}s timeout**")
+
+    async def request_consensus(self, question: str, requesting_agent: str, target_agents: List[str], timeout_seconds: int = 300) -> str:
+        """Allow agents to request consensus polls for risk/strategy decisions"""
+        try:
+            # Validate requesting agent can make requests
+            allowed_requesters = ["risk_agent", "strategy_agent", "execution_agent"]
+            if requesting_agent not in allowed_requesters:
+                raise ValueError(f"Agent {requesting_agent} not authorized to request consensus")
+
+            # Validate target agents exist
+            valid_agents = ["risk_agent", "strategy_agent", "data_agent", "execution_agent", "reflection_agent"]
+            invalid_agents = [agent for agent in target_agents if agent not in valid_agents]
+            if invalid_agents:
+                raise ValueError(f"Invalid target agents: {invalid_agents}")
+
+            # Create the poll
+            poll_id = await self.consensus_poller.create_poll(
+                question=f"[{requesting_agent}] {question}",
+                agents_to_poll=target_agents,
+                timeout_seconds=timeout_seconds,
+                metadata={"requesting_agent": requesting_agent, "agent_requested": True}
+            )
+
+            # Start the poll
+            success = await self.consensus_poller.start_poll(poll_id)
+            if not success:
+                raise RuntimeError("Failed to start consensus poll")
+
+            logger.info(f"Agent {requesting_agent} requested consensus poll {poll_id}: {question}")
+            return poll_id
+
+        except Exception as e:
+            logger.error(f"Error in agent consensus request from {requesting_agent}: {e}")
+            raise
+
+    async def _handle_consensus_state_change(self, poll):
+        """Handle consensus poll state changes and status updates, notify Discord"""
+        try:
+            if not self.channel:
+                return
+
+            is_status_update = poll.metadata.get("status_update", False)
+
+            if is_status_update:
+                # Status update during voting - less prominent
+                embed = discord.Embed(
+                    title="🤝 Consensus Poll Progress",
+                    description=f"**Question:** {poll.question}",
+                    color=0xffa500,  # Orange for in-progress
+                    timestamp=datetime.now()
+                )
+                embed.set_footer(text="Periodic status update")
+            else:
+                # State change - more prominent
+                embed = discord.Embed(
+                    title="🤝 Consensus Poll Update",
+                    description=f"**Question:** {poll.question}",
+                    color=0x00ff00 if poll.state.value == "consensus_reached" else 0xffa500 if poll.state.value == "voting" else 0xff0000,
+                    timestamp=datetime.now()
+                )
+
+            embed.add_field(name="Poll ID", value=poll.poll_id, inline=True)
+            embed.add_field(name="Status", value=poll.state.value.replace("_", " ").title(), inline=True)
+            embed.add_field(name="Total Votes", value=str(poll.total_votes), inline=True)
+
+            if poll.state.value == "consensus_reached":
+                embed.add_field(name="Consensus", value=f"**{poll.consensus_vote}** ({poll.consensus_confidence:.1%} confidence)", inline=False)
+                embed.add_field(name="Supporting Agents", value=", ".join(poll.supporting_agents), inline=False)
+            elif poll.state.value == "timeout":
+                embed.add_field(name="Result", value="⏰ Poll timed out without consensus", inline=False)
+            elif poll.state.value == "failed":
+                embed.add_field(name="Error", value=poll.metadata.get("error", "Unknown error"), inline=False)
+
+            # Show vote breakdown if available
+            if poll.votes:
+                vote_summary = []
+                responded_count = 0
+                for agent, vote_data in poll.votes.items():
+                    if vote_data.get("status") == "responded":
+                        vote = vote_data.get("vote", "unknown")
+                        confidence = vote_data.get("confidence", 0)
+                        vote_summary.append(f"{agent}: {vote} ({confidence:.1%})")
+                        responded_count += 1
+                    else:
+                        vote_summary.append(f"{agent}: pending")
+
+                total_agents = len(poll.votes)
+                embed.add_field(name="Progress", value=f"{responded_count}/{total_agents} agents responded", inline=True)
+
+                if vote_summary and (not is_status_update or responded_count > 0):  # Show votes for state changes or if there are responses
+                    embed.add_field(name="Current Votes", value="\n".join(vote_summary[:5]), inline=False)  # Limit to 5 for embed size
+
+            # Only send status updates if there has been some progress (responses received)
+            if is_status_update and responded_count == 0:
+                return  # Skip status updates with no progress
+
+            await self.channel.send(embed=embed)
+
+        except Exception as e:
+            logger.error(f"Error handling consensus state change: {e}")
 
     async def run_orchestrator(self):
         """Run the live workflow orchestrator"""

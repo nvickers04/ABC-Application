@@ -228,7 +228,7 @@ class AIStrategyAnalyzer(BaseAgent):
         logger.info(f"AI Reflecting on adjustments: {adjustments}")
         return {}
 
-    async def process_input(self, input_data: Dict[str, Any] = None) -> Dict[str, Any]:
+    async def _process_input(self, input_data: Dict[str, Any] = None) -> Dict[str, Any]:
         """
         Comprehensive ML strategy analysis with advanced models and feature engineering.
         """

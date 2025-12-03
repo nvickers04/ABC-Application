@@ -30,7 +30,7 @@ class YfinanceDataAnalyzer(BaseDataAnalyzer):
         self.max_concurrent_requests = 5
         self.data_quality_threshold = 0.8
 
-    async def process_input(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def _process_input(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Process input data for market data analysis.
         

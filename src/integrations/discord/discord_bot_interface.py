@@ -1137,7 +1137,8 @@ class DiscordInterfaceSystem:
         self.agents_config = self.load_config()
         self.interfaces: List[DiscordBotInterface] = []
         self.agent_instances: Dict[str, BaseAgent] = {}
-        
+        self.commands_channel_id = self.agents_config.get('commands_channel_id')
+
         # Initialize A2A protocol with Discord monitoring
         self.a2a_protocol = A2AProtocol(max_agents=50)
         self.monitoring_channel_id = os.getenv('DISCORD_A2A_MONITORING_CHANNEL_ID')
@@ -1210,6 +1211,7 @@ class DiscordInterfaceSystem:
 
             config = {
                 "guild_id": get_vault_secret('DISCORD_GUILD_ID') or 'YOUR_GUILD_ID',
+                "commands_channel_id": get_vault_secret('DISCORD_COMMANDS_CHANNEL_ID') or None,
                 "agents": agents_config
             }
 
@@ -1225,6 +1227,7 @@ class DiscordInterfaceSystem:
         """Get default configuration as fallback"""
         return {
             "guild_id": "YOUR_GUILD_ID",
+            "commands_channel_id": None,
             "agents": {
                 "macro": {
                     "name": "Macro Analyst",
@@ -1325,6 +1328,8 @@ class DiscordInterfaceSystem:
             try:
                 agent_instance = self.agent_instances.get(agent_key)
                 if agent_instance:
+                    # Add system-level config to interface config
+                    interface_config['commands_channel_id'] = self.commands_channel_id
                     interface = DiscordBotInterface(agent_instance, interface_config['token'], interface_config)
                     self.interfaces.append(interface)
                     logger.info(f"Created interface for {agent_key} agent")

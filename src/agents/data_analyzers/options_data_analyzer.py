@@ -132,7 +132,7 @@ class OptionsDataAnalyzer(BaseDataAnalyzer):
             "enhanced": True
         }
 
-    async def process_input(self, input_data: Dict[str, Any] = None) -> Dict[str, Any]:
+    async def _process_input(self, input_data: Dict[str, Any] = None) -> Dict[str, Any]:
         """
         Process options data using standardized BaseDataAnalyzer pattern with backward compatibility.
         """

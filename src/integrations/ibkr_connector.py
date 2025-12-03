@@ -23,6 +23,10 @@ import exchange_calendars as ecals
 # Local imports
 # from src.utils.config import load_yaml  # Not needed for IBKR connector
 from src.utils.config import get_api_key
+from src.utils.exceptions import (
+    IBKRError, IBKRConnectionError, OrderError, MarketDataError,
+    ConnectionError, ValidationError, handle_exceptions
+)
 from .live_trading_safeguards import (
     get_live_trading_safeguards,
     check_pre_trade_risk,
@@ -38,7 +42,7 @@ class IBKRConnector:
     """
     IBKR Paper Trading Connector
     Handles connection to IBKR paper trading account and provides trading functionality
-    Thread-safe singleton implementation.
+    Thread-safe singleton implementation with optimized connection management.
     """
 
     _instance: Optional['IBKRConnector'] = None
@@ -87,6 +91,12 @@ class IBKRConnector:
 
         # Thread pool for blocking IBKR operations
         self._executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="ibkr")
+
+        # Connection state tracking for optimization
+        self._connection_failures = 0
+        self._last_connection_attempt = 0
+        self._circuit_breaker_until = 0  # Timestamp when circuit breaker expires
+        self._connection_cooldown = 30  # Seconds to wait after repeated failures
 
         # Validate credentials
         if not self.username or not self.password:
@@ -163,16 +173,17 @@ class IBKRConnector:
                 raise Exception(f"IBKR config file {config_path} not found - no fallback defaults allowed")
         except Exception as e:
             logger.error(f"CRITICAL FAILURE: Error loading IBKR config: {e} - cannot proceed with defaults")
-            alert_manager.error(
-                "IBKR configuration loading failed",
+            # Schedule async alert processing in sync context
+            asyncio.create_task(alert_manager.error(
+                Exception("IBKR configuration loading failed"),
                 {"error": str(e), "config_path": config_path},
                 "ibkr_integration"
-            )
+            ))
             raise ConnectionError(f"IBKR config loading failed: {e} - no fallback defaults allowed")
 
     async def connect(self) -> bool:
         """
-        Connect to IBKR paper trading account with direct async handling and retry logic.
+        Connect to IBKR paper trading account with optimized retry logic and circuit breaker.
 
         Returns:
             bool: True if connection successful
@@ -185,26 +196,58 @@ class IBKRConnector:
             logger.error("IBKR credentials not available. Please set IBKR_USERNAME and IBKR_PASSWORD in .env file.")
             return False
 
-        max_retries = 3
-        retry_delay = 5
+        # Circuit breaker: Don't attempt connections if we've failed recently
+        current_time = time.time()
+        if current_time < self._circuit_breaker_until:
+            remaining = int(self._circuit_breaker_until - current_time)
+            logger.warning(f"Circuit breaker active. Skipping connection attempt for {remaining} more seconds.")
+            return False
+
+        # Cooldown: Don't attempt too frequently after failures
+        if current_time - self._last_connection_attempt < 2:  # Minimum 2 seconds between attempts
+            logger.debug("Connection attempt too soon after previous attempt, skipping")
+            return False
+
+        self._last_connection_attempt = current_time
+
+        # Optimized retry parameters based on failure history
+        if self._connection_failures > 5:
+            # After many failures, use very aggressive settings
+            max_retries = 1
+            retry_delay = 1
+            timeout = 3
+        elif self._connection_failures > 2:
+            # After some failures, reduce retries and timeout
+            max_retries = 2
+            retry_delay = 2
+            timeout = 5
+        else:
+            # Normal operation
+            max_retries = 3
+            retry_delay = 3  # Reduced from 5
+            timeout = 8      # Reduced from 10
 
         for attempt in range(max_retries):
             try:
-                # Generate a new random client ID for each connection attempt to avoid conflicts
-                self.client_id = random.randint(1, 999)
-                logger.info(f"Connection attempt {attempt + 1}/{max_retries} using client ID {self.client_id}")
+                # Use configured client ID, with small offset for retries to avoid conflicts
+                base_client_id = int(os.getenv('IBKR_CLIENT_ID', self.config.get('client_id', '1')))
+                self.client_id = base_client_id + attempt  # Add attempt number to avoid conflicts
+                logger.info(f"Connection attempt {attempt + 1}/{max_retries} using client ID {self.client_id} (configured: {base_client_id})")
 
                 # Create IB instance
                 self.ib = IB()
-                await self.ib.connectAsync(self.host, self.port, self.client_id, timeout=10)
 
-                # Wait for connection to be fully established
-                await asyncio.sleep(2)
+                # Use shorter timeout for faster failure detection
+                await self.ib.connectAsync(self.host, self.port, self.client_id, timeout=timeout)
+
+                # Reduced wait time
+                await asyncio.sleep(0.5)
 
                 if self.ib.isConnected():
                     logger.info("Connection established, getting managed accounts...")
                     self.account_id = self.ib.managedAccounts()[0] if self.ib.managedAccounts() else self.account_id_env
                     self.connected = True
+                    self._connection_failures = 0  # Reset failure counter on success
                     logger.info(f"Successfully connected to IBKR Paper Trading. Account: {self.account_id}")
                     return True
                 else:
@@ -213,24 +256,94 @@ class IBKRConnector:
                         logger.info(f"Retrying in {retry_delay} seconds...")
                         await asyncio.sleep(retry_delay)
 
-            except Exception as e:
-                logger.error(f"Connection error on attempt {attempt + 1}: {e}")
-                alert_manager.error(
+            except (ConnectionError, TimeoutError, OSError) as e:
+                error_msg = str(e)
+                logger.error(f"Connection error on attempt {attempt + 1}: {error_msg}")
+
+                # Track connection failures for circuit breaker
+                self._connection_failures += 1
+
+                # If this looks like a permanent failure (TWS not running), activate circuit breaker
+                if "refused" in error_msg.lower() or "connection" in error_msg.lower():
+                    if self._connection_failures >= 3:
+                        self._circuit_breaker_until = current_time + self._connection_cooldown
+                        logger.warning(f"Permanent connection failure detected. Activating circuit breaker for {self._connection_cooldown} seconds.")
+
+                # Raise specific IBKR connection error
+                raise IBKRConnectionError(
                     f"IBKR connection failed on attempt {attempt + 1}",
-                    {"attempt": attempt + 1, "error": str(e), "max_retries": max_retries},
+                    {
+                        "attempt": attempt + 1,
+                        "error": error_msg,
+                        "max_retries": max_retries,
+                        "failures": self._connection_failures
+                    }
+                ) from e
+
+            except Exception as e:
+                error_msg = str(e)
+                logger.error(f"Unexpected error on attempt {attempt + 1}: {error_msg}")
+
+                # Track connection failures for circuit breaker
+                self._connection_failures += 1
+
+                await alert_manager.error(
+                    IBKRError(f"Unexpected IBKR connection error on attempt {attempt + 1}", {"error": error_msg}),
+                    {"attempt": attempt + 1, "error": error_msg, "max_retries": max_retries, "failures": self._connection_failures},
                     "ibkr_integration"
                 )
                 if attempt < max_retries - 1:
                     logger.info(f"Retrying in {retry_delay} seconds...")
                     await asyncio.sleep(retry_delay)
 
-        logger.error(f"Failed to connect after {max_retries} attempts")
-        alert_manager.error(
-            f"IBKR connection failed after {max_retries} attempts",
-            {"max_retries": max_retries},
+        logger.error(f"Failed to connect after {max_retries} attempts (total failures: {self._connection_failures})")
+        await alert_manager.error(
+            Exception(f"IBKR connection failed after {max_retries} attempts"),
+            {"max_retries": max_retries, "total_failures": self._connection_failures},
             "ibkr_integration"
         )
         return False
+
+    def should_attempt_connection(self) -> bool:
+        """
+        Check if we should attempt a connection based on circuit breaker state.
+
+        Returns:
+            bool: True if connection attempt should proceed
+        """
+        current_time = time.time()
+
+        # Check circuit breaker
+        if current_time < self._circuit_breaker_until:
+            return False
+
+        # Check cooldown period
+        if current_time - self._last_connection_attempt < 2:
+            return False
+
+        # If we have too many recent failures, be more conservative
+        if self._connection_failures > 10:
+            return False
+
+        return True
+
+    def get_connection_status(self) -> Dict[str, Any]:
+        """
+        Get detailed connection status for monitoring.
+
+        Returns:
+            Dict with connection state information
+        """
+        current_time = time.time()
+        return {
+            'connected': self.connected,
+            'connection_failures': self._connection_failures,
+            'circuit_breaker_active': current_time < self._circuit_breaker_until,
+            'circuit_breaker_remaining': max(0, int(self._circuit_breaker_until - current_time)),
+            'last_attempt': self._last_connection_attempt,
+            'seconds_since_last_attempt': int(current_time - self._last_connection_attempt),
+            'cooldown_period': self._connection_cooldown
+        }
 
     async def _wait_for_connection(self) -> None:
         """
@@ -259,6 +372,8 @@ class IBKRConnector:
         """
         try:
             if not self.connected:
+                if not self.should_attempt_connection():
+                    return {'error': 'Connection circuit breaker active - too many recent failures'}
                 await self.connect()
                 if not self.connected:
                     return {'error': 'Not connected to IBKR'}
@@ -337,6 +452,8 @@ class IBKRConnector:
         """
         try:
             if not self.connected:
+                if not self.should_attempt_connection():
+                    return {'error': 'Connection circuit breaker active - too many recent failures'}
                 await self.connect()
                 if not self.connected:
                     return {'error': 'Not connected to IBKR'}
@@ -435,8 +552,8 @@ class IBKRConnector:
 
         except Exception as e:
             logger.error(f"Error placing order: {e}")
-            alert_manager.error(
-                f"IBKR order placement failed for {symbol}",
+            await alert_manager.error(
+                Exception(f"IBKR order placement failed for {symbol}"),
                 {"symbol": symbol, "quantity": quantity, "action": action, "order_type": order_type, "error": str(e)},
                 "ibkr_integration"
             )
@@ -453,6 +570,8 @@ class IBKRConnector:
         """
         try:
             if not self.connected:
+                if not self.should_attempt_connection():
+                    return []
                 await self.connect()
                 if not self.connected:
                     return []
@@ -532,6 +651,8 @@ class IBKRConnector:
         """
         try:
             if not self.connected:
+                if not self.should_attempt_connection():
+                    return None
                 await self.connect()
                 if not self.connected:
                     return None
@@ -560,8 +681,8 @@ class IBKRConnector:
 
         except Exception as e:
             logger.error(f"Error getting market data for {symbol}: {e}")
-            alert_manager.error(
-                f"IBKR market data retrieval failed for {symbol}",
+            await alert_manager.error(
+                Exception(f"IBKR market data retrieval failed for {symbol}"),
                 {"symbol": symbol, "bar_size": bar_size, "duration": duration, "error": str(e)},
                 "ibkr_integration"
             )
@@ -579,6 +700,8 @@ class IBKRConnector:
         """
         try:
             if not self.connected:
+                if not self.should_attempt_connection():
+                    return {'error': 'Connection circuit breaker active - too many recent failures'}
                 await self.connect()
                 if not self.connected:
                     return {'error': 'Not connected to IBKR'}
@@ -595,8 +718,8 @@ class IBKRConnector:
 
         except Exception as e:
             logger.error(f"Error cancelling order {order_id}: {e}")
-            alert_manager.error(
-                f"IBKR order cancellation failed for order {order_id}",
+            await alert_manager.error(
+                Exception(f"IBKR order cancellation failed for order {order_id}"),
                 {"order_id": order_id, "error": str(e)},
                 "ibkr_integration"
             )
@@ -617,6 +740,8 @@ class IBKRConnector:
         """
         try:
             if not self.connected:
+                if not self.should_attempt_connection():
+                    return {'error': 'Connection circuit breaker active - too many recent failures'}
                 await self.connect()
                 if not self.connected:
                     return {'error': 'Not connected to IBKR'}
@@ -657,8 +782,8 @@ class IBKRConnector:
 
         except Exception as e:
             logger.error(f"Error modifying order {order_id}: {e}")
-            alert_manager.error(
-                f"IBKR order modification failed for order {order_id}",
+            await alert_manager.error(
+                Exception(f"IBKR order modification failed for order {order_id}"),
                 {"order_id": order_id, "quantity": quantity, "price": price, "error": str(e)},
                 "ibkr_integration"
             )
@@ -673,6 +798,8 @@ class IBKRConnector:
         """
         try:
             if not self.connected:
+                if not self.should_attempt_connection():
+                    return []
                 await self.connect()
                 if not self.connected:
                     return []
@@ -754,6 +881,8 @@ class IBKRConnector:
         """
         try:
             if not self.connected:
+                if not self.should_attempt_connection():
+                    return {'error': 'Connection circuit breaker active - too many recent failures'}
                 await self.connect()
                 if not self.connected:
                     return {'error': 'Not connected to IBKR'}
@@ -826,6 +955,8 @@ class IBKRConnector:
         """
         try:
             if not self.connected:
+                if not self.should_attempt_connection():
+                    return {'error': 'Connection circuit breaker active - too many recent failures'}
                 await self.connect()
                 if not self.connected:
                     return {'error': 'Not connected to IBKR'}
@@ -876,6 +1007,8 @@ class IBKRConnector:
         """
         try:
             if not self.connected:
+                if not self.should_attempt_connection():
+                    return []
                 await self.connect()
                 if not self.connected:
                     return []
@@ -919,6 +1052,8 @@ class IBKRConnector:
         """
         try:
             if not self.connected:
+                if not self.should_attempt_connection():
+                    return []
                 await self.connect()
                 if not self.connected:
                     return []
@@ -961,6 +1096,8 @@ class IBKRConnector:
         """
         try:
             if not self.connected:
+                if not self.should_attempt_connection():
+                    return None
                 await self.connect()
                 if not self.connected:
                     return None
@@ -1019,6 +1156,8 @@ class IBKRConnector:
         """
         try:
             if not self.connected:
+                if not self.should_attempt_connection():
+                    return {'error': 'Connection circuit breaker active - too many recent failures'}
                 await self.connect()
                 if not self.connected:
                     return {'error': 'Not connected to IBKR'}

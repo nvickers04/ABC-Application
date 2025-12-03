@@ -305,7 +305,7 @@ class StrategyAgent(BaseAgent):
         task.add_done_callback(self._background_tasks.discard)
         return task
 
-    async def process_input(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def _process_input(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Processes combined data input: Generates macro-micro proposal with train-of-thought, estimates >20% ROI.
         Args:

@@ -1,0 +1,53 @@
+# Consensus Workflow Polling Configuration
+# Configuration for agent consensus polling system
+
+# Polling Settings
+polling:
+  interval_seconds: 30          # How often to poll agents during active voting
+  default_timeout_seconds: 300  # Default timeout for polls (5 minutes)
+  min_confidence_threshold: 0.6 # Minimum confidence required for consensus (60%)
+
+# Persistence
+persistence:
+  file_path: "data/consensus_polls.json"  # JSON file for poll persistence
+  backup_interval_hours: 24               # How often to backup polls
+  max_history_days: 30                    # How long to keep completed polls
+
+# Agent Permissions
+agents:
+  # Agents allowed to request consensus
+  requesters:
+    - risk_agent
+    - strategy_agent
+    - execution_agent
+
+  # Valid agents that can be polled
+  valid_targets:
+    - risk_agent
+    - strategy_agent
+    - data_agent
+    - execution_agent
+    - reflection_agent
+
+# Discord Integration
+discord:
+  enable_slash_commands: true
+  enable_status_embeds: true
+  status_update_interval_seconds: 60  # How often to send progress updates
+
+# Alerting
+alerts:
+  enable_consensus_alerts: true
+  enable_timeout_alerts: true
+  enable_failure_alerts: true
+
+# Metrics
+metrics:
+  enable_collection: true
+  rolling_average_window: 100  # Number of polls to keep for averages
+
+# Advanced Settings
+advanced:
+  max_concurrent_polls: 5       # Maximum number of simultaneous polls
+  circuit_breaker_threshold: 3  # Failures before disabling polling
+  rate_limit_per_agent: 10      # Max polls per agent per hour

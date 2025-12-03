@@ -174,7 +174,7 @@ class KalshiDataAnalyzer(BaseDataAnalyzer):
                 'adjustments_analyzed': len(adjustments) if isinstance(adjustments, dict) else 0
             }
 
-    async def process_input(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def _process_input(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Process input using base class pattern while maintaining backward compatibility.
         """

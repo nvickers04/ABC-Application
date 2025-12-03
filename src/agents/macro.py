@@ -260,7 +260,7 @@ class MacroAgent(BaseAgent):
                 self.last_update = None
                 logger.info("Cleared expired fallback cache")
 
-    async def process_input(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def _process_input(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Main processing method for macro analysis.
         Performs asset scanning, ratio calculations, and selection of top opportunities.

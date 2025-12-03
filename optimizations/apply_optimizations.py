@@ -32,9 +32,9 @@ def apply_parallel_api_optimization():
     return False
 
 def apply_caching_optimization():
-    """Add basic caching to sentiment subagent"""
+    """Add basic caching to sentiment analyzer"""
 
-    sentiment_file = Path("src/agents/data_subs/sentiment_datasub.py")
+    sentiment_file = Path("src/agents/data_analyzers/sentiment_data_analyzer.py")
 
     if not sentiment_file.exists():
         print("ERROR: sentiment_datasub.py not found")

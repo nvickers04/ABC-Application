@@ -164,7 +164,7 @@ class MicrostructureDataAnalyzer(BaseDataAnalyzer):
                 'metrics_analyzed': len(metrics) if isinstance(metrics, dict) else 0
             }
 
-    async def process_input(self, input_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    async def _process_input(self, input_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
         Process input to fetch and analyze microstructure data with LLM enhancement.
         Args:

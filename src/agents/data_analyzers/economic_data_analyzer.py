@@ -152,7 +152,7 @@ class EconomicDataAnalyzer(BaseDataAnalyzer):
             }
         return enhanced
 
-    async def process_input(self, input_data: Dict[str, Any] = None) -> Dict[str, Any]:
+    async def _process_input(self, input_data: Dict[str, Any] = None) -> Dict[str, Any]:
         """
         Process economic data input using standardized BaseDataAnalyzer pattern.
         Maintains backward compatibility with existing tests.

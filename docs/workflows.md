@@ -94,3 +94,44 @@ These scheduled workflows leverage the main AI Trading Workflow phases but can b
 - **Error Handling**: Built-in retries and conditional routing for resilience.
 
 For implementation details, see `src/utils/a2a_protocol.py` and `src/agents/live_workflow_orchestrator.py`. For Discord integration, refer to `docs/discord-agent-integration.md`. For 24/6 setup, see `docs/IMPLEMENTATION/24_6_CONTINUOUS_OPERATION.md`.
+
+## Consensus Workflow Polling
+
+The Consensus Workflow Polling system enables agents to request and achieve consensus on critical decisions, particularly for risk and strategy assessments. This ensures collaborative decision-making with proper oversight and Discord visibility.
+
+### How It Works
+1. **Agent Request**: Risk or Strategy agents can request consensus via `orchestrator.request_consensus(question, target_agents)`
+2. **Poll Creation**: Orchestrator creates a poll with configurable timeout and targets specific agents
+3. **Voting Phase**: Target agents are polled asynchronously until consensus or timeout
+4. **Consensus Check**: Majority vote (>50%) with sufficient confidence (>60%) achieves consensus
+5. **Discord Updates**: Real-time status updates and final results posted to Discord
+6. **Persistence**: All polls saved to JSON with metrics tracking
+
+### Key Features
+- **Agent-Initiated**: Risk/Strategy agents can trigger polls for position sizing, trade approvals, etc.
+- **Configurable**: Timeout, confidence thresholds, and polling intervals via `config/consensus_config.yaml`
+- **Discord Integration**: Slash commands (`/consensus_status`, `/poll_consensus`) and status embeds
+- **Metrics & Alerts**: Success rates, response times, and automated alerts for consensus events
+- **Persistence**: Survives system restarts with full poll state recovery
+
+### Usage Examples
+```python
+# Agent requesting consensus
+poll_id = await orchestrator.request_consensus(
+    "Is this 5% position size appropriate for current volatility?",
+    "risk_agent",
+    ["strategy_agent", "execution_agent"]
+)
+
+# Discord slash commands
+/consensus_status    # View active/completed polls
+/poll_consensus "Should we exit this position?" risk_agent strategy_agent
+```
+
+### Configuration
+See `config/consensus_config.yaml` for polling intervals, timeouts, agent permissions, and alert settings.
+
+### Implementation
+- **Core**: `src/workflows/consensus_poller.py` - Main polling logic and state management
+- **Integration**: `src/agents/live_workflow_orchestrator.py` - Discord commands and agent requests
+- **Tests**: `unit-tests/test_consensus_poller.py` and `integration-tests/test_consensus_integration.py`

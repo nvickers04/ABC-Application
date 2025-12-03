@@ -126,7 +126,7 @@ class NewsDataAnalyzer(BaseDataAnalyzer):
             "relevant_articles_count": len(relevant_articles)
         }
 
-    async def process_input(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def _process_input(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
         # Use base class process_input
         base_result = await super().process_input(input_data)
         # Add any news-specific processing if needed

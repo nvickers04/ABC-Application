@@ -81,7 +81,7 @@ class InstitutionalDataAnalyzer(BaseDataAnalyzer):
             "enhanced": True
         }
 
-    async def process_input(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def _process_input(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Process input using base class pattern while maintaining backward compatibility.
         """

@@ -312,7 +312,7 @@ class RiskAgent(BaseAgent):
                 'breakdown': {'error': str(e)}
             }
 
-    async def process_input(self, proposal: Dict[str, Any]) -> Dict[str, Any]:
+    async def _process_input(self, proposal: Dict[str, Any]) -> Dict[str, Any]:
         """
         Processes a strategy proposal: Loads YAMLs fresh, re-runs stochastics, vets with POP checks, adjusts post-batch.
         Args:

@@ -13,6 +13,7 @@ Follow PEP 8 and use type hints everywhere.
   - Add a comment in the code: `# TODO: Resolves item X from TODO.md`
   - Suggest marking the item as done in `TODO.md` (change `[ ]` → `[x]`) and optionally add a short note.
 - If you discover a new bug or improvement while working, suggest adding it to `TODO.md`.
+- To update TODO.md directly, use the manage_todo_list tool with a structured todoList array (id, title, status). Direct file edits may fail with "todoList is required for write operation" error.
 
 # Multi-Agent Coordination
 - When multiple AI agents/chats are working on the same codebase, coordinate to avoid conflicts.

@@ -361,7 +361,103 @@ class AlertManager:
         self.email_enabled = bool(os.getenv('ALERT_EMAIL_ENABLED', False))
         self.slack_enabled = bool(os.getenv('ALERT_SLACK_ENABLED', False))
 
+        # Escalation and routing configuration
+        self.escalation_policies = self._load_escalation_policies()
+        self.notification_filters = self._load_notification_filters()
+        self.escalation_history = []  # Track escalation events
+
+        # Metrics collection
+        self.alert_metrics = {
+            'total_alerts': 0,
+            'alerts_by_level': {level.value: 0 for level in AlertLevel},
+            'alerts_by_component': {},
+            'alerts_by_hour': {},  # Hourly frequency tracking
+            'alert_response_times': [],  # Processing time tracking
+            'false_positives': [],  # False positive tracking
+            'alert_patterns': {},  # Pattern detection
+            'performance_stats': {
+                'avg_response_time': 0.0,
+                'max_response_time': 0.0,
+                'min_response_time': float('inf'),
+                'false_positive_rate': 0.0
+            }
+        }
+
         logger.info("AlertManager initialized")
+
+    def _load_escalation_policies(self) -> Dict[str, Any]:
+        """Load escalation policies from configuration"""
+        return {
+            'default': {
+                'levels': [
+                    {
+                        'name': 'immediate',
+                        'channels': ['discord'],
+                        'delay_minutes': 0,
+                        'conditions': {'min_level': 'warning'}
+                    },
+                    {
+                        'name': 'escalated',
+                        'channels': ['discord', 'email'],
+                        'delay_minutes': 5,
+                        'conditions': {'min_level': 'error', 'frequency_threshold': 3}
+                    },
+                    {
+                        'name': 'critical',
+                        'channels': ['discord', 'email', 'sms'],
+                        'delay_minutes': 10,
+                        'conditions': {'min_level': 'critical', 'pattern_match': ['security', 'data_breach']}
+                    }
+                ]
+            },
+            'business_hours': {
+                'active_hours': {'start': '09:00', 'end': '17:00', 'timezone': 'UTC'},
+                'levels': [
+                    {
+                        'name': 'immediate',
+                        'channels': ['discord'],
+                        'delay_minutes': 0,
+                        'conditions': {'min_level': 'warning'}
+                    },
+                    {
+                        'name': 'escalated',
+                        'channels': ['discord', 'email'],
+                        'delay_minutes': 15,
+                        'conditions': {'min_level': 'error', 'frequency_threshold': 5}
+                    }
+                ]
+            }
+        }
+
+    def _load_notification_filters(self) -> Dict[str, Any]:
+        """Load notification filters and preferences"""
+        return {
+            'component_filters': {
+                'health_monitor': {'min_level': 'warning', 'quiet_hours': True},
+                'data_processor': {'min_level': 'error', 'rate_limit': 10},  # Max 10 alerts per hour
+                'ibkr_connector': {'min_level': 'info', 'patterns': ['connection_failed']},
+                'api_client': {'min_level': 'warning', 'exclude_patterns': ['rate_limited']}
+            },
+            'user_preferences': {
+                'default': {
+                    'channels': ['discord'],
+                    'quiet_hours': {'start': '22:00', 'end': '08:00', 'timezone': 'UTC'},
+                    'alert_types': ['error', 'warning', 'critical']
+                }
+            },
+            'suppression_rules': [
+                {
+                    'name': 'duplicate_suppression',
+                    'condition': {'same_message_within': 300},  # 5 minutes
+                    'action': 'suppress'
+                },
+                {
+                    'name': 'maintenance_mode',
+                    'condition': {'component': 'health_monitor', 'pattern': 'maintenance'},
+                    'action': 'suppress'
+                }
+            ]
+        }
 
     def set_orchestrator(self, orchestrator):
         """Set orchestrator reference for Discord notifications"""
@@ -443,7 +539,9 @@ class AlertManager:
         await self._process_alert(alert)
 
     async def _process_alert(self, alert: Alert):
-        """Process an alert: log, queue, notify"""
+        """Process an alert: log, queue, notify, and collect metrics"""
+        start_time = datetime.now()
+
         # Log the alert
         log_message = f"[{alert.level.value.upper()}] {alert.component}: {alert.message}"
         if alert.context:
@@ -465,11 +563,14 @@ class AlertManager:
         if len(self.error_queue) > self.max_queue_size:
             self.error_queue.pop(0)  # Remove oldest
 
-        # Send Discord notification
-        await self._send_discord_alert(alert)
+        # Apply escalation and routing logic
+        await self._apply_escalation_policies(alert)
 
-        # Send email/Slack if enabled
-        await self._send_external_alerts(alert)
+        # Send notifications based on routing rules
+        await self._route_notifications(alert)
+
+        # Collect metrics
+        await self._collect_alert_metrics(alert, start_time)
 
     async def _send_discord_alert(self, alert: Alert):
         """Send alert to Discord alerts channel"""
@@ -557,6 +658,384 @@ class AlertManager:
         """Clear all alerts from queue"""
         self.error_queue.clear()
         logger.info("Alert queue cleared")
+
+    async def _collect_alert_metrics(self, alert: Alert, start_time: datetime):
+        """Collect metrics for alert processing"""
+        processing_time = (datetime.now() - start_time).total_seconds() * 1000  # ms
+
+        # Update total count
+        self.alert_metrics['total_alerts'] += 1
+
+        # Update level counts
+        self.alert_metrics['alerts_by_level'][alert.level.value] += 1
+
+        # Update component counts
+        if alert.component not in self.alert_metrics['alerts_by_component']:
+            self.alert_metrics['alerts_by_component'][alert.component] = 0
+        self.alert_metrics['alerts_by_component'][alert.component] += 1
+
+        # Update hourly frequency
+        hour_key = alert.timestamp.strftime('%Y-%m-%d %H:00')
+        if hour_key not in self.alert_metrics['alerts_by_hour']:
+            self.alert_metrics['alerts_by_hour'][hour_key] = 0
+        self.alert_metrics['alerts_by_hour'][hour_key] += 1
+
+        # Track response times
+        self.alert_metrics['alert_response_times'].append(processing_time)
+        if len(self.alert_metrics['alert_response_times']) > 1000:  # Keep last 1000
+            self.alert_metrics['alert_response_times'].pop(0)
+
+        # Update performance stats
+        self._update_performance_stats()
+
+        # Detect alert patterns
+        self._detect_alert_patterns(alert)
+
+    def _update_performance_stats(self):
+        """Update performance statistics"""
+        response_times = self.alert_metrics['alert_response_times']
+        if response_times:
+            self.alert_metrics['performance_stats']['avg_response_time'] = sum(response_times) / len(response_times)
+            self.alert_metrics['performance_stats']['max_response_time'] = max(response_times)
+            self.alert_metrics['performance_stats']['min_response_time'] = min(response_times)
+
+        # Calculate false positive rate (alerts marked as false positives / total alerts)
+        total_false_positives = len(self.alert_metrics['false_positives'])
+        if self.alert_metrics['total_alerts'] > 0:
+            self.alert_metrics['performance_stats']['false_positive_rate'] = total_false_positives / self.alert_metrics['total_alerts']
+
+    def _detect_alert_patterns(self, alert: Alert):
+        """Detect patterns in alerts for analysis"""
+        # Simple pattern detection based on message content
+        message_lower = alert.message.lower()
+
+        patterns = {
+            'connection_failed': ['connection', 'connect', 'timeout', 'refused'],
+            'authentication_failed': ['auth', 'login', 'credential', 'token'],
+            'rate_limited': ['rate limit', 'too many requests', 'throttle'],
+            'data_quality': ['invalid data', 'missing', 'corrupt', 'quality'],
+            'system_resource': ['memory', 'cpu', 'disk', 'resource']
+        }
+
+        for pattern_name, keywords in patterns.items():
+            if any(keyword in message_lower for keyword in keywords):
+                if pattern_name not in self.alert_metrics['alert_patterns']:
+                    self.alert_metrics['alert_patterns'][pattern_name] = 0
+                self.alert_metrics['alert_patterns'][pattern_name] += 1
+                break
+
+    def mark_false_positive(self, alert_index: int = -1):
+        """Mark an alert as a false positive for metrics tracking"""
+        if self.error_queue and 0 <= alert_index < len(self.error_queue):
+            alert = self.error_queue[alert_index]
+            self.alert_metrics['false_positives'].append({
+                'alert': alert,
+                'marked_at': datetime.now()
+            })
+            self._update_performance_stats()
+            logger.info(f"Alert marked as false positive: {alert.message}")
+
+    def get_alert_metrics(self) -> Dict[str, Any]:
+        """Get comprehensive alert metrics"""
+        return {
+            'summary': {
+                'total_alerts': self.alert_metrics['total_alerts'],
+                'alerts_by_level': self.alert_metrics['alerts_by_level'],
+                'top_components': dict(sorted(
+                    self.alert_metrics['alerts_by_component'].items(),
+                    key=lambda x: x[1],
+                    reverse=True
+                )[:10]),
+                'alert_patterns': self.alert_metrics['alert_patterns']
+            },
+            'performance': self.alert_metrics['performance_stats'],
+            'recent_activity': {
+                'last_24h_alerts': len([a for a in self.error_queue[-100:]
+                                      if (datetime.now() - a.timestamp).total_seconds() < 86400]),
+                'hourly_frequency': dict(list(self.alert_metrics['alerts_by_hour'].items())[-24:])
+            },
+            'quality': {
+                'false_positives_count': len(self.alert_metrics['false_positives']),
+                'false_positive_rate': self.alert_metrics['performance_stats']['false_positive_rate']
+            }
+        }
+
+    def get_monitoring_dashboard(self) -> Dict[str, Any]:
+        """Get monitoring dashboard data for alert statistics"""
+        metrics = self.get_alert_metrics()
+        health = self.check_health()
+
+        return {
+            'timestamp': datetime.now().isoformat(),
+            'alert_system_health': health,
+            'metrics_summary': metrics['summary'],
+            'performance_indicators': {
+                'avg_response_time_ms': round(metrics['performance']['avg_response_time'], 2),
+                'max_response_time_ms': round(metrics['performance']['max_response_time'], 2),
+                'false_positive_rate_percent': round(metrics['performance']['false_positive_rate'] * 100, 2),
+                'alerts_per_hour': self._calculate_alerts_per_hour()
+            },
+            'alert_distribution': {
+                'by_level': metrics['summary']['alerts_by_level'],
+                'by_component': metrics['summary']['top_components'],
+                'by_pattern': metrics['summary']['alert_patterns']
+            },
+            'recent_alerts': [
+                {
+                    'level': alert.level.value,
+                    'component': alert.component,
+                    'message': alert.message[:100] + '...' if len(alert.message) > 100 else alert.message,
+                    'timestamp': alert.timestamp.isoformat(),
+                    'age_minutes': round((datetime.now() - alert.timestamp).total_seconds() / 60, 1)
+                }
+                for alert in self.get_recent_alerts(10)
+            ],
+            'recommendations': self._generate_monitoring_recommendations(metrics, health)
+        }
+
+    def _calculate_alerts_per_hour(self) -> float:
+        """Calculate average alerts per hour over the last 24 hours"""
+        recent_alerts = [a for a in self.error_queue[-200:]
+                        if (datetime.now() - a.timestamp).total_seconds() < 86400]
+        if not recent_alerts:
+            return 0.0
+
+        hours_span = (datetime.now() - recent_alerts[0].timestamp).total_seconds() / 3600
+        return len(recent_alerts) / max(hours_span, 1)
+
+    def _generate_monitoring_recommendations(self, metrics: Dict, health: Dict) -> List[str]:
+        """Generate monitoring recommendations based on metrics and health"""
+        recommendations = []
+
+        # Check alert frequency
+        alerts_per_hour = self._calculate_alerts_per_hour()
+        if alerts_per_hour > 10:
+            recommendations.append(f"⚠️ High alert frequency: {alerts_per_hour:.1f} alerts/hour - investigate root causes")
+        elif alerts_per_hour > 5:
+            recommendations.append(f"ℹ️ Moderate alert frequency: {alerts_per_hour:.1f} alerts/hour - monitor closely")
+
+        # Check false positive rate
+        fp_rate = metrics['performance']['false_positive_rate']
+        if fp_rate > 0.3:
+            recommendations.append(f"⚠️ High false positive rate: {fp_rate:.1%} - review alert thresholds")
+        elif fp_rate > 0.1:
+            recommendations.append(f"ℹ️ Moderate false positive rate: {fp_rate:.1%} - consider tuning")
+
+        # Check response times
+        avg_response = metrics['performance']['avg_response_time']
+        if avg_response > 1000:  # > 1 second
+            recommendations.append(f"⚠️ Slow alert processing: {avg_response:.0f}ms average - optimize delivery")
+        elif avg_response > 500:  # > 0.5 seconds
+            recommendations.append(f"ℹ️ Moderate response time: {avg_response:.0f}ms - monitor performance")
+
+        # Check queue health
+        if health['alert_queue_size'] > 500:
+            recommendations.append(f"⚠️ Large alert queue: {health['alert_queue_size']} alerts - review processing")
+
+        # Check error patterns
+        error_patterns = metrics['summary']['alert_patterns']
+        if error_patterns.get('connection_failed', 0) > 10:
+            recommendations.append("🔄 Frequent connection failures detected - check network stability")
+        if error_patterns.get('rate_limited', 0) > 5:
+            recommendations.append("⏱️ Frequent rate limiting - review API usage patterns")
+
+        if not recommendations:
+            recommendations.append("✅ Alert system operating normally")
+
+        return recommendations
+
+    async def _apply_escalation_policies(self, alert: Alert):
+        """Apply escalation policies based on alert characteristics"""
+        current_time = datetime.now()
+
+        # Check if alert should be escalated based on policies
+        escalation_needed = self._check_escalation_conditions(alert)
+
+        if escalation_needed:
+            escalation_event = {
+                'alert': alert,
+                'escalation_level': escalation_needed['level'],
+                'escalation_time': current_time,
+                'channels': escalation_needed['channels'],
+                'reason': escalation_needed['reason']
+            }
+            self.escalation_history.append(escalation_event)
+
+            # Keep only last 100 escalation events
+            if len(self.escalation_history) > 100:
+                self.escalation_history.pop(0)
+
+            logger.info(f"Alert escalated: {alert.message} -> {escalation_needed['level']}")
+
+    def _check_escalation_conditions(self, alert: Alert) -> Optional[Dict[str, Any]]:
+        """Check if alert meets escalation conditions"""
+        policy = self.escalation_policies.get('default', {})  # Use default policy
+
+        for level in policy.get('levels', []):
+            conditions = level.get('conditions', {})
+
+            # Check minimum alert level
+            if 'min_level' in conditions:
+                min_level_str = conditions['min_level']
+                current_level_str = alert.level.value
+                level_hierarchy = {'debug': 0, 'info': 1, 'warning': 2, 'error': 3, 'critical': 4}
+
+                if level_hierarchy.get(current_level_str, 0) < level_hierarchy.get(min_level_str, 0):
+                    continue
+
+            # Check frequency threshold
+            if 'frequency_threshold' in conditions:
+                recent_alerts = [a for a in self.error_queue[-50:]
+                               if a.component == alert.component and
+                               (datetime.now() - a.timestamp).total_seconds() < 3600]  # Last hour
+                if len(recent_alerts) < conditions['frequency_threshold']:
+                    continue
+
+            # Check pattern matching
+            if 'pattern_match' in conditions:
+                message_lower = alert.message.lower()
+                if not any(pattern.lower() in message_lower for pattern in conditions['pattern_match']):
+                    continue
+
+            # If all conditions met, return escalation info
+            return {
+                'level': level['name'],
+                'channels': level['channels'],
+                'delay_minutes': level['delay_minutes'],
+                'reason': f"Met conditions: {conditions}"
+            }
+
+        return None
+
+    async def _route_notifications(self, alert: Alert):
+        """Route notifications based on filters and escalation policies"""
+        # Check if alert should be filtered/suppressed
+        if self._should_suppress_alert(alert):
+            logger.debug(f"Alert suppressed: {alert.message}")
+            return
+
+        # Determine target channels based on escalation and filters
+        target_channels = self._determine_target_channels(alert)
+
+        # Send to each target channel
+        for channel in target_channels:
+            if channel == 'discord':
+                await self._send_discord_alert(alert)
+            elif channel == 'email':
+                await self._send_email_alert(alert)
+            elif channel == 'sms':
+                await self._send_sms_alert(alert)
+            elif channel == 'slack':
+                await self._send_slack_alert(alert)
+
+    def _should_suppress_alert(self, alert: Alert) -> bool:
+        """Check if alert should be suppressed based on filters"""
+        # Check suppression rules
+        for rule in self.notification_filters.get('suppression_rules', []):
+            condition = rule.get('condition', {})
+
+            # Check time-based suppression (same message within time window)
+            if 'same_message_within' in condition:
+                time_window = condition['same_message_within']
+                recent_similar = [a for a in self.error_queue[-20:]
+                                if a.message == alert.message and
+                                (datetime.now() - a.timestamp).total_seconds() < time_window]
+                if recent_similar:
+                    return True
+
+            # Check component and pattern based suppression
+            if 'component' in condition and alert.component == condition['component']:
+                if 'pattern' in condition:
+                    if condition['pattern'].lower() in alert.message.lower():
+                        return True
+
+        # Check component-specific filters
+        component_filters = self.notification_filters.get('component_filters', {}).get(alert.component, {})
+
+        # Check minimum level filter
+        if 'min_level' in component_filters:
+            min_level_value = AlertLevel[component_filters['min_level']].value
+            current_level_value = alert.level.value
+            level_hierarchy = {'debug': 0, 'info': 1, 'warning': 2, 'error': 3, 'critical': 4}
+
+            if level_hierarchy.get(current_level_value, 0) < level_hierarchy.get(min_level_value, 0):
+                return True
+
+        # Check rate limiting
+        if 'rate_limit' in component_filters:
+            recent_component_alerts = [a for a in self.error_queue[-50:]
+                                     if a.component == alert.component and
+                                     (datetime.now() - a.timestamp).total_seconds() < 3600]  # Last hour
+            if len(recent_component_alerts) >= component_filters['rate_limit']:
+                return True
+
+        return False
+
+    def _determine_target_channels(self, alert: Alert) -> List[str]:
+        """Determine which channels should receive the alert"""
+        channels = set()
+
+        # Check escalation history for this alert
+        escalation_info = None
+        for escalation in self.escalation_history[-10:]:  # Check recent escalations
+            if escalation['alert'].message == alert.message and \
+               escalation['alert'].component == alert.component and \
+               (datetime.now() - escalation['escalation_time']).total_seconds() < 300:  # Within 5 minutes
+                escalation_info = escalation
+                break
+
+        if escalation_info:
+            # Use escalated channels
+            channels.update(escalation_info['channels'])
+        else:
+            # Use default channels based on alert level
+            if alert.level in (AlertLevel.CRITICAL, AlertLevel.ERROR):
+                channels.add('discord')
+                if self.email_enabled:
+                    channels.add('email')
+            elif alert.level == AlertLevel.WARNING:
+                channels.add('discord')
+            else:
+                channels.add('discord')  # Info and debug still go to Discord
+
+        return list(channels)
+
+    async def _send_email_alert(self, alert: Alert):
+        """Send alert via email (placeholder)"""
+        logger.info(f"Email alert: {alert.level.value.upper()} - {alert.message}")
+        # TODO: Implement actual email sending
+        pass
+
+    async def _send_sms_alert(self, alert: Alert):
+        """Send alert via SMS (placeholder)"""
+        logger.info(f"SMS alert: {alert.level.value.upper()} - {alert.message}")
+        # TODO: Implement actual SMS sending
+        pass
+
+    async def _send_slack_alert(self, alert: Alert):
+        """Send alert via Slack (placeholder)"""
+        logger.info(f"Slack alert: {alert.level.value.upper()} - {alert.message}")
+        # TODO: Implement actual Slack sending
+        pass
+
+    def get_escalation_status(self) -> Dict[str, Any]:
+        """Get current escalation status and history"""
+        return {
+            'active_escalations': len([e for e in self.escalation_history[-20:]
+                                     if (datetime.now() - e['escalation_time']).total_seconds() < 3600]),  # Last hour
+            'recent_escalations': [
+                {
+                    'level': e['escalation_level'],
+                    'component': e['alert'].component,
+                    'message': e['alert'].message[:50] + '...' if len(e['alert'].message) > 50 else e['alert'].message,
+                    'channels': e['channels'],
+                    'time': e['escalation_time'].isoformat()
+                }
+                for e in self.escalation_history[-10:]
+            ],
+            'escalation_policies': self.escalation_policies,
+            'notification_filters': self.notification_filters
+        }
 
 
 # Exception Classes for Specific Error Handling

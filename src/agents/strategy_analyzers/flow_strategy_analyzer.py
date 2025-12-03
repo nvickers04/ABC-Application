@@ -83,7 +83,7 @@ class FlowStrategyAnalyzer(BaseAgent):
         logger.info(f"Flow Reflecting on adjustments: {adjustments}")
         return {}
 
-    async def process_input(self, input_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    async def _process_input(self, input_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
         Comprehensive flow strategy analysis with advanced order flow and institutional detection.
         """
@@ -1830,7 +1830,7 @@ class FlowStrategyAnalyzer(BaseAgent):
         logger.info(f"Flow Reflecting on adjustments: {adjustments}")
         return {}
 
-    async def process_input(self, input_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    async def _process_input(self, input_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
         Process input with LLM-enhanced flow strategy generation.
         """

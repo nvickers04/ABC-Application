@@ -1026,13 +1026,54 @@ Consider market conditions, risk factors, and alignment with our goals (10-20% m
         
         return query  # Return whole query if no specific text found
 
+    def _display_motivational_reminder(self) -> None:
+        """
+        Display motivational reminder to agents for context and motivation.
+        Shows the core trading philosophy and goals at the start of every workflow.
+        """
+        reminder = """
+252 trading days per year — the only number that matters.
++1% every day, no losses → (1.01)²⁵² − 1 = +1,127% annual return.
+Realistic high-performance edge (still motivational because the math is brutal):
+Win rate: 50% (126 wins, 126 non-wins)
+Average win: +5.0%
+Average loss: –1.6% (≈3:1 reward/risk)
+Daily expectancy = +1.7%
+Annual: (1.05¹²⁶ × 0.984¹²⁶) − 1 ≈ +367%
+Tighten losses to –1.0% (5:1 reward/risk) → daily expectancy +2.0%
+Annual → +1,310%
+Core truth:
+You don't need to be right more than half the time.
+You need decent winners, tiny losers, and the discipline to execute across all 252 days.
+Show up for every one of the 252 shots.
+Take the +5% when it's there.
+Never give back more than ~1%.
+Let compounding do the rest.
+That's the entire game.
+Now go execute it.
+        """
+        logger.info(f"Motivational Reminder for {self.role} Agent:\n{reminder}")
+
     async def process_input(self, input_data: Any) -> Dict[str, Any]:
+        """
+        Process input with motivational reminder display.
+        Displays reminder at the start of every workflow for motivation and context.
+        Then delegates to subclass-specific processing logic.
+        """
+        # Display motivational reminder at the start of every workflow
+        self._display_motivational_reminder()
+
+        # Delegate to subclass implementation
+        return await self._process_input(input_data)
+
+    @abc.abstractmethod
+    async def _process_input(self, input_data: Any) -> Dict[str, Any]:
         """
         Abstract method for processing input (e.g., proposals for Risk).
         Returns: Dict with output (e.g., {'approved': True, 'adjustments': {...}}).
         Reasoning: Async for parallel sims/pings; subclasses implement ReAct-like logic with reflections.
         """
-        return {"output": "BaseAgent default response"}
+        pass
 
     def save_memory(self, create_backup: bool = True) -> bool:
         """

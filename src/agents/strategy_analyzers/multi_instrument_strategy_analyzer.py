@@ -300,7 +300,7 @@ class MultiInstrumentStrategyAnalyzer(BaseAgent):
         tools = [correlation_tool, cointegration_tool, basket_tool]
         super().__init__(role='multi_instrument_strategy', config_paths=config_paths, prompt_paths=prompt_paths, tools=tools)
 
-    async def process_input(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def _process_input(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Generate multi-instrument strategy proposals based on comprehensive market analysis.
         """

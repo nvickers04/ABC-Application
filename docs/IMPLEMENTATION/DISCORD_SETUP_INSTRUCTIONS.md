@@ -1,4 +1,4 @@
-# Discord Agent Integration Setup Instructions
+# Discord Integration Setup Instructions
 
 ## 1. Create Discord Server
 
@@ -46,48 +46,45 @@
 - Try the web version at discord.com/app
 - The setting might be called "Developer Mode" or "Enable Developer Mode"
 
-## 2. Create Bot Applications
+## 2. Create Bot Application
 
-For each main agent, create a separate Discord bot application. The system currently supports 5 core agents with Discord integration:
+The system uses a single Discord bot for orchestration and command handling:
 
 1. **Go to:** https://discord.com/developers/applications
-2. **Click "New Application"** for each agent:
-   - **Macro Agent** (Required)
-   - **Data Agent** (Required)  
-   - **Strategy Agent** (Required)
-   - **Reflection Agent** (Required)
-   - **Execution Agent** (Required)
-   - **Risk Agent** (Optional - currently disabled due to TensorFlow dependencies)
-   - **Learning Agent** (Optional - currently disabled due to TensorFlow dependencies)
+2. **Click "New Application"**
+   - Name: "ABC Orchestrator" or similar
 
-3. **For each application:**
+3. **Bot Configuration:**
    - Go to the **"Bot"** section
    - Click **"Reset Token"** to generate a new bot token
-   - **Copy the token** (this goes in your `.env` file)
+   - **Copy the token** and add to your `.env` file:
+     ```
+     DISCORD_ORCHESTRATOR_TOKEN=your_bot_token_here
+     ```
 
 ## 3. Configure Bot Permissions
 
-In the Discord developer portal for each bot:
+In the Discord developer portal:
 
 - Go to **OAuth2 → URL Generator**
 - Select scopes: `bot`, `applications.commands`
 - Select permissions:
   - ✅ Send Messages
-  - ✅ Use Slash Commands  
+  - ✅ Use Slash Commands
   - ✅ Read Message History
   - ✅ Add Reactions
   - ✅ Mention Everyone (for alerts)
-  - ✅ Create Polls (for voting)
+  - ✅ Create Polls (for consensus voting)
+  - ✅ Embed Links
+  - ✅ Attach Files
 
-## 4. Invite Bots to Server
+## 4. Invite Bot to Server
 
 ### Step-by-Step Bot Invitation:
 
-**For each of your 5 core agents (Macro, Data, Strategy, Reflection, Execution):**
-
 1. **Go back to Discord Developer Portal:**
    - Visit: https://discord.com/developers/applications
-   - Select the bot application you created (e.g., "Macro Agent")
+   - Select your "ABC Orchestrator" bot application
 
 2. **Generate Invite Link:**
    - Click **"OAuth2"** in the left sidebar
@@ -95,36 +92,23 @@ In the Discord developer portal for each bot:
    - Under **"Scopes"**, check:
      - ✅ `bot`
      - ✅ `applications.commands`
-   - Under **"Bot Permissions"**, check:
-     - ✅ Send Messages
-     - ✅ Use Slash Commands
-     - ✅ Read Message History
-     - ✅ Add Reactions
-     - ✅ Mention Everyone (for alerts)
-     - ✅ Create Polls (for voting)
-     - ✅ Read Messages/View Channels
+   - Under **"Bot Permissions"**, check the permissions listed above
 
 3. **Copy the Generated URL:**
    - The URL will appear at the bottom
    - It should look like: `https://discord.com/api/oauth2/authorize?client_id=...`
 
-4. **Invite Each Bot:**
+4. **Invite the Bot:**
    - **Open the URL in your browser**
-   - **Select your server** from the dropdown (should show your "ABC Trading Agents" server)
+   - **Select your server** from the dropdown
    - **Click "Authorize"**
    - **Complete the CAPTCHA** if prompted
-   - **Repeat for each of the 5 core bots**
-
-### Optional Agents:
-- **Risk Agent** and **Learning Agent** bots can be added later when TensorFlow dependencies are resolved
-- These agents will integrate seamlessly once their Discord tokens are configured
 
 ### Verification Steps:
 
-After inviting all bots:
-1. **Check your Discord server** - you should see 5 new bot users online (Macro, Data, Strategy, Reflection, Execution)
-2. **Each bot should have a name** like "Macro Agent#1234"
-3. **Bots should appear in the member list** on the right sidebar
+After inviting the bot:
+1. **Check your Discord server** - you should see the "ABC Orchestrator" bot online
+2. **The bot should appear in the member list** on the right sidebar
 
 ### Troubleshooting Bot Invites:
 
@@ -146,7 +130,7 @@ After inviting all bots:
 - Make sure you're logged into the correct Discord account
 - Check that you created the applications with the right names
 
-## 5. Create Agent Channels
+## 5. Create System Channels
 
 ### Step-by-Step Channel Creation:
 
@@ -155,93 +139,88 @@ After inviting all bots:
 3. **Choose "Text"** for all channels
 4. **Create these channels** (copy the names exactly):
 
-**Agent-Specific Channels:**
-- `#macro-agent` - Macro economic analysis and market context
-- `#data-agent` - Real-time data collection and market intelligence  
-- `#strategy-agent` - Trading strategies and signal generation
-- `#reflection-agent` - System oversight and decision validation
-- `#execution-agent` - Trade execution and position management
-- `#risk-agent` - Risk assessment and position limits (optional)
-- `#learning-agent` - System learning and performance optimization (optional)
-
-**Collaboration Channels:**
-- `#debates` - Agent debates and human-agent discussions
-- `#alerts` - Critical system alerts and notifications
-- `#general` - General discussion (if not already created)
+**System Channels:**
+- `#general` - Main discussion and workflow orchestration
+- `#alerts` - System alerts and notifications
+- `#ranked-trades` - Ranked trade proposals and signals
+- `#commands` - Command reference and documentation
 
 ### Channel Setup Tips:
 
-- **Keep channels organized** - put agent channels in a "🤖 Agents" category
-- **Set permissions** if needed (bots should work with default permissions)
+- **Keep channels organized** - put system channels in a "🤖 System" category
+- **Set permissions** if needed (bot should work with default permissions)
 - **Channel names are case-sensitive** in some contexts, but Discord allows any case
 
 ### Optional: Get Channel IDs
 
-If you want status updates in specific channels:
+If you want to configure specific channels for the bot:
 1. **Enable Developer Mode** (from earlier steps)
 2. **Right-click each channel** → **"Copy Channel ID"**
 3. **Add to `.env`** (optional - system works without this):
    ```
-   DISCORD_MACRO_CHANNEL_ID=your_channel_id_here
-   DISCORD_DATA_CHANNEL_ID=your_channel_id_here
-   # etc.
+   DISCORD_GENERAL_CHANNEL_ID=your_general_channel_id_here
+   DISCORD_ALERTS_CHANNEL_ID=your_alerts_channel_id_here
+   DISCORD_RANKED_TRADES_CHANNEL_ID=your_ranked_trades_channel_id_here
+   DISCORD_COMMANDS_CHANNEL_ID=your_commands_channel_id_here
    ```
 
 ## 6. Configure Channel IDs (Optional)
 
-To enable status updates in specific channels:
+To enable the bot to use specific channels:
 
-1. **Right-click each agent channel** → **Copy Channel ID**
-2. **Update your `.env` file** (optional - bots will work without this):
+1. **Right-click each system channel** → **Copy Channel ID**
+2. **Update your `.env` file** (optional - bot will use default channels without this):
    ```
    # Example channel IDs (replace with your actual IDs)
-   DISCORD_MACRO_CHANNEL_ID=1234567890123456789
-   DISCORD_DATA_CHANNEL_ID=1234567890123456789
-   # ... etc for each agent
+   DISCORD_GENERAL_CHANNEL_ID=1234567890123456789
+   DISCORD_ALERTS_CHANNEL_ID=1234567890123456789
+   DISCORD_RANKED_TRADES_CHANNEL_ID=1234567890123456789
+   DISCORD_COMMANDS_CHANNEL_ID=1234567890123456789
    ```
 
-## 8. Test Your Setup
+## 7. Test Your Setup
 
 ### Quick Verification Steps:
 
-1. **Check bots are in your server:**
+1. **Check bot is in your server:**
    - Look at the member list (right sidebar)
-   - You should see 5 bot users online (Macro, Data, Strategy, Reflection, Execution)
+   - You should see the "ABC Orchestrator" bot online
 
 2. **Test basic connectivity:**
-   - Run: `python src/agents/discord_agents.py`
-   - Bots should show as "online" in Discord
+   - Run the orchestrator script (check your run configuration or use the VS Code task)
+   - Bot should show as "online" in Discord
    - Check terminal for connection messages
 
 3. **Test commands in Discord:**
    - Go to `#general` or any channel
    - Type: `!status`
-   - Should get a response from agents
+   - Should get a system status response
 
-4. **Test enhanced features:**
-   - `!create_poll "Test?" "Yes" "No"` - Creates Discord native poll
-   - `!agent_vote "Decision?" "Buy" "Sell"` - Creates reaction-based vote
-   - `!debate "Should we test trading?"` - Starts agent debate
+4. **Test command reference:**
+   - Type: `/commands` or `!commands`
+   - Should show available commands
+   - Use: `!set_commands_channel 1445767031482744902` (replace with your commands channel ID)
+   - This will configure the #commands channel for detailed documentation
 
 ### If Something Goes Wrong:
 
-- **Bots not responding?** Check terminal for error messages
-- **Permission errors?** Re-invite bots with correct permissions
-- **Connection issues?** Verify tokens and guild ID in `.env`
-- **Commands not working?** Make sure bots have "Use Slash Commands" permission
+- **Bot not responding?** Check terminal for error messages
+- **Permission errors?** Re-invite bot with correct permissions
+- **Connection issues?** Verify DISCORD_ORCHESTRATOR_TOKEN and DISCORD_GUILD_ID in `.env`
+- **Commands not working?** Make sure bot has "Use Slash Commands" permission
 
 ---
 
-**Ready to launch?** Once all bots are invited and channels created, run `python src/agents/discord_agents.py` to start your AI trading agents!
+**Ready to launch?** Once the bot is invited and channels created, start the LiveWorkflowOrchestrator to begin using the system!
 
 ## Troubleshooting
 
-- **Bot not responding?** Check that tokens are correct and bots are online
-- **Missing permissions?** Re-invite bots with proper permissions
-- **Channel issues?** Ensure bots can see and send messages in channels
+- **Bot not responding?** Check that token is correct and bot is online
+- **Missing permissions?** Re-invite bot with proper permissions
+- **Channel issues?** Ensure bot can see and send messages in channels
 - **Polls not working?** Verify "Create Polls" permission is granted
 - **@everyone not working?** Check "Mention Everyone" permission
 
 ---
 
-**Need help with any step?** The setup script will validate your configuration once everything is set up!
+**Need help with any step?** Check the logs for detailed error messages!

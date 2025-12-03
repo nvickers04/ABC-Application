@@ -31,7 +31,7 @@ class BaseDataAnalyzer(BaseAgent, ABC):
         self.data_quality_threshold = 0.8
         self.max_concurrent_requests = 5
 
-    async def process_input(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def _process_input(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Standard process_input method for all data analyzers.
         This method can be overridden by subclasses for custom behavior.

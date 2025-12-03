@@ -160,7 +160,7 @@ class SentimentDataAnalyzer(BaseDataAnalyzer):
             "sentiment": sentiment_data
         }
 
-    async def process_input(self, input_data: Dict[str, Any] = None) -> Dict[str, Any]:
+    async def _process_input(self, input_data: Dict[str, Any] = None) -> Dict[str, Any]:
         """
         Process sentiment data using BaseDataAnalyzer pattern for backward compatibility.
         """

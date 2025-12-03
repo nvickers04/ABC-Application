@@ -4,6 +4,14 @@
 # Purpose: Risk constraints configuration for portfolio management and agent decision-making
 # Dependencies: YAML parser, risk agent, execution agent
 # Related: docs/AGENTS/main-agents/risk-agent.md, src/agents/risk.py, config/profitability-targets.yaml
+# Related: config/risk_config.yaml (technical risk implementation), docs/NAUTILUS_INTEGRATION_EVALUATION.md
+#
+# RELATIONSHIP TO OTHER CONFIG FILES:
+# - risk_config.yaml: Defines technical risk implementation details for Nautilus Trader
+# - This file (risk-constraints.yaml): Defines high-level business rules for AI agents
+#
+# VALIDATION: Technical configurations validate against these business constraints
+# to ensure alignment. See BridgeConfig._validate_business_constraints() for implementation.
 #
 # Risk Constraints Configuration
 # Purpose: Defines risk limits for the AI Portfolio Manager, used by all agents (esp. Risk/Execution) to enforce discipline (e.g., <5% drawdown, sizing caps).

@@ -217,7 +217,7 @@ class OptionsStrategyAnalyzer(BaseAgent):
         logger.info(f"Options Reflecting on adjustments: {adjustments}")
         return {}
 
-    async def process_input(self, input_data: Dict[str, Any] = None) -> Dict[str, Any]:
+    async def _process_input(self, input_data: Dict[str, Any] = None) -> Dict[str, Any]:
         """
         Comprehensive options strategy analysis with advanced modeling and optimization.
         """

@@ -139,7 +139,7 @@ class MemoryAgent(BaseAgent):
         except Exception as e:
             logger.warning(f"Error loading persistent memory: {e}")
 
-    async def process_input(self, memory_request: Dict[str, Any]) -> Dict[str, Any]:
+    async def _process_input(self, memory_request: Dict[str, Any]) -> Dict[str, Any]:
         """
         Process memory operations: store, retrieve, share, or maintain memory.
         Args:

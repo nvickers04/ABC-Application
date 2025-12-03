@@ -317,7 +317,7 @@ class IBKRDataAnalyzer(BaseDataAnalyzer):
 
         return consolidated_data
 
-    async def process_input(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def _process_input(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Process IBKR data using BaseDataAnalyzer pattern for backward compatibility.
         """

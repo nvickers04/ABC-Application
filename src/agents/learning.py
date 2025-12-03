@@ -205,7 +205,7 @@ class LearningAgent(BaseAgent):
             self.feature_scaler = None
             self.model_trained = False
 
-    async def process_input(self, logs: list[Dict[str, Any]]) -> pd.DataFrame:
+    async def _process_input(self, logs: list[Dict[str, Any]]) -> pd.DataFrame:
         """
         Processes logs: Aggregates batches, triggers directives if SD >1.0.
         Args:

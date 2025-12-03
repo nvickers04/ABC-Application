@@ -197,7 +197,7 @@ class TestNautilusIBKRBridge:
         """Create a NautilusIBKRBridge instance for testing."""
         with patch('integrations.nautilus_ibkr_bridge.NautilusIBKRBridge.__init__', return_value=None):
             bridge = NautilusIBKRBridge.__new__(NautilusIBKRBridge)
-            bridge.ib_connector = Mock()
+            bridge.ibkr_connector = Mock()
             bridge.nautilus_client = Mock()
             bridge.active_orders = {}
             bridge.config = Mock()
@@ -205,7 +205,7 @@ class TestNautilusIBKRBridge:
 
     def test_initialization(self, nautilus_bridge):
         """Test NautilusIBKRBridge initialization."""
-        assert hasattr(nautilus_bridge, 'ib_connector')
+        assert hasattr(nautilus_bridge, 'ibkr_connector')
         assert hasattr(nautilus_bridge, 'config')
         assert hasattr(nautilus_bridge, 'active_orders')
 
@@ -236,7 +236,7 @@ class TestNautilusIBKRBridge:
     def test_error_handling(self, nautilus_bridge):
         """Test error handling in bridge operations."""
         # Test with connection failure
-        with patch.object(nautilus_bridge.ib_connector, 'connect', side_effect=Exception("Connection failed")):
+        with patch.object(nautilus_bridge.ibkr_connector, 'connect', side_effect=Exception("Connection failed")):
             # Should handle exceptions gracefully
             pass
 

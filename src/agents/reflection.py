@@ -79,7 +79,7 @@ class ReflectionAgent(BaseAgent):
             'performance_history': []
         }
 
-    async def process_input(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def _process_input(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Processes execution outcome or proposal for review.
         Args:

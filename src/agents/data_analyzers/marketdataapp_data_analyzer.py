@@ -95,7 +95,7 @@ class MarketDataAppDataAnalyzer(BaseDataAnalyzer):
         consolidated_data = self._consolidate_marketdataapp_data(symbol, validated_data)
         return consolidated_data
 
-    async def process_input(self, input_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    async def _process_input(self, input_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
         Process MarketDataApp data using standardized BaseDataAnalyzer pattern.
         """

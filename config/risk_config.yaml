@@ -1,0 +1,98 @@
+# ABC-Application Risk Management Configuration
+# Comprehensive risk settings for Nautilus integration
+#
+# Related Files:
+# - risk-constraints.yaml: Business-level risk limits and agent behavior
+# - COMPATIBILITY_MATRIX.md: Component compatibility and limitations
+# - NAUTILUS_INTEGRATION_EVALUATION.md: Benefits vs costs analysis
+#
+# Validation: Business constraints are automatically validated on config load
+#
+# RELATIONSHIP TO OTHER CONFIG FILES:
+# - risk-constraints.yaml: Defines high-level business risk limits used by AI agents
+# - This file (risk_config.yaml): Defines technical implementation details for Nautilus Trader
+#
+# VALIDATION: Business constraint validation ensures technical limits don't violate
+# business rules. See BridgeConfig._validate_business_constraints() for implementation.
+
+# Risk Engine Configuration
+risk_engine:
+  bypass: false  # Enable risk checks
+  max_order_submit_rate: "100/00:00:01"  # 100 orders per second
+  max_order_modify_rate: "50/00:00:01"   # 50 modifications per second
+  debug: false
+
+# Position Sizing Configuration
+position_sizing:
+  base_risk_percentage: 0.005  # 0.5% of account per position (base)
+  max_position_percentage: 0.10  # Maximum 10% of account per position
+  volatility_adjustment:
+    enabled: true
+    high_vol_threshold: 0.20  # 20% annualized volatility threshold
+    high_vol_multiplier: 0.5   # Reduce size by 50% for high volatility
+  min_position_size: 1
+  max_position_size: 10000
+
+# Volatility Calculation Configuration
+volatility:
+  method: "close_to_close"  # Options: close_to_close, parkinson, garman_klass, rogers_satchell, yang_zhang
+  window_days: 30
+  trading_days_per_year: 252
+  cache_enabled: true
+  cache_ttl_seconds: 3600  # 1 hour
+
+# Risk Limits Configuration
+risk_limits:
+  # Portfolio-level limits
+  max_portfolio_risk_percentage: 0.02  # 2% max risk per trade
+  max_portfolio_exposure_percentage: 0.50  # 50% max total exposure
+
+  # Symbol-level limits
+  max_symbol_concentration_percentage: 0.10  # 10% max per symbol
+  max_single_position_percentage: 0.20  # 20% max single position
+
+  # Account-level limits
+  min_account_value: 10000  # Minimum account value for trading
+  max_daily_loss_percentage: 0.05  # 5% max daily loss
+
+  # Business constraint validation (aligns with risk-constraints.yaml)
+  business_constraint_check:
+    validate_on_load: true  # Enable validation when config is loaded
+    validation_mode: "warn"  # Options: strict, warn, disabled
+    max_drawdown: 0.05  # Must align with business max_drawdown
+    max_position_size: 0.30  # Must be <= business max_position_size
+
+  # Business Constraint Validation (aligns with risk-constraints.yaml)
+  business_constraint_check:
+    max_drawdown: 0.05  # Must align with risk-constraints.yaml max_drawdown
+    max_position_size: 0.30  # Must align with risk-constraints.yaml max_position_size
+    validate_on_load: true  # Enable validation when config is loaded
+    validation_mode: "warn"  # Options: strict, warn, disabled
+
+# Pre-trade Risk Checks
+pre_trade_checks:
+  market_conditions: true
+  account_verification: true
+  position_limits: true
+  volatility_adjustment: true
+  correlation_checks: false  # Future enhancement
+
+# Bridge Configuration
+bridge:
+  mode: "nautilus_enhanced"  # Options: ib_insync_only, nautilus_enhanced, nautilus_full
+  enable_risk_management: true
+  enable_position_sizing: true
+  account_id: null  # Will use default if not specified
+
+# Alert Configuration
+alerts:
+  risk_threshold_warnings: true
+  position_limit_warnings: true
+  volatility_alerts: true
+  correlation_alerts: false
+
+# Monitoring Configuration
+monitoring:
+  risk_metrics_update_interval: 60  # seconds
+  position_monitoring_enabled: true
+  pnl_tracking_enabled: true

@@ -813,7 +813,7 @@ class ExecutionAgent(BaseAgent):
             logger.error(f"Error getting consensus trades: {e}")
             return []
     
-    async def process_input(self, proposal: Dict[str, Any]) -> Dict[str, Any]:
+    async def _process_input(self, proposal: Dict[str, Any]) -> Dict[str, Any]:
         """Process execution proposals."""
         try:
             # Check IBKR TWS status first

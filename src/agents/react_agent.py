@@ -105,7 +105,7 @@ class ReActAgent(BaseAgent):
             logger.warning("LangChain ReAct components not available - ReAct agent will use fallback logic")
             return False
 
-    async def process_input(self, input_data: Any) -> Dict[str, Any]:
+    async def _process_input(self, input_data: Any) -> Dict[str, Any]:
         """
         Process input using memory-enhanced ReAct pattern: Reason about the problem, then take actions.
         Uses memory to learn from past interactions and improve performance.

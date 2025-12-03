@@ -517,7 +517,7 @@ class DataAgent(BaseAgent):
         """Alias for process_input."""
         return await self.process_input(input_data)
 
-    async def process_input(self, input_data: Any) -> Dict[str, Any]:
+    async def _process_input(self, input_data: Any) -> Dict[str, Any]:
         """
         Process input data for the Data Agent.
         """

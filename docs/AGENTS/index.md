@@ -110,6 +110,7 @@ All agents inherit from a common `BaseAgent` class providing:
 - **A2A Communication**: Standardized messaging interfaces
 - **Configuration Management**: YAML-based parameter handling
 - **Logging and Monitoring**: Comprehensive audit trails
+- **Motivational Context**: Displays trading philosophy reminder at workflow start for motivation and goal alignment
 
 ### Agent Lifecycle
 1. **Initialization**: Load configurations, establish memory connections, register tools

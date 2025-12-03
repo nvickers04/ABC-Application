@@ -149,7 +149,7 @@ class FundamentalDataAnalyzer(BaseDataAnalyzer):
             "enhanced": True
         }
 
-    async def process_input(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def _process_input(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Process fundamental data using BaseDataAnalyzer pattern for backward compatibility.
         """
