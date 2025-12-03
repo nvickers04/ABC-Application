@@ -1,15 +1,12 @@
-# integrations/test_nautilus_bridge.py
+# integration-tests/test_nautilus_bridge.py
 """
 Test script for NautilusIBKRBridge integration
 """
 
 import asyncio
 import logging
-import sys
-from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.integrations.nautilus_ibkr_bridge import (
     NautilusIBKRBridge,
@@ -17,124 +14,216 @@ from src.integrations.nautilus_ibkr_bridge import (
     BridgeMode,
     get_nautilus_ibkr_bridge,
     initialize_bridge,
-    get_market_data
+    get_market_data,
+    place_order
 )
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Skip all tests in this file - API has changed significantly
-pytestmark = pytest.mark.skip(reason="NautilusIBKRBridge API has changed - tests need refactoring")
+
+@pytest.fixture
+def bridge_config():
+    """Fixture for bridge configuration"""
+    return BridgeConfig(mode=BridgeMode.IB_INSYNC_ONLY)
 
 
-async def test_bridge_basic():
-    """Test basic bridge functionality"""
-    print("Testing NautilusIBKRBridge Basic Functionality")
-    print("=" * 50)
+@pytest.fixture
+def mock_ibkr_connector():
+    """Mock IBKR connector"""
+    mock_connector = MagicMock()
+    mock_connector.connect = AsyncMock(return_value=True)
+    mock_connector.disconnect = AsyncMock(return_value=True)
+    mock_connector.get_market_data = AsyncMock(return_value={"price": 100.0, "volume": 1000})
+    mock_connector.get_account_summary = AsyncMock(return_value={"balance": 10000})
+    mock_connector.get_positions = AsyncMock(return_value=[])
+    return mock_connector
 
-    # Test 1: Bridge instantiation
-    print("1. Testing bridge instantiation...")
-    config = BridgeConfig(mode=BridgeMode.IB_INSYNC_ONLY)
-    bridge = NautilusIBKRBridge(config)
-    print("✅ Bridge instantiated successfully")
 
-    # Test 2: Bridge status
-    print("2. Testing bridge status...")
+@pytest.mark.asyncio
+async def test_bridge_instantiation(bridge_config):
+    """Test basic bridge instantiation"""
+    bridge = NautilusIBKRBridge(bridge_config)
+    assert bridge is not None
+    assert bridge.config == bridge_config
+    assert not bridge._initialized
+
+
+@pytest.mark.asyncio
+async def test_bridge_status(bridge_config):
+    """Test bridge status retrieval"""
+    bridge = NautilusIBKRBridge(bridge_config)
     status = bridge.get_bridge_status()
-    print(f"Bridge status: {status}")
-    print("✅ Bridge status retrieved")
 
-    # Test 3: Bridge initialization
-    print("3. Testing bridge initialization...")
+    assert isinstance(status, dict)
+    assert "mode" in status
+    assert "nautilus_available" in status
+    assert "nautilus_active" in status
+    assert status["mode"] == bridge_config.mode.value
+
+
+@pytest.mark.asyncio
+@patch('src.integrations.nautilus_ibkr_bridge.IBKRConnector')
+async def test_bridge_initialization(mock_connector_class, bridge_config, mock_ibkr_connector):
+    """Test bridge initialization"""
+    mock_connector_class.return_value = mock_ibkr_connector
+
+    bridge = NautilusIBKRBridge(bridge_config)
     success = await bridge.initialize()
-    print(f"Bridge initialization: {'✅ Success' if success else '❌ Failed'}")
 
-    # Test 4: Market data (mock test)
-    print("4. Testing market data retrieval...")
-    try:
-        # This will fail without IBKR connection, but tests the interface
-        market_data = await bridge.get_market_data("SPY")
-        print(f"Market data: {market_data}")
-    except Exception as e:
-        print(f"Market data test (expected to fail without IBKR): {e}")
+    assert success is True
+    assert bridge._initialized is True
+    mock_ibkr_connector.connect.assert_called_once()
 
-    # Test 5: Singleton bridge
-    print("5. Testing singleton bridge...")
+
+@pytest.mark.asyncio
+@patch('src.integrations.nautilus_ibkr_bridge.IBKRConnector')
+async def test_get_market_data(mock_connector_class, bridge_config, mock_ibkr_connector):
+    """Test market data retrieval"""
+    mock_connector_class.return_value = mock_ibkr_connector
+
+    bridge = NautilusIBKRBridge(bridge_config)
+    await bridge.initialize()
+
+    result = await bridge.get_market_data("SPY")
+
+    assert result == {"price": 100.0, "volume": 1000}
+    mock_ibkr_connector.get_market_data.assert_called_once_with("SPY", "1 min", "1 D")
+
+
+@pytest.mark.asyncio
+async def test_singleton_bridge():
+    """Test singleton bridge pattern"""
+    # Clear any existing instance
+    import src.integrations.nautilus_ibkr_bridge as bridge_module
+    bridge_module._bridge_instance = None
+
+    bridge1 = get_nautilus_ibkr_bridge()
     bridge2 = get_nautilus_ibkr_bridge()
-    print(f"Same instance: {bridge is bridge2}")
-    print("✅ Singleton pattern working")
 
-    # Test 6: Convenience functions
-    print("6. Testing convenience functions...")
-    try:
-        market_data = await get_market_data("AAPL")
-        print(f"Convenience market data: {market_data}")
-    except Exception as e:
-        print(f"Convenience function test: {e}")
-
-    print("\nBridge basic tests completed!")
+    assert bridge1 is bridge2
+    assert isinstance(bridge1, NautilusIBKRBridge)
 
 
+@pytest.mark.asyncio
+@patch('src.integrations.nautilus_ibkr_bridge.get_nautilus_ibkr_bridge')
+async def test_initialize_bridge_convenience(mock_get_bridge):
+    """Test initialize_bridge convenience function"""
+    mock_bridge = MagicMock()
+    mock_bridge.initialize = AsyncMock(return_value=True)
+    mock_get_bridge.return_value = mock_bridge
+
+    result = await initialize_bridge("ib_insync_only")
+
+    assert result is True
+    mock_get_bridge.assert_called_once()
+    mock_bridge.initialize.assert_called_once()
+
+
+@pytest.mark.asyncio
+@patch('src.integrations.nautilus_ibkr_bridge.get_nautilus_ibkr_bridge')
+async def test_get_market_data_convenience(mock_get_bridge):
+    """Test get_market_data convenience function"""
+    mock_bridge = MagicMock()
+    mock_bridge.get_market_data = AsyncMock(return_value={"price": 150.0})
+    mock_get_bridge.return_value = mock_bridge
+
+    result = await get_market_data("AAPL")
+
+    assert result == {"price": 150.0}
+    mock_bridge.get_market_data.assert_called_once_with("AAPL")
+
+
+@pytest.mark.asyncio
 async def test_bridge_modes():
     """Test different bridge modes"""
-    print("\nTesting Bridge Modes")
-    print("=" * 30)
-
     modes = [BridgeMode.IB_INSYNC_ONLY, BridgeMode.NAUTILUS_ENHANCED]
 
     for mode in modes:
-        print(f"\nTesting mode: {mode.value}")
         config = BridgeConfig(mode=mode)
         bridge = NautilusIBKRBridge(config)
 
         status = bridge.get_bridge_status()
-        print(f"Mode: {status['mode']}")
-        print(f"Nautilus available: {status['nautilus_available']}")
-        print(f"Nautilus active: {status['nautilus_active']}")
-
-        # Test enhanced features
-        if mode == BridgeMode.NAUTILUS_ENHANCED:
-            analysis = await bridge.get_portfolio_analysis()
-            print(f"Enhanced analysis available: {'nautilus_enhanced' in analysis}")
+        assert status["mode"] == mode.value
+        assert isinstance(status["nautilus_available"], bool)
+        assert isinstance(status["nautilus_active"], bool)
 
 
-async def test_order_simulation():
-    """Test order placement simulation"""
-    print("\nTesting Order Simulation")
-    print("=" * 30)
+@pytest.mark.asyncio
+@patch('src.integrations.nautilus_ibkr_bridge.check_pre_trade_risk')
+@patch('src.integrations.nautilus_ibkr_bridge.validate_trading_conditions')
+@patch('src.integrations.nautilus_ibkr_bridge.IBKRConnector')
+async def test_place_order(mock_connector_class, mock_validate_trading, mock_check_risk, mock_ibkr_connector):
+    """Test order placement"""
+    mock_connector_class.return_value = mock_ibkr_connector
+    mock_ibkr_connector.place_order = AsyncMock(return_value={"order_id": 123, "status": "submitted"})
+    mock_ibkr_connector.get_market_data = AsyncMock(return_value={
+        'symbol': 'SPY',
+        'close': 450.0,
+        'open': 445.0,
+        'high': 452.0,
+        'low': 444.0,
+        'volume': 1000
+    })  # Mock market data for risk calc
+    mock_ibkr_connector.get_account_summary = AsyncMock(return_value={'balance': 10000})
+    mock_ibkr_connector.get_positions = AsyncMock(return_value=[])
+    mock_check_risk.return_value = (True, "Risk check passed", {"score": 0.1})
+    mock_validate_trading.return_value = (True, "Market conditions OK")  # Returns tuple (bool, str)
 
-    bridge = get_nautilus_ibkr_bridge()
+    bridge = NautilusIBKRBridge(BridgeConfig())
+    await bridge.initialize()
 
-    # Test order placement (will use simulation since no real IBKR connection)
-    try:
-        result = await bridge.place_order(
-            symbol="SPY",
-            quantity=100,
-            action="BUY",
-            order_type="MKT"
-        )
-        print(f"Order result: {result}")
-    except Exception as e:
-        print(f"Order simulation: {e}")
+    result = await bridge.place_order(
+        symbol="SPY",
+        quantity=100,
+        order_type="MKT",
+        action="BUY"
+    )
 
-
-async def main():
-    """Run all bridge tests"""
-    print("NautilusIBKRBridge Integration Tests")
-    print("=" * 40)
-
-    try:
-        await test_bridge_basic()
-        await test_bridge_modes()
-        await test_order_simulation()
-
-        print("\n🎉 All tests completed!")
-
-    except Exception as e:
-        print(f"\n❌ Test failed with error: {e}")
-        import traceback
-        traceback.print_exc()
+    assert result == {"order_id": 123, "status": "submitted"}
+    mock_ibkr_connector.place_order.assert_called_once()
+    mock_check_risk.assert_called_once()
+    mock_validate_trading.assert_called_once()
 
 
-if __name__ == "__main__":
-    asyncio.run(main())
+@pytest.mark.asyncio
+@patch('src.integrations.nautilus_ibkr_bridge.get_nautilus_ibkr_bridge')
+async def test_place_order_convenience(mock_get_bridge):
+    """Test place_order convenience function"""
+    mock_bridge = MagicMock()
+    mock_bridge.place_order = AsyncMock(return_value={"order_id": 456, "status": "filled"})
+    mock_get_bridge.return_value = mock_bridge
+
+    result = await place_order("AAPL", 50, "MKT", "BUY")
+
+    assert result == {"order_id": 456, "status": "filled"}
+    mock_bridge.place_order.assert_called_once_with("AAPL", 50, "MKT", "BUY", None)
+
+
+@pytest.mark.asyncio
+@patch('src.integrations.nautilus_ibkr_bridge.IBKRConnector')
+async def test_get_account_summary(mock_connector_class, bridge_config, mock_ibkr_connector):
+    """Test account summary retrieval"""
+    mock_connector_class.return_value = mock_ibkr_connector
+
+    bridge = NautilusIBKRBridge(bridge_config)
+    await bridge.initialize()
+
+    result = await bridge.get_account_summary()
+
+    assert result == {"balance": 10000}
+    mock_ibkr_connector.get_account_summary.assert_called_once()
+
+
+@pytest.mark.asyncio
+@patch('src.integrations.nautilus_ibkr_bridge.IBKRConnector')
+async def test_get_positions(mock_connector_class, bridge_config, mock_ibkr_connector):
+    """Test positions retrieval"""
+    mock_connector_class.return_value = mock_ibkr_connector
+
+    bridge = NautilusIBKRBridge(bridge_config)
+    await bridge.initialize()
+
+    result = await bridge.get_positions()
+
+    assert result == []
+    mock_ibkr_connector.get_positions.assert_called_once()

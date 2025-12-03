@@ -108,13 +108,14 @@ class ExecutionAgent(BaseAgent):
 
     def _get_ibkr_connector(self):
         """Get IBKR connector with lazy initialization"""
+        # TODO: Resolves dual IBKR implementation issue from TODO.md - ExecutionAgent now uses NautilusIBKRBridge
         if self.ibkr_connector is None:
             try:
-                from src.integrations.ibkr_connector import get_ibkr_connector
-                self.ibkr_connector = get_ibkr_connector()
-                logger.info("IBKR connector initialized successfully")
+                from src.integrations.nautilus_ibkr_bridge import get_nautilus_ibkr_bridge
+                self.ibkr_connector = get_nautilus_ibkr_bridge()
+                logger.info("Nautilus IBKR bridge initialized successfully")
             except ImportError as e:
-                logger.warning(f"IBKR connector not available: {e}. Using simulation mode.")
+                logger.warning(f"IBKR bridge not available: {e}. Using simulation mode.")
                 return None
         return self.ibkr_connector
     
@@ -137,11 +138,11 @@ class ExecutionAgent(BaseAgent):
                     'timestamp': datetime.now().isoformat()
                 }
             
-            # Try to connect and check status
+            # Try to initialize and check status
             try:
-                connected = await connector.connect()
-                
-                if connected:
+                initialized = await connector.initialize()
+
+                if initialized:
                     return {
                         'connected': True,
                         'status': 'connected',
@@ -857,10 +858,10 @@ class ExecutionAgent(BaseAgent):
             connector = self._get_ibkr_connector()
             if not connector:
                 return {'error': 'IBKR connector not available'}
-                
-            connected = await connector.connect()
-            if not connected:
-                return {'error': 'Failed to connect to IBKR'}
+
+            initialized = await connector.initialize()
+            if not initialized:
+                return {'error': 'Failed to initialize IBKR bridge'}
             
             account_summary = await connector.get_account_summary()
             positions = await connector.get_positions()

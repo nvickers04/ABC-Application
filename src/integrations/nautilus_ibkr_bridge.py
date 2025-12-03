@@ -167,16 +167,17 @@ class NautilusIBKRBridge:
             logger.error(f"Error during disconnect: {e}")
 
     # Market Data Methods
-    async def get_market_data(self, symbol: str) -> Optional[Dict[str, Any]]:
-        """Get current market data for a symbol"""
+    async def get_market_data(self, symbol: str, bar_size: str = '1 min',
+                             duration: str = '1 D') -> Optional[Dict[str, Any]]:
+        """Get market data for a symbol with specified parameters"""
         try:
-            # Use IBKR only
-            return await self.ibkr_connector.get_market_data(symbol)
+            # Use IBKR connector with full parameters
+            return await self.ibkr_connector.get_market_data(symbol, bar_size, duration)
         except Exception as e:
             logger.error(f"IBKR market data failed for {symbol}: {e}")
-            alert_manager.error(
-                f"IBKR market data retrieval failed for {symbol}",
-                {"symbol": symbol, "error": str(e)},
+            await alert_manager.error(
+                e,
+                {"symbol": symbol, "bar_size": bar_size, "duration": duration},
                 "ibkr_integration"
             )
             return None
@@ -325,9 +326,9 @@ class NautilusIBKRBridge:
             order_result = await self.ibkr_connector.place_order(symbol, quantity, order_type, action, price)
         except Exception as e:
             logger.error(f"IBKR order placement failed for {symbol}: {e}")
-            alert_manager.error(
-                f"IBKR order placement failed for {symbol}",
-                {"symbol": symbol, "quantity": quantity, "action": action, "error": str(e)},
+            await alert_manager.error(
+                e,
+                {"symbol": symbol, "quantity": quantity, "action": action},
                 "ibkr_integration"
             )
             return {
@@ -366,9 +367,9 @@ class NautilusIBKRBridge:
             return await self.ibkr_connector.cancel_order(order_id)
         except Exception as e:
             logger.error(f"IBKR order cancellation failed for order {order_id}: {e}")
-            alert_manager.error(
-                f"IBKR order cancellation failed for order {order_id}",
-                {"order_id": order_id, "error": str(e)},
+            await alert_manager.error(
+                e,
+                {"order_id": order_id},
                 "ibkr_integration"
             )
             return {
@@ -394,9 +395,9 @@ class NautilusIBKRBridge:
             return await self.ibkr_connector.modify_order(order_id, quantity, price)
         except Exception as e:
             logger.error(f"IBKR order modification failed for order {order_id}: {e}")
-            alert_manager.error(
-                f"IBKR order modification failed for order {order_id}",
-                {"order_id": order_id, "quantity": quantity, "price": price, "error": str(e)},
+            await alert_manager.error(
+                e,
+                {"order_id": order_id, "quantity": quantity, "price": price},
                 "ibkr_integration"
             )
             return {

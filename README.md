@@ -42,9 +42,15 @@ For comprehensive documentation of the ABC-Application system, see the [`docs/`]
 - **Backtesting & Simulation**: Integrated backtesting framework with stochastic batching and reflection loops, now enhanced with IBKR data sources.
 
 ## Quick Setup
-1. Install dependencies: `pip install -r requirements.txt`
-2. Configure environment: Ensure Python 3.11+ and activate virtual environment if needed.
-3. Run the system: `python src/main.py` (starts agent orchestration loop with automatic health monitoring)
+1. Set up virtual environment:
+   ```bash
+   python -m venv myenv
+   myenv\Scripts\activate  # Windows
+   # source myenv/bin/activate  # Unix/Mac
+   ```
+2. Install dependencies: `pip install -r requirements.txt`
+3. Configure environment: Ensure Python 3.11+ and virtual environment is active.
+4. Run the system: `python src/main.py` (starts agent orchestration loop with automatic health monitoring)
 - Monitor API health: `python tools/api_health_dashboard.py` (interactive dashboard for real-time API status)
 - Test agents individually: `python src/agents/data.py` or run `python integration-tests/comprehensive_test.py` for subagent validation
 

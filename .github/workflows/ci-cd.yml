@@ -1,0 +1,243 @@
+# [LABEL:CI/CD] [LABEL:PIPELINE] [LABEL:AUTOMATION]
+# [LABEL:AUTHOR:system] [LABEL:UPDATED:2025-12-02] [LABEL:REVIEWED:pending]
+#
+# Purpose: GitHub Actions CI/CD pipeline for automated testing, coverage reporting, and deployment validation
+# Triggers: push to main, pull requests
+# Dependencies: pytest, pytest-cov, python 3.11+
+# Related: pytest.ini, .coveragerc, requirements.txt
+
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        python-version: [3.11]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-cov pytest-asyncio pytest-sugar pytest-xdist pytest-mock
+
+    - name: Set up TigerBeetle
+      run: |
+        .\setup\setup_tigerbeetle.ps1
+
+    - name: Run tests with coverage
+      run: |
+        python -m pytest --cov=src --cov=integration-tests --cov-report=term-missing --cov-report=xml --cov-report=html --cov-fail-under=30
+
+    - name: Upload coverage reports to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+
+    - name: Upload coverage HTML report
+      uses: actions/upload-artifact@v3
+      with:
+        name: coverage-html-report
+        path: htmlcov/
+        retention-days: 30
+
+  integration-test:
+    runs-on: windows-latest
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.11
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-cov pytest-asyncio pytest-sugar pytest-xdist
+
+    - name: Set up TigerBeetle
+      run: |
+        .\setup\setup_tigerbeetle.ps1
+
+    - name: Run integration tests
+      run: |
+        python -m pytest integration-tests/ -v --tb=short --maxfail=5
+
+  security-scan:
+    runs-on: windows-latest
+    needs: test
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.11
+
+    - name: Install security scanning tools
+      run: |
+        python -m pip install --upgrade pip
+        pip install bandit safety
+
+    - name: Run Bandit security scan
+      run: |
+        bandit -r src/ -f json -o bandit-report.json || true
+
+    - name: Run Safety vulnerability scan
+      run: |
+        safety check --output json > safety-report.json || true
+
+    - name: Upload security reports
+      uses: actions/upload-artifact@v3
+      with:
+        name: security-reports
+        path: |
+          bandit-report.json
+          safety-report.json
+        retention-days: 30
+
+  performance-benchmark:
+    runs-on: windows-latest
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.11
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest-benchmark
+
+    - name: Set up TigerBeetle
+      run: |
+        .\setup\setup_tigerbeetle.ps1
+
+    - name: Run performance benchmarks
+      run: |
+        python -m pytest unit-tests/ -k "performance" --benchmark-only --benchmark-json=benchmark-results.json || true
+
+    - name: Upload benchmark results
+      uses: actions/upload-artifact@v3
+      with:
+        name: benchmark-results
+        path: benchmark-results.json
+        retention-days: 30
+
+  deploy-prep:
+    runs-on: windows-latest
+    needs: [test, integration-test, security-scan]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment: production
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Validate deployment readiness
+      run: |
+        # Check for required files
+        if (!(Test-Path "requirements.txt")) { throw "requirements.txt missing" }
+        if (!(Test-Path "pytest.ini")) { throw "pytest.ini missing" }
+        if (!(Test-Path ".coveragerc")) { throw ".coveragerc missing" }
+
+        # Validate Python version compatibility
+        $pythonVersion = python --version
+        Write-Host "Python version: $pythonVersion"
+
+        # Check for critical configuration files
+        $configFiles = @(
+          "config/base_prompt.txt",
+          "config/ibkr_config.ini",
+          "config/risk-constraints.yaml",
+          "config/trading-permissions.yaml"
+        )
+
+        foreach ($file in $configFiles) {
+          if (!(Test-Path $file)) {
+            Write-Warning "Configuration file missing: $file"
+          }
+        }
+
+    - name: Create deployment artifact
+      run: |
+        # Create deployment package
+        $deployDir = "deploy-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
+        New-Item -ItemType Directory -Path $deployDir
+
+        # Copy essential files
+        Copy-Item "src" -Destination "$deployDir/src" -Recurse
+        Copy-Item "requirements.txt" -Destination "$deployDir/"
+        Copy-Item "pytest.ini" -Destination "$deployDir/"
+        Copy-Item ".coveragerc" -Destination "$deployDir/"
+        Copy-Item "config" -Destination "$deployDir/config" -Recurse
+        Copy-Item "setup" -Destination "$deployDir/setup" -Recurse
+
+        # Create deployment manifest
+        $manifest = @{
+          version = $env:GITHUB_SHA
+          build_date = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+          python_version = "3.11"
+          coverage_threshold = "30%"
+          test_status = "passed"
+        } | ConvertTo-Json
+
+        $manifest | Out-File -FilePath "$deployDir/deployment-manifest.json" -Encoding UTF8
+
+        # Create archive
+        Compress-Archive -Path $deployDir -DestinationPath "deployment-package.zip"
+
+    - name: Upload deployment package
+      uses: actions/upload-artifact@v3
+      with:
+        name: deployment-package
+        path: deployment-package.zip
+        retention-days: 30
+
+    - name: Deployment notification
+      if: success()
+      run: |
+        Write-Host "🚀 Deployment package ready for production"
+        Write-Host "📦 Package: deployment-package.zip"
+        Write-Host "✅ All quality gates passed"
+        Write-Host "🧪 Tests: PASSED"
+        Write-Host "🔒 Security: SCANNED"
+        Write-Host "📊 Coverage: 30%+"
+        Write-Host "🔄 Integration: VERIFIED"

@@ -15,8 +15,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from src.utils.tools import microstructure_analysis_tool
 from src.integrations.ibkr_connector import get_ibkr_connector
+from src.integrations.nautilus_ibkr_bridge import get_nautilus_ibkr_bridge
+from src.utils.alert_manager import get_alert_manager
 
 logger = logging.getLogger(__name__)
+alert_manager = get_alert_manager()
 
 class IBKRExecuteTool:
     """
@@ -79,6 +82,11 @@ class IBKRExecuteTool:
 
         except Exception as e:
             logger.error(f"Error in IBKR execute tool: {e}")
+            alert_manager.error(
+                f"IBKR order execution failed for {symbol}",
+                {"symbol": symbol, "quantity": quantity, "action": action, "order_type": order_type, "error": str(e)},
+                "execution_agent"
+            )
             return {
                 'success': False,
                 'error': str(e),

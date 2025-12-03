@@ -27,6 +27,7 @@ Follow PEP 8 and use type hints everywhere.
 - Ensure all code is production-ready and tested before submission.
 
 # Python-specific rules
+- **Virtual Environment Required**: Always use a virtual environment for development and testing
 - Use `ruff` for linting/formatting (`ruff check .` and `ruff format .`)
 - Tests are written with `pytest`. Always add or update tests for new/changed logic.
 - Use `pyproject.toml` (managed by poetry or pdm — do not touch requirements.txt)
@@ -34,8 +35,14 @@ Follow PEP 8 and use type hints everywhere.
 - Async code uses async/await (no callbacks)
 - Logging via the standard `logging` module, never print() for production code
 
+# Environment Setup (Required)
+- Create virtual environment: `python -m venv myenv`
+- Activate: `myenv\Scripts\activate` (Windows) or `source myenv/bin/activate` (Unix)
+- Install dependencies: `pip install -r requirements.txt`
+- Verify: `which python` should point to virtual environment
+
 # Common commands (for context)
-- Install: `poetry install` or `pdm sync`
+- Install: `poetry install` or `pdm sync` (after activating virtual environment)
 - Run tests: `pytest`
 - Lint/format: `ruff check . && ruff format .`
 - Run app locally: `uvicorn main:app --reload` (or whatever the project uses)

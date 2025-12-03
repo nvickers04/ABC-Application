@@ -28,7 +28,7 @@ from .live_trading_safeguards import (
     check_pre_trade_risk,
     validate_trading_conditions
 )
-from src.utils.alert_manager import get_alert_manager
+from src.utils.alert_manager import get_alert_manager, ConnectionError
 import os
 
 logger = logging.getLogger(__name__)
@@ -163,7 +163,12 @@ class IBKRConnector:
                 raise Exception(f"IBKR config file {config_path} not found - no fallback defaults allowed")
         except Exception as e:
             logger.error(f"CRITICAL FAILURE: Error loading IBKR config: {e} - cannot proceed with defaults")
-            raise Exception(f"IBKR config loading failed: {e} - no fallback defaults allowed")
+            alert_manager.error(
+                "IBKR configuration loading failed",
+                {"error": str(e), "config_path": config_path},
+                "ibkr_integration"
+            )
+            raise ConnectionError(f"IBKR config loading failed: {e} - no fallback defaults allowed")
 
     async def connect(self) -> bool:
         """
@@ -210,11 +215,21 @@ class IBKRConnector:
 
             except Exception as e:
                 logger.error(f"Connection error on attempt {attempt + 1}: {e}")
+                alert_manager.error(
+                    f"IBKR connection failed on attempt {attempt + 1}",
+                    {"attempt": attempt + 1, "error": str(e), "max_retries": max_retries},
+                    "ibkr_integration"
+                )
                 if attempt < max_retries - 1:
                     logger.info(f"Retrying in {retry_delay} seconds...")
                     await asyncio.sleep(retry_delay)
 
         logger.error(f"Failed to connect after {max_retries} attempts")
+        alert_manager.error(
+            f"IBKR connection failed after {max_retries} attempts",
+            {"max_retries": max_retries},
+            "ibkr_integration"
+        )
         return False
 
     async def _wait_for_connection(self) -> None:
@@ -420,6 +435,11 @@ class IBKRConnector:
 
         except Exception as e:
             logger.error(f"Error placing order: {e}")
+            alert_manager.error(
+                f"IBKR order placement failed for {symbol}",
+                {"symbol": symbol, "quantity": quantity, "action": action, "order_type": order_type, "error": str(e)},
+                "ibkr_integration"
+            )
             # Try to reconnect on error
             self.connected = False
             return {'error': str(e)}
@@ -540,6 +560,11 @@ class IBKRConnector:
 
         except Exception as e:
             logger.error(f"Error getting market data for {symbol}: {e}")
+            alert_manager.error(
+                f"IBKR market data retrieval failed for {symbol}",
+                {"symbol": symbol, "bar_size": bar_size, "duration": duration, "error": str(e)},
+                "ibkr_integration"
+            )
             return None
 
     async def cancel_order(self, order_id: int) -> Dict[str, Any]:
@@ -570,6 +595,11 @@ class IBKRConnector:
 
         except Exception as e:
             logger.error(f"Error cancelling order {order_id}: {e}")
+            alert_manager.error(
+                f"IBKR order cancellation failed for order {order_id}",
+                {"order_id": order_id, "error": str(e)},
+                "ibkr_integration"
+            )
             return {'error': str(e), 'order_id': order_id}
 
     async def modify_order(self, order_id: int, quantity: Optional[int] = None,
@@ -627,6 +657,11 @@ class IBKRConnector:
 
         except Exception as e:
             logger.error(f"Error modifying order {order_id}: {e}")
+            alert_manager.error(
+                f"IBKR order modification failed for order {order_id}",
+                {"order_id": order_id, "quantity": quantity, "price": price, "error": str(e)},
+                "ibkr_integration"
+            )
             return {'error': str(e), 'order_id': order_id}
 
     async def get_open_orders(self) -> List[Dict[str, Any]]:
