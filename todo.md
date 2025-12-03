@@ -11,6 +11,7 @@
 
 ### ⚠️ Critical Items for Paper Trading Stability
 **MUST COMPLETE before paper trading:**
+- [x] **Fix Live Workflow Orchestrator Bug**: Resolve bug in live_workflow_orchestrator.py causing no agent responses to workflow in Discord
 - [ ] **IBKR Integration Validation**: Test paper trading integration with IBKR/TWS
 - [ ] **Integration Test Suite**: Set up automated integration testing for IBKR + core components
 - [x] **Paper Trading Environment**: Create test environment mirroring production

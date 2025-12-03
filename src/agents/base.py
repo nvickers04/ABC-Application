@@ -163,7 +163,7 @@ class BaseAgent(abc.ABC):
             llm_config = self._get_agent_llm_config()
             max_tokens = llm_config.get('max_tokens', 32768)
             temperature = llm_config.get('temperature', 0.1)
-            timeout = llm_config.get('timeout_seconds', 300)
+            timeout = llm_config.get('timeout_seconds', 30)  # Reduced from 300 to 30 seconds
 
             return ChatXAI(
                 api_key=api_key,
@@ -187,7 +187,7 @@ class BaseAgent(abc.ABC):
             llm_config = self._get_agent_llm_config()
             max_tokens = llm_config.get('max_tokens', 32768)
             temperature = llm_config.get('temperature', 0.1)
-            timeout = llm_config.get('timeout_seconds', 300)
+            timeout = llm_config.get('timeout_seconds', 30)  # Reduced from 300 to 30 seconds
 
             return ChatOpenAI(
                 api_key=api_key,
@@ -211,7 +211,7 @@ class BaseAgent(abc.ABC):
             llm_config = self._get_agent_llm_config()
             max_tokens = llm_config.get('max_tokens', 32768)
             temperature = llm_config.get('temperature', 0.1)
-            timeout = llm_config.get('timeout_seconds', 300)
+            timeout = llm_config.get('timeout_seconds', 30)  # Reduced from 300 to 30 seconds
 
             return ChatAnthropic(
                 api_key=api_key,
@@ -235,7 +235,7 @@ class BaseAgent(abc.ABC):
             llm_config = self._get_agent_llm_config()
             max_tokens = llm_config.get('max_tokens', 32768)
             temperature = llm_config.get('temperature', 0.1)
-            timeout = llm_config.get('timeout_seconds', 300)
+            timeout = llm_config.get('timeout_seconds', 30)  # Reduced from 300 to 30 seconds
 
             return ChatGoogleGenerativeAI(
                 api_key=api_key,
@@ -253,7 +253,7 @@ class BaseAgent(abc.ABC):
         try:
             # Get LLM configuration from system config
             llm_config = self.configs.get('system', {}).get('llm', {})
-            timeout = llm_config.get('timeout_seconds', 300)
+            timeout = llm_config.get('timeout_seconds', 30)  # Reduced from 300 to 30 seconds
 
             test_prompt = "Respond with 'OK' if you can understand this message."
             response = await asyncio.wait_for(
@@ -620,13 +620,20 @@ class BaseAgent(abc.ABC):
         """
         try:
             logger.info(f"Starting async LLM initialization for {self.role} agent")
-            self.llm = await self._initialize_llm_with_resilience_async()
+            # Add timeout to prevent hanging on LLM initialization
+            self.llm = await asyncio.wait_for(
+                self._initialize_llm_with_resilience_async(),
+                timeout=60.0  # 60 second timeout for LLM setup
+            )
             if self.llm:
                 logger.info(f"Successfully initialized LLM for {self.role} agent")
                 return True
             else:
                 logger.warning(f"Failed to initialize LLM for {self.role} agent")
                 return False
+        except asyncio.TimeoutError:
+            logger.error(f"LLM initialization timed out for {self.role} agent after 60 seconds")
+            return False
         except Exception as e:
             logger.error(f"Error during async LLM initialization for {self.role}: {e}")
             return False
