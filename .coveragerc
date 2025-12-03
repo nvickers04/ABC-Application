@@ -1,0 +1,68 @@
+[run]
+source = src
+omit =
+    */tests/*
+    */test_*
+    */integration-tests/*
+    */unit-tests/*
+    */conftest.py
+    */setup.py
+    */__init__.py
+    */migrations/*
+    */venv/*
+    */env/*
+    */.venv/*
+    */.env/*
+    */node_modules/*
+    */.git/*
+    */build/*
+    */dist/*
+    */*.egg-info/*
+    # External dependencies
+    */site-packages/*
+    */lib/python*/site-packages/*
+    # Generated code
+    */generated/*
+    */auto-generated/*
+
+[report]
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    if self.debug:
+    if settings.DEBUG
+    raise AssertionError
+    raise NotImplementedError
+    if 0:
+    if __name__ == .__main__.:
+    class .*\bProtocol\):
+    @(abc\.)?abstractmethod
+    # Type checking
+    if TYPE_CHECKING:
+    # Logging
+    logger\.debug
+    logger\.info
+    # Test-specific
+    def test_
+    pytest\.mark
+    # Exception handling
+    except ImportError:
+    except ModuleNotFoundError:
+    # Configuration defaults
+    if not self\._.*:
+    # Placeholder implementations
+    pass
+    \.\.\.
+    # Docstring examples
+    >>>
+    # Comments
+    #
+
+[html]
+directory = htmlcov
+
+[xml]
+output = coverage.xml
+
+[json]
+output = coverage.json

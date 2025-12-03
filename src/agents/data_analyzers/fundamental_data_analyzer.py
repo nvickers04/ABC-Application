@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))  # Dynamic root path for imports.
 
-from src.agents.base import BaseAgent  # Absolute import.
+from src.agents.data_analyzers.base_data_analyzer import BaseDataAnalyzer
 import logging
 from typing import Dict, Any, List
 import json
@@ -18,16 +18,13 @@ from src.utils.tools import fundamental_data_tool, fundamental_analysis_tool
 
 logger = logging.getLogger(__name__)
 
-class FundamentalDataAnalyzer(BaseAgent):
+class FundamentalDataAnalyzer(BaseDataAnalyzer):
     """
     Fundamental Data Subagent.
     Reasoning: Fetches comprehensive fundamental data for financial analysis and valuation.
     """
     def __init__(self):
-        config_paths = {'risk': 'config/risk-constraints.yaml'}  # Relative to root.
-        prompt_paths = {'base': 'config/base_prompt.txt', 'role': 'docs/AGENTS/main-agents/data-agent.md'}  # Relative to root.
-        tools = []  # FundamentalDatasub uses internal methods instead of tools
-        super().__init__(role='fundamental_data', config_paths=config_paths, prompt_paths=prompt_paths, tools=tools)
+        super().__init__(role='fundamental_data')
 
     async def reflect(self, adjustments: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -121,15 +118,40 @@ class FundamentalDataAnalyzer(BaseAgent):
                 'adjustments_processed': len(adjustments) if isinstance(adjustments, dict) else 0
             }
 
+    async def _plan_data_exploration(self, *args, **kwargs) -> Dict[str, Any]:
+        """Plan fundamental data exploration strategy."""
+        symbols = kwargs.get('symbols', [])
+        return await self._plan_fundamental_exploration(symbols)
+
+    async def _execute_data_exploration(self, exploration_plan: Dict[str, Any], *args, **kwargs) -> Dict[str, Any]:
+        """Execute fundamental data fetching and initial processing."""
+        symbols = exploration_plan.get("symbols", [])
+        raw_fundamental_data = await self._fetch_fundamental_sources_concurrent(symbols, exploration_plan)
+        return raw_fundamental_data
+
+    async def _enhance_data(self, raw_data: Dict[str, Any], *args, **kwargs) -> Dict[str, Any]:
+        """Enhance fundamental data with analysis and consolidation."""
+        exploration_plan = kwargs.get('exploration_plan', {})
+        symbols = exploration_plan.get("symbols", [])
+
+        # Consolidate data into structured DataFrames
+        consolidated_data = self._consolidate_fundamental_data(raw_data, exploration_plan)
+
+        # LLM-driven analysis of consolidated data
+        analysis_focus = exploration_plan.get("analysis_focus", [])
+        llm_analysis = await self._analyze_fundamental_data_llm(consolidated_data, analysis_focus)
+
+        return {
+            "consolidated_data": consolidated_data,
+            "llm_analysis": llm_analysis,
+            "symbols_processed": symbols,
+            "timestamp": consolidated_data.get("metadata", {}).get("consolidation_timestamp"),
+            "enhanced": True
+        }
+
     async def process_input(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Process input data and return fundamental analysis results.
-        
-        Args:
-            input_data: Input data containing symbols and other parameters
-            
-        Returns:
-            Dict containing fundamental data and analysis
+        Process fundamental data using BaseDataAnalyzer pattern for backward compatibility.
         """
         try:
             # Initialize LLM if not already done
@@ -139,47 +161,77 @@ class FundamentalDataAnalyzer(BaseAgent):
             symbols = input_data.get('symbols', [])
             if not symbols:
                 return {"error": "No symbols provided for fundamental analysis"}
-            
+
             logger.info(f"Processing fundamental data for symbols: {symbols}")
-            
-            # Step 1: LLM-powered exploration planning
-            exploration_plan = await self._plan_fundamental_exploration(symbols)
-            
-            # Step 2: Concurrent data fetching from multiple sources
-            raw_fundamental_data = await self._fetch_fundamental_sources_concurrent(symbols, exploration_plan)
-            
-            # Step 3: Consolidate data into structured DataFrames
-            consolidated_data = self._consolidate_fundamental_data(raw_fundamental_data, exploration_plan)
-            
-            # Step 4: LLM-driven analysis of consolidated data
-            analysis_focus = exploration_plan.get("analysis_focus", [])
-            llm_analysis = await self._analyze_fundamental_data_llm(consolidated_data, analysis_focus)
-            
-            # Combine results
-            result = {
-                "exploration_plan": exploration_plan,
-                "raw_data": raw_fundamental_data,
-                "consolidated_data": consolidated_data,
-                "llm_analysis": llm_analysis,
-                "symbols_processed": symbols,
-                "timestamp": consolidated_data.get("metadata", {}).get("consolidation_timestamp"),
-                "enhanced": True
-            }
 
-            # Store fundamental data in shared memory for each symbol
-            for symbol in symbols:
-                await self.store_shared_memory("fundamental_data", symbol, {
-                    "fundamental_data": consolidated_data,
-                    "llm_analysis": llm_analysis,
-                    "timestamp": pd.Timestamp.now().isoformat()
-                })
+            # Use base class process_input for standardized processing
+            result = await super().process_input(input_data)
 
-            logger.info(f"Completed fundamental analysis for {len(symbols)} symbols")
-            return result
-            
+            # For backward compatibility, ensure expected structure and add memory storage
+            if isinstance(result, dict) and "consolidated_data" in result:
+                consolidated_data = result["consolidated_data"]
+                llm_analysis = result.get("llm_analysis", {})
+
+                # Add exploration_plan if missing
+                if "exploration_plan" not in result:
+                    exploration_plan = await self._plan_fundamental_exploration(symbols)
+                    result["exploration_plan"] = exploration_plan
+
+                # Add raw_data if missing (though base class might not provide it)
+                if "raw_data" not in result:
+                    exploration_plan = result.get("exploration_plan", {})
+                    raw_fundamental_data = await self._fetch_fundamental_sources_concurrent(symbols, exploration_plan)
+                    result["raw_data"] = raw_fundamental_data
+
+                # Store fundamental data in shared memory for each symbol
+                for symbol in symbols:
+                    await self.store_shared_memory("fundamental_data", symbol, {
+                        "fundamental_data": consolidated_data,
+                        "llm_analysis": llm_analysis,
+                        "timestamp": pd.Timestamp.now().isoformat()
+                    })
+
+                logger.info(f"Completed fundamental analysis for {len(symbols)} symbols")
+                return result
+
+            # Fallback to original logic if base class doesn't return expected structure
+            return await self._fallback_process_input(input_data)
+
         except Exception as e:
             logger.error(f"Error in fundamental data processing: {e}")
             return {"error": str(e)}
+
+    async def _fallback_process_input(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Fallback processing method for backward compatibility.
+        """
+        symbols = input_data.get('symbols', [])
+        if not symbols:
+            return {"error": "No symbols provided for fundamental analysis"}
+
+        # Step 1: LLM-powered exploration planning
+        exploration_plan = await self._plan_fundamental_exploration(symbols)
+
+        # Step 2: Concurrent data fetching from multiple sources
+        raw_fundamental_data = await self._fetch_fundamental_sources_concurrent(symbols, exploration_plan)
+
+        # Step 3: Consolidate data into structured DataFrames
+        consolidated_data = self._consolidate_fundamental_data(raw_fundamental_data, exploration_plan)
+
+        # Step 4: LLM-driven analysis of consolidated data
+        analysis_focus = exploration_plan.get("analysis_focus", [])
+        llm_analysis = await self._analyze_fundamental_data_llm(consolidated_data, analysis_focus)
+
+        # Combine results
+        return {
+            "exploration_plan": exploration_plan,
+            "raw_data": raw_fundamental_data,
+            "consolidated_data": consolidated_data,
+            "llm_analysis": llm_analysis,
+            "symbols_processed": symbols,
+            "timestamp": consolidated_data.get("metadata", {}).get("consolidation_timestamp"),
+            "enhanced": True
+        }
 
     def _enhance_fundamentals_with_analysis(self, fundamental_data: Dict[str, Any], symbol: str) -> Dict[str, Any]:
         """Enhance fundamental data with comprehensive analysis."""

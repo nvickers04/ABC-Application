@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))  # Dynamic root path for imports.
 
-from src.agents.base import BaseAgent  # Absolute import.
+from src.agents.data_analyzers.base_data_analyzer import BaseDataAnalyzer  # Absolute import.
 import logging
 from typing import Dict, Any, List, Optional
 import pandas as pd
@@ -20,17 +20,14 @@ from src.utils.config import get_marketdataapp_api_key
 
 logger = logging.getLogger(__name__)
 
-class MarketDataAppDataAnalyzer(BaseAgent):
+class MarketDataAppDataAnalyzer(BaseDataAnalyzer):
     """
     MarketDataApp Data Subagent with LLM-powered exploration.
     Reasoning: Fetches premium market data from MarketDataApp API for institutional-grade insights.
     Uses LLM to intelligently explore available data endpoints and maximize data utilization.
     """
     def __init__(self):
-        config_paths = {'risk': 'config/risk-constraints.yaml'}  # Relative to root.
-        prompt_paths = {'base': 'config/base_prompt.txt', 'role': 'docs/AGENTS/main-agents/data-agent.md'}  # Relative to root.
-        tools = []  # MarketDataAppDatasub uses internal methods instead of tools
-        super().__init__(role='marketdataapp_data', config_paths=config_paths, prompt_paths=prompt_paths, tools=tools)
+        super().__init__(role='marketdataapp_data')
 
         # Initialize MarketDataApp API
         self.api_key = get_marketdataapp_api_key()
@@ -57,17 +54,66 @@ class MarketDataAppDataAnalyzer(BaseAgent):
         logger.info(f"Reflecting on adjustments: {adjustments}")
         return {}
 
+    async def _plan_data_exploration(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Plan MarketDataApp data exploration.
+
+        Args:
+            input_data: Input parameters
+
+        Returns:
+            Exploration plan
+        """
+        symbol = input_data.get('symbol', 'SPY')
+        return await self._plan_marketdataapp_exploration(symbol, input_data)
+
+    async def _execute_data_exploration(self, exploration_plan: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Execute MarketDataApp data exploration.
+
+        Args:
+            exploration_plan: Plan from _plan_data_exploration
+
+        Returns:
+            Raw data
+        """
+        symbol = exploration_plan.get('symbol', 'SPY')
+        return await self._execute_exploration_plan(symbol, exploration_plan)
+
+    async def _enhance_data(self, validated_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Enhance MarketDataApp data with analysis.
+
+        Args:
+            validated_data: Validated data
+
+        Returns:
+            Consolidated data (for backward compatibility)
+        """
+        # For MarketDataApp, return the consolidated data directly
+        symbol = "SPY"  # Default symbol, could be extracted from context if needed
+        consolidated_data = self._consolidate_marketdataapp_data(symbol, validated_data)
+        return consolidated_data
+
     async def process_input(self, input_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        logger.info(f"MarketDataApp Subagent processing input: {input_data or 'Default SPY premium data'}")
+        """
+        Process MarketDataApp data using standardized BaseDataAnalyzer pattern.
+        """
+        if input_data is None:
+            input_data = {}
 
-        # Initialize LLM if not already done
-        if not self.llm:
-            await self.async_initialize_llm()
+        # Use base class process_input for standardized processing
+        result = await super().process_input(input_data)
 
-        symbol = input_data.get('symbol', 'SPY') if input_data else 'SPY'
+        # For backward compatibility, return consolidated_data directly if it exists
+        if "consolidated_data" in result and isinstance(result["consolidated_data"], dict):
+            return result["consolidated_data"]
+
+        # Fallback: call the original logic
+        symbol = input_data.get('symbol', 'SPY')
 
         # Use LLM to determine optimal data endpoints to explore
-        exploration_plan = await self._plan_data_exploration(symbol, input_data or {})
+        exploration_plan = await self._plan_marketdataapp_exploration(symbol, input_data)
 
         # Execute exploration plan
         exploration_results = await self._execute_exploration_plan(symbol, exploration_plan)
@@ -75,18 +121,9 @@ class MarketDataAppDataAnalyzer(BaseAgent):
         # Consolidate results into DataFrame format
         consolidated_data = self._consolidate_marketdataapp_data(symbol, exploration_results)
 
-        # Store premium market data in shared memory for strategy agents
-        await self.store_shared_memory("marketdataapp_data", symbol, {
-            "premium_data": consolidated_data,
-            "exploration_plan": exploration_plan,
-            "timestamp": datetime.now().isoformat(),
-            "symbol": symbol
-        })
-
-        logger.info(f"MarketDataApp LLM exploration completed for {symbol}: {len(exploration_results)} endpoints explored")
         return consolidated_data
 
-    async def _plan_data_exploration(self, symbol: str, context: Dict[str, Any]) -> Dict[str, Any]:
+    async def _plan_marketdataapp_exploration(self, symbol: str, context: Dict[str, Any]) -> Dict[str, Any]:
         """
         Use LLM to plan intelligent data exploration based on symbol and context.
 

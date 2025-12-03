@@ -239,4 +239,5 @@ data/vector_db/
 
 # Tigerbeetle large files
 tigerbeetle-data/
+tigerbeetle-data-file
 setup/tigerbeetle-data-file

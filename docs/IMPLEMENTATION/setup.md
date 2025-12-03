@@ -166,6 +166,19 @@ rename-command SHUTDOWN SHUTDOWN_REDIS
 redis-server.exe redis\redis.windows.conf
 ```
 
+#### 6. TigerBeetle Setup
+```bash
+# Install TigerBeetle for Windows
+# Download from: https://github.com/tigerbeetle/tigerbeetle/releases
+# Extract tigerbeetle.exe to setup/ directory
+
+# Initialize TigerBeetle data file
+.\setup\tigerbeetle.exe format --cluster=0 --replica=0 --replica-count=1 tigerbeetle-data.tigerbeetle
+
+# Start TigerBeetle server
+.\setup\tigerbeetle.exe start --addresses=127.0.0.1:3000 tigerbeetle-data.tigerbeetle
+```
+
 ### Production Environment
 
 #### Docker Deployment
@@ -362,6 +375,52 @@ GUILD_ID=your_discord_guild_id
 # System
 LOG_LEVEL=INFO
 SECRET_KEY=your_secret_key_for_sessions
+```
+
+## Server Startup Procedures
+
+### Redis Server Startup
+```bash
+# Start Redis server with authentication
+redis-server --requirepass SecureRedisPass2025! --bind 127.0.0.1
+
+# Or using Redis portable (if downloaded)
+.\data\redis-portable\redis-server.exe redis.conf
+```
+
+### TigerBeetle Server Startup
+```bash
+# Ensure TigerBeetle data file is formatted (one-time setup)
+.\setup\tigerbeetle.exe format --cluster=0 --replica=0 --replica-count=1 tigerbeetle-data.tigerbeetle
+
+# Start TigerBeetle server
+.\setup\tigerbeetle.exe start --addresses=127.0.0.1:3000 tigerbeetle-data.tigerbeetle
+```
+
+### Startup Verification
+```bash
+# Test Redis connection
+redis-cli -a SecureRedisPass2025! ping
+
+# Test TigerBeetle connection (requires tigerbeetle-python client)
+python -c "
+import tigerbeetle as tb
+client = tb.Client(cluster_id=0, replica_addresses=['127.0.0.1:3000'])
+print('TigerBeetle connection successful')
+client.close()
+"
+```
+
+### Background Services
+For production deployment, run servers as background services:
+
+```bash
+# Redis as Windows service
+redis-server --service-install redis.conf
+redis-server --service-start
+
+# TigerBeetle in background (PowerShell)
+Start-Job -ScriptBlock { .\setup\tigerbeetle.exe start --addresses=127.0.0.1:3000 tigerbeetle-data.tigerbeetle }
 ```
 
 ## Deployment Strategies
@@ -925,6 +984,120 @@ make monitor-post-deploy
 # 4. Verify and cleanup
 make verify-deployment
 make cleanup-old-version
+```
+
+## Troubleshooting Guide
+
+### Common Connection Issues
+
+#### Redis Connection Problems
+```bash
+# Check if Redis is running
+redis-cli ping
+
+# If not running, start Redis
+redis-server --requirepass SecureRedisPass2025!
+
+# Test connection with password
+redis-cli -a SecureRedisPass2025! ping
+
+# Check Redis logs
+tail -f /var/log/redis/redis-server.log
+```
+
+#### TigerBeetle Connection Issues
+```bash
+# Check if TigerBeetle is running
+netstat -tlnp | grep 3000
+
+# Restart TigerBeetle
+.\setup\tigerbeetle.exe start --addresses=127.0.0.1:3000 tigerbeetle-data.tigerbeetle
+
+# Check data file integrity
+.\setup\tigerbeetle.exe start --addresses=127.0.0.1:3000 --cache-grid=8GiB tigerbeetle-data.tigerbeetle
+```
+
+#### IBKR API Connection Issues
+```bash
+# Check IBKR TWS/Gateway is running
+netstat -tlnp | grep 7497
+
+# Verify API credentials in config/ibkr_config.ini
+# Check IBKR logs in TWS/Gateway application
+
+# Test basic connectivity
+python -c "
+from ib_insync import IB
+ib = IB()
+ib.connect('127.0.0.1', 7497, clientId=1)
+print('IBKR connected successfully')
+ib.disconnect()
+"
+```
+
+#### Discord Bot Connection Issues
+```bash
+# Check Discord token in environment
+echo $DISCORD_ORCHESTRATOR_TOKEN
+
+# Verify bot permissions in Discord server
+# Check bot is online in Discord
+
+# Test bot connectivity
+python -c "
+import discord
+import os
+intents = discord.Intents.default()
+client = discord.Client(intents=intents)
+@client.event
+async def on_ready():
+    print(f'Bot connected as {client.user}')
+    await client.close()
+client.run(os.getenv('DISCORD_ORCHESTRATOR_TOKEN'))
+"
+```
+
+### Performance Issues
+
+#### High Memory Usage
+```bash
+# Check Redis memory usage
+redis-cli -a SecureRedisPass2025! info memory
+
+# Clear old cache entries
+redis-cli -a SecureRedisPass2025! keys "*" | xargs redis-cli -a SecureRedisPass2025! del
+
+# Monitor Python memory
+python -c "
+import psutil
+import os
+process = psutil.Process(os.getpid())
+print(f'Memory usage: {process.memory_info().rss / 1024 / 1024:.2f} MB')
+"
+```
+
+#### Slow Response Times
+```bash
+# Check system load
+uptime
+
+# Monitor network latency
+ping -c 4 8.8.8.8
+
+# Check disk I/O
+iostat -x 1 5
+```
+
+### Log Analysis
+```bash
+# View recent application logs
+tail -f logs/grok_ibkr.log
+
+# Search for errors
+grep -i error logs/grok_ibkr.log | tail -20
+
+# Check agent-specific logs
+tail -f logs/agents.log
 ```
 
 ## Security Validation and Testing

@@ -9,13 +9,13 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from integrations.nautilus_ibkr_bridge import (
+from src.integrations.nautilus_ibkr_bridge import (
     NautilusIBKRBridge,
     BridgeConfig,
     BridgeMode,
     get_nautilus_ibkr_bridge
 )
-from integrations.live_trading_safeguards import (
+from src.integrations.live_trading_safeguards import (
     get_live_trading_safeguards,
     get_risk_status,
     emergency_stop

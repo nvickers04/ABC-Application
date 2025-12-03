@@ -2064,10 +2064,10 @@ Format each proposal clearly with headers like "TRADE PROPOSAL 1:", "TRADE PROPO
 
             # Calculate position size based on account value and risk limits
             try:
-                # Get account value from IBKR via bridge
-                from src.integrations.nautilus_ibkr_bridge import get_nautilus_ibkr_bridge
-                bridge = get_nautilus_ibkr_bridge()
-                account_info = await bridge.get_account_summary()
+                # Get account value from IBKR connector
+                from src.integrations.ibkr_connector import get_ibkr_connector
+                connector = get_ibkr_connector()
+                account_info = await connector.get_account_summary()
                 account_value = float(account_info.get('NetLiquidation', 1000000) if account_info else 1000000)  # Default to $1M if not available
                 
                 # Use 1% of account value as base position size
@@ -2926,13 +2926,13 @@ Format each proposal clearly with headers like "TRADE PROPOSAL 1:", "TRADE PROPO
             Dict with current portfolio holdings and allocations
         """
         try:
-            # Try to get from IBKR first via bridge
-            from src.integrations.nautilus_ibkr_bridge import get_nautilus_ibkr_bridge
-            bridge = get_nautilus_ibkr_bridge()
+            # Try to get from IBKR first via connector
+            from src.integrations.ibkr_connector import get_ibkr_connector
+            connector = get_ibkr_connector()
 
             try:
-                account_summary = await bridge.get_account_summary()
-                positions = await bridge.get_positions()
+                account_summary = await connector.get_account_summary()
+                positions = await connector.get_positions()
 
                 portfolio = {
                     'total_value': float(account_summary.get('NetLiquidation', 1000000)),

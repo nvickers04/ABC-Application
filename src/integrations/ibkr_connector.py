@@ -23,9 +23,16 @@ import exchange_calendars as ecals
 # Local imports
 # from src.utils.config import load_yaml  # Not needed for IBKR connector
 from src.utils.config import get_api_key
+from .live_trading_safeguards import (
+    get_live_trading_safeguards,
+    check_pre_trade_risk,
+    validate_trading_conditions
+)
+from src.utils.alert_manager import get_alert_manager
 import os
 
 logger = logging.getLogger(__name__)
+alert_manager = get_alert_manager()
 
 class IBKRConnector:
     """
@@ -301,7 +308,7 @@ class IBKRConnector:
     async def place_order(self, symbol: str, quantity: int, order_type: str = 'MKT',
                          action: str = 'BUY', price: Optional[float] = None) -> Dict[str, Any]:
         """
-        Place an order on IBKR paper trading with direct async handling.
+        Place an order on IBKR with direct async handling and risk management.
 
         Args:
             symbol: Stock symbol
@@ -322,6 +329,59 @@ class IBKRConnector:
             # Check if market is open
             if not self._is_market_open():
                 return {'error': 'Market is closed', 'market_open': False}
+
+            # Apply live trading safeguards if not paper trading (port != 7497)
+            is_live_trading = self.port != 7497
+            if is_live_trading:
+                # Validate market conditions
+                market_safe, market_reason = await validate_trading_conditions()
+                if not market_safe:
+                    return {
+                        'success': False,
+                        'error': f'Market conditions not safe: {market_reason}',
+                        'market_check': False
+                    }
+
+                # Get current account and position info for risk checks
+                account_info = await self.get_account_summary()
+                if 'error' in account_info:
+                    return {
+                        'success': False,
+                        'error': f'Cannot get account info: {account_info["error"]}',
+                        'account_check': False
+                    }
+
+                positions = await self.get_positions()
+
+                # Get current price for risk calculations
+                current_price = price
+                if not current_price:
+                    market_data = await self.get_market_data(symbol)
+                    if market_data and 'close' in market_data:
+                        current_price = market_data['close']
+                    else:
+                        return {
+                            'success': False,
+                            'error': 'Cannot determine current price for risk calculation',
+                            'price_check': False
+                        }
+
+                # Perform pre-trade risk check
+                risk_approved, risk_reason, risk_analysis = await check_pre_trade_risk(
+                    symbol=symbol,
+                    quantity=quantity,
+                    price=current_price,
+                    order_type=order_type,
+                    account_info=account_info,
+                    positions=positions
+                )
+
+                if not risk_approved:
+                    return {
+                        'success': False,
+                        'error': f'Risk check failed: {risk_reason}',
+                        'risk_analysis': risk_analysis
+                    }
 
             # Create contract
             contract = Stock(symbol, 'SMART', 'USD')

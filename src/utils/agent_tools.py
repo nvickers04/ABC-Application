@@ -225,53 +225,83 @@ def shared_memory_broadcast_tool(message: str, namespace: str, sender_agent: str
 
 def agent_health_check_tool(agent_name: str = None) -> Dict[str, Any]:
     """
-    Check the health status of agents.
+    Check the health status of agents and system components.
     Args:
         agent_name: Specific agent to check (optional)
     Returns:
-        dict: Agent health status
+        dict: Agent and component health status
     """
     try:
-        # Default agents to check
-        agents_to_check = ["data_agent", "risk_agent", "strategy_agent", "execution_agent", "reflection_agent"]
+        from .component_health_monitor import get_component_health_monitor
 
+        monitor = get_component_health_monitor()
+
+        # Perform health checks
+        health_results = monitor.perform_health_checks()
+
+        # Filter by agent name if specified
         if agent_name:
-            agents_to_check = [agent_name]
+            if agent_name in health_results:
+                component = health_results[agent_name]
+                return {
+                    "agent_name": agent_name,
+                    "status": component.status.value,
+                    "last_check": component.last_check.isoformat(),
+                    "response_time": component.response_time,
+                    "error_message": component.error_message,
+                    "metrics": component.metrics,
+                    "recovery_attempts": component.recovery_attempts,
+                    "timestamp": str(pd.Timestamp.now()),
+                    "source": "component_health_monitor"
+                }
+            else:
+                return {"error": f"Agent '{agent_name}' not found in monitored components"}
 
-        health_results = {}
+        # Convert to expected format for backward compatibility
+        agent_details = {}
+        component_statuses = {}
 
-        for agent in agents_to_check:
-            try:
-                # Simulate health check (in real implementation, this would query actual agent status)
-                health_status = {
-                    "status": "healthy" if random.random() > 0.1 else "degraded",  # 90% healthy
-                    "last_active": str(pd.Timestamp.now() - pd.Timedelta(minutes=random.randint(1, 60))),
-                    "memory_usage": f"{random.randint(50, 200)}MB",
-                    "active_tasks": random.randint(0, 3),
-                    "error_rate": f"{random.uniform(0, 0.05):.3f}"
+        for name, component in health_results.items():
+            if component.component_type.value == "agent":
+                agent_details[name] = {
+                    "status": component.status.value,
+                    "last_active": component.last_check.isoformat(),
+                    "response_time": component.response_time,
+                    "error_message": component.error_message,
+                    "metrics": component.metrics,
+                    "recovery_attempts": component.recovery_attempts
+                }
+            else:
+                component_statuses[name] = {
+                    "status": component.status.value,
+                    "last_check": component.last_check.isoformat(),
+                    "response_time": component.response_time,
+                    "error_message": component.error_message,
+                    "metrics": component.metrics
                 }
 
-                health_results[agent] = health_status
+        # Calculate overall health
+        all_components = list(health_results.values())
+        healthy_count = sum(1 for c in all_components if c.status.value == "healthy")
+        total_count = len(all_components)
 
-            except Exception as e:
-                health_results[agent] = {
-                    "status": "unreachable",
-                    "error": str(e)
-                }
-
-        # Overall system health
-        healthy_count = sum(1 for status in health_results.values() if status.get("status") == "healthy")
-        total_count = len(health_results)
-
-        overall_health = "healthy" if healthy_count / total_count > 0.8 else "degraded" if healthy_count / total_count > 0.5 else "critical"
+        if total_count == 0:
+            overall_health = "unknown"
+        elif healthy_count / total_count > 0.8:
+            overall_health = "healthy"
+        elif healthy_count / total_count > 0.5:
+            overall_health = "degraded"
+        else:
+            overall_health = "critical"
 
         return {
             "overall_health": overall_health,
-            "healthy_agents": healthy_count,
-            "total_agents": total_count,
-            "agent_details": health_results,
+            "healthy_components": healthy_count,
+            "total_components": total_count,
+            "agent_details": agent_details,
+            "component_details": component_statuses,
             "timestamp": str(pd.Timestamp.now()),
-            "source": "agent_health_check"
+            "source": "component_health_monitor"
         }
 
     except Exception as e:

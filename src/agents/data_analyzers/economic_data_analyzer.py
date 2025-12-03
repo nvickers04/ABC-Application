@@ -10,7 +10,7 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 from dataclasses import dataclass, field
-from src.agents.base import BaseAgent
+from src.agents.data_analyzers.base_data_analyzer import BaseDataAnalyzer
 from src.utils.tools import fred_data_tool, requests
 
 logger = logging.getLogger(__name__)
@@ -35,14 +35,14 @@ class EconomicMemory:
         """Get recent economic insights."""
         return self.session_insights[-limit:]
 
-class EconomicDataAnalyzer(BaseAgent):
+class EconomicDataAnalyzer(BaseDataAnalyzer):
     """
     Comprehensive Economic Data Subagent implementing full specification.
     Aggregates macroeconomic data from multiple sources with LLM-driven analysis.
     """
 
     def __init__(self):
-        super().__init__("economic_data", config_paths={}, prompt_paths={}, tools=[])
+        super().__init__(role="economic_data")
         self.memory = EconomicMemory()
         self.data_sources = {
             'fred': self._fetch_fred_data,
@@ -100,35 +100,76 @@ class EconomicDataAnalyzer(BaseAgent):
             'PCE': {'source': 'bea', 'frequency': 'monthly', 'description': 'Personal Consumption Expenditures'}
         }
 
+    async def _plan_data_exploration(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Plan economic data exploration.
+
+        Args:
+            input_data: Input parameters
+
+        Returns:
+            Exploration plan
+        """
+        indicators = input_data.get('indicators', ['GDP', 'CPI', 'UNEMPLOYMENT'])
+        return {
+            "indicators": indicators,
+            "sources": ["fred", "bls", "bea"],
+            "strategy": "multi_source_fetch"
+        }
+
+    async def _execute_data_exploration(self, exploration_plan: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Execute economic data exploration.
+
+        Args:
+            exploration_plan: Plan from _plan_data_exploration
+
+        Returns:
+            Raw economic data
+        """
+        indicators = exploration_plan.get("indicators", [])
+        return self.fetch_economic_indicators(indicators)
+
+    async def _enhance_data(self, validated_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Enhance economic data with analysis.
+
+        Args:
+            validated_data: Validated data
+
+        Returns:
+            Enhanced data
+        """
+        # For economic data, the raw data is already well-structured
+        # Add some basic analysis
+        enhanced = dict(validated_data)
+        if 'indicators' in enhanced:
+            # Add trend analysis
+            enhanced['analysis'] = {
+                'data_points': len(enhanced.get('indicators', {})),
+                'sources': list(set(ind.get('source', 'unknown') for ind in enhanced.get('indicators', {}).values() if isinstance(ind, dict))),
+                'timestamp': datetime.now().isoformat()
+            }
+        return enhanced
+
     async def process_input(self, input_data: Dict[str, Any] = None) -> Dict[str, Any]:
         """
-        Process economic data input and return indicators directly for test compatibility.
-        Args:
-            input_data: Dict with analysis parameters.
-        Returns:
-            Dict with economic indicators data.
+        Process economic data input using standardized BaseDataAnalyzer pattern.
+        Maintains backward compatibility with existing tests.
         """
-        logger.info(f"EconomicDatasub processing input: {input_data}")
+        if input_data is None:
+            input_data = {}
 
-        try:
-            # Extract symbol or indicators from input
-            symbol = input_data.get('symbol', 'ECONOMIC')
-            indicators = input_data.get('indicators', ['GDP', 'CPI', 'UNEMPLOYMENT'])
+        # Use base class process_input
+        result = await super().process_input(input_data)
 
-            # Call fetch method directly and return result for test compatibility
-            result = self.fetch_economic_indicators(indicators)
+        # For backward compatibility, return consolidated_data directly if it exists
+        if "consolidated_data" in result and isinstance(result["consolidated_data"], dict):
+            return result["consolidated_data"]
 
-            # Store economic data in shared memory
-            await self.store_shared_memory("economic_data", symbol, {
-                "economic_indicators": result,
-                "timestamp": datetime.now().isoformat()
-            })
-
-            return result
-
-        except Exception as e:
-            logger.error(f"EconomicDatasub failed: {e}")
-            return {"error": str(e)}
+        # Fallback to original behavior
+        indicators = input_data.get('indicators', ['GDP', 'CPI', 'UNEMPLOYMENT'])
+        return self.fetch_economic_indicators(indicators)
 
     async def _aggregate_economic_data(self, focus_areas: List[str], time_horizon: str) -> Dict[str, Any]:
         """Aggregate economic data from multiple sources based on focus areas."""

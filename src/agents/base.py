@@ -594,6 +594,22 @@ class BaseAgent(abc.ABC):
 
         logger.info(f"Initialized {self.role} Agent with configs: {list(self.configs.keys())}, tools: {[t.name for t in self.tools]}")
 
+    @property
+    def memory_manager(self):
+        """Property to provide memory_manager compatibility for data analyzers."""
+        if hasattr(self, '_memory_manager') and self._memory_manager is not None:
+            return self._memory_manager
+        elif hasattr(self, 'advanced_memory') and self.advanced_memory is not None:
+            return self.advanced_memory
+        else:
+            # Fallback to basic memory manager
+            return _get_advanced_memory_manager()
+
+    @memory_manager.setter
+    def memory_manager(self, value):
+        """Setter for memory_manager compatibility."""
+        self._memory_manager = value
+
     async def async_initialize_llm(self) -> bool:
         """
         Asynchronously initialize the LLM for this agent.
@@ -1963,7 +1979,7 @@ Please provide analysis based on your role and expertise.
                 **proposal,
                 'proposal_id': proposal_id,
                 'submitted_by': self.role,
-                'submitted_at': pd.Timestamp.now().isoformat(),
+                               'submitted_at': pd.Timestamp.now().isoformat(),
                 'status': 'submitted',
                 'evaluation_status': 'pending',
                 'implementation_status': 'pending',

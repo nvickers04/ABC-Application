@@ -7,11 +7,24 @@ Follow PEP 8 and use type hints everywhere.
 
 # Persistent TODO / Issue Tracking
 - There is a root-level file called `TODO.md` that contains the authoritative list of bugs, features, and refactors.
+- Do not make your own todo lists or track issues outside of `TODO.md`.
 - Before suggesting any code, always read the current contents of `TODO.md`.
 - When you fix or implement something listed there:
   - Add a comment in the code: `# TODO: Resolves item X from TODO.md`
   - Suggest marking the item as done in `TODO.md` (change `[ ]` → `[x]`) and optionally add a short note.
 - If you discover a new bug or improvement while working, suggest adding it to `TODO.md`.
+
+# Multi-Agent Coordination
+- When multiple AI agents/chats are working on the same codebase, coordinate to avoid conflicts.
+- Make intermittent updates and check for recent changes before implementing.
+- Avoid working on the exact same components or related features simultaneously.
+- Communicate progress through TODO.md updates to prevent duplication of effort.
+
+# Implementation Standards
+- Avoid implementing placeholders, stubs, or incomplete functionality.
+- Implement features fully and correctly on the first attempt.
+- Avoid procrastination by completing tasks thoroughly rather than leaving them for later.
+- Ensure all code is production-ready and tested before submission.
 
 # Python-specific rules
 - Use `ruff` for linting/formatting (`ruff check .` and `ruff format .`)

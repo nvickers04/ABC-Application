@@ -7,7 +7,7 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 import yfinance as yf
-from integrations.ibkr_historical_data import IBKRHistoricalDataProvider
+from src.integrations.ibkr_historical_data import IBKRHistoricalDataProvider
 import matplotlib.pyplot as plt
 import seaborn as sns
 from pathlib import Path

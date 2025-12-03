@@ -208,17 +208,22 @@ class TestEconomicDataTool(unittest.TestCase):
         self.assertIn("series", result)
         self.assertIn("GDP", result["series"])
 
-    @patch('fredapi.Fred.get_series')
-    def test_economic_data_api_error(self, mock_get_series):
-        """Test economic data with API error"""
-        mock_get_series.side_effect = Exception("API Error")
+    def test_economic_data_api_error(self):
+        """Test economic data with missing API key"""
+        # Remove FRED_API_KEY from environment if it exists
+        original_key = os.environ.get('FRED_API_KEY')
+        if 'FRED_API_KEY' in os.environ:
+            del os.environ['FRED_API_KEY']
 
-        result = economic_data_tool.invoke({"indicators": "GDP"})
+        try:
+            result = economic_data_tool.invoke({"indicators": "GDP"})
 
-        self.assertIn("series", result)
-        self.assertIn("GDP", result["series"])
-        self.assertIn("error", result["series"]["GDP"])
-        self.assertIn("API Error", result["series"]["GDP"]["error"])
+            self.assertIn("error", result)
+            self.assertIn("FRED API key not found", result["error"])
+        finally:
+            # Restore original key
+            if original_key:
+                os.environ['FRED_API_KEY'] = original_key
 
 
 class TestMarketDataAppAPITool(unittest.TestCase):

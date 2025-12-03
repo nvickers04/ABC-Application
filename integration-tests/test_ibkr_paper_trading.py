@@ -15,9 +15,10 @@ import sys
 import os
 from pathlib import Path
 
-# Add project root to path
-project_root = Path(__file__).parent
+# Add project root and src to path
+project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
+sys.path.insert(0, str(project_root / 'src'))
 
 async def test_ibkr_paper_trading():
     """Test IBKR paper trading connection and basic functionality"""
@@ -26,7 +27,7 @@ async def test_ibkr_paper_trading():
         print("=" * 50)
 
         # Import IBKR connector
-        from integrations.ibkr_connector import get_ibkr_connector
+        from src.integrations.ibkr_connector import get_ibkr_connector
 
         # Get connector instance
         connector = get_ibkr_connector()

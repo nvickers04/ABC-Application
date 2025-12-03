@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))  # Dynamic root path for imports.
 
-from src.agents.base import BaseAgent  # Absolute import.
+from src.agents.data_analyzers.base_data_analyzer import BaseDataAnalyzer  # Absolute import.
 import logging
 from typing import Dict, Any, List, Optional
 import pandas as pd
@@ -41,17 +41,14 @@ class OptionsMemory:
         """Get recent options insights."""
         return self.session_insights[-limit:]
 
-class OptionsDataAnalyzer(BaseAgent):
+class OptionsDataAnalyzer(BaseDataAnalyzer):
     """
     Comprehensive Options Data Analyzer implementing full specification.
     Advanced options analytics with multi-source data, Greeks modeling, and strategy insights.
     """
 
     def __init__(self):
-        config_paths = {'risk': 'config/risk-constraints.yaml'}  # Relative to root.
-        prompt_paths = {'base': 'config/base_prompt.txt', 'role': 'docs/AGENTS/main-agents/data-agent.md'}  # Relative to root.
-        tools = []  # OptionsDataSub uses internal methods instead of tools
-        super().__init__(role='options_data', config_paths=config_paths, prompt_paths=prompt_paths, tools=tools)
+        super().__init__(role='options_data')
 
         # Initialize Redis cache manager
         self.redis_cache = get_redis_cache_manager()
@@ -86,18 +83,79 @@ class OptionsDataAnalyzer(BaseAgent):
         logger.info(f"OptionsData Reflecting on adjustments: {adjustments}")
         return {}
 
+    async def _plan_data_exploration(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Plan options data exploration.
+
+        Args:
+            input_data: Input parameters
+
+        Returns:
+            Exploration plan
+        """
+        symbol = input_data.get('symbol', 'AAPL')
+        return await self._plan_options_exploration(symbol, input_data)
+
+    async def _execute_data_exploration(self, exploration_plan: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Execute options data exploration.
+
+        Args:
+            exploration_plan: Plan from _plan_data_exploration
+
+        Returns:
+            Raw options data
+        """
+        symbol = exploration_plan.get('symbol', 'AAPL')
+        return await self._fetch_options_sources_concurrent(symbol, exploration_plan)
+
+    async def _enhance_data(self, validated_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Enhance options data with analysis.
+
+        Args:
+            validated_data: Validated data
+
+        Returns:
+            Enhanced options data
+        """
+        symbol = "AAPL"  # Default symbol, could be extracted from context
+        consolidated_data = self._consolidate_options_data(validated_data, symbol)
+
+        # Add LLM analysis
+        llm_analysis = await self._analyze_options_data_llm(consolidated_data)
+
+        return {
+            "consolidated_data": consolidated_data,
+            "llm_analysis": llm_analysis,
+            "exploration_plan": {},
+            "enhanced": True
+        }
+
     async def process_input(self, input_data: Dict[str, Any] = None) -> Dict[str, Any]:
         """
-        Process input to fetch and analyze options data with LLM enhancement.
-        Args:
-            input_data: Dict with parameters (symbol for options analysis).
-        Returns:
-            Dict with structured options data and LLM analysis.
+        Process options data using standardized BaseDataAnalyzer pattern with backward compatibility.
         """
-        logger.info(f"OptionsDataAnalyzer processing input: {input_data}")
+        if input_data is None:
+            input_data = {}
 
         try:
-            symbol = input_data.get('symbol', 'AAPL') if input_data else 'AAPL'
+            # Use base class process_input for standardized processing
+            result = await super().process_input(input_data)
+
+            # Extract the enhanced data for backward compatibility
+            if isinstance(result, dict) and "consolidated_data" in result:
+                enhanced_data = result["consolidated_data"]
+                if isinstance(enhanced_data, dict) and "consolidated_data" in enhanced_data:
+                    # Return the inner consolidated_data with additional fields
+                    return_data = enhanced_data["consolidated_data"].copy()
+                    return_data["llm_analysis"] = enhanced_data.get("llm_analysis", {})
+                    return_data["exploration_plan"] = enhanced_data.get("exploration_plan", {})
+                    return_data["enhanced"] = True
+                    return return_data
+
+            # Fallback to original logic if base class doesn't return expected structure
+            symbol = input_data.get('symbol', 'AAPL')
 
             # Step 1: Plan options exploration with LLM
             exploration_plan = await self._plan_options_exploration(symbol, input_data)
@@ -133,6 +191,8 @@ class OptionsDataAnalyzer(BaseAgent):
         except Exception as e:
             logger.error(f"OptionsDataAnalyzer failed: {e}")
             return {"calls": [], "puts": [], "error": str(e), "enhanced": False}
+
+
 
     def _is_cache_valid(self, cache_key):
         """Check if Redis cache entry exists and is valid."""

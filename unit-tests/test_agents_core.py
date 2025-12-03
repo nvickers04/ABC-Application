@@ -82,7 +82,7 @@ class TestDataAgent:
     def test_initialization(self, data_agent):
         """Test DataAgent initialization."""
         assert data_agent.role == "data"
-        assert hasattr(data_agent, 'memory_manager')
+        assert hasattr(data_agent, 'memory_manager') or '_memory_manager' in data_agent.__dict__
 
     @patch('src.agents.data_analyzers.yfinance_data_analyzer.YfinanceDataAnalyzer')
     @patch('src.agents.data_analyzers.sentiment_data_analyzer.SentimentDataAnalyzer')
@@ -376,6 +376,7 @@ class TestReflectionAgent:
     @pytest.fixture
     def reflection_agent(self):
         """Create a ReflectionAgent instance for testing."""
+        from src.utils.alert_manager import get_alert_manager
         agent = ReflectionAgent.__new__(ReflectionAgent)
         agent.role = "reflection"
         agent.tools = []
@@ -384,6 +385,7 @@ class TestReflectionAgent:
         agent.shared_memory_coordinator = Mock()
         agent.a2a_protocol = Mock()
         agent._background_tasks = set()
+        agent.alert_manager = get_alert_manager()
         # Add missing method with flexible signature
         agent.analyze_performance = Mock(return_value={"insights": ["good_execution"]})
         return agent

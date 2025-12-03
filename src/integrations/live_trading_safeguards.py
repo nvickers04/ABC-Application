@@ -94,7 +94,7 @@ class LiveTradingSafeguards:
         """Load risk configuration from YAML"""
         try:
             import yaml
-            config_file = Path(__file__).parent.parent / self.config_path
+            config_file = Path(__file__).parent.parent.parent / self.config_path
             if config_file.exists():
                 with open(config_file, 'r') as f:
                     config = yaml.safe_load(f)

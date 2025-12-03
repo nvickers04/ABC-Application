@@ -92,7 +92,8 @@ class TestTradeAlertsAndRanking(unittest.TestCase):
             await self.orchestrator.send_trade_alert("Test alert", "trade")
 
             self.orchestrator.alerts_channel.send.assert_called_once()  # type: ignore
-            self.orchestrator.channel.send.assert_not_called()  # type: ignore
+            # System event is also posted to general channel
+            self.orchestrator.channel.send.assert_called_once()  # type: ignore
 
         asyncio.run(inner())
 
@@ -106,7 +107,8 @@ class TestTradeAlertsAndRanking(unittest.TestCase):
 
             # Should retry once
             self.assertEqual(self.orchestrator.alerts_channel.send.call_count, 2)  # type: ignore
-            self.orchestrator.channel.send.assert_not_called()  # type: ignore
+            # System event is posted to general channel on success
+            self.orchestrator.channel.send.assert_called_once()  # type: ignore
 
         asyncio.run(inner())
 

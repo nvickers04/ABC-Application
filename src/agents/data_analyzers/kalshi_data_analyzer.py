@@ -9,16 +9,17 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))  # Dynamic root path for imports.
 
-from src.agents.base import BaseAgent  # Absolute import.
+from src.agents.data_analyzers.base_data_analyzer import BaseDataAnalyzer  # Absolute import.
 import logging
 from typing import Dict, Any, Optional, List
+from datetime import datetime
 import asyncio
 import pandas as pd
 from src.utils.tools import kalshi_data_tool
 
 logger = logging.getLogger(__name__)
 
-class KalshiDataAnalyzer(BaseAgent):
+class KalshiDataAnalyzer(BaseDataAnalyzer):
     """
     Kalshi Data Subagent.
     Reasoning: Fetches prediction market odds for alternative sentiment and probability analysis.
@@ -27,7 +28,67 @@ class KalshiDataAnalyzer(BaseAgent):
         config_paths = {'risk': 'config/risk-constraints.yaml'}  # Relative to root.
         prompt_paths = {'base': 'config/base_prompt.txt', 'role': 'docs/AGENTS/main-agents/data-agent.md'}  # Relative to root.
         tools = []  # KalshiDatasub uses internal methods instead of tools
-        super().__init__(role='kalshi_data', config_paths=config_paths, prompt_paths=prompt_paths, tools=tools)
+        super().__init__(role='kalshi_data')
+
+    async def _plan_data_exploration(self, *args, **kwargs) -> Dict[str, Any]:
+        """
+        Plan Kalshi data exploration.
+
+        Args:
+            *args, **kwargs: Flexible arguments for compatibility
+
+        Returns:
+            Exploration plan
+        """
+        # Extract input_data from args or kwargs
+        input_data = args[0] if args else kwargs.get('input_data', {})
+        market_category = input_data.get("market_category", "stocks")
+
+        # Use existing LLM-based planning
+        plan = await self._plan_kalshi_exploration(market_category, input_data)
+        return plan
+
+    async def _execute_data_exploration(self, *args, **kwargs) -> Dict[str, Any]:
+        """
+        Execute Kalshi data exploration.
+
+        Args:
+            *args, **kwargs: Flexible arguments for compatibility
+
+        Returns:
+            Raw Kalshi data
+        """
+        # Extract exploration_plan from args or kwargs
+        exploration_plan = args[0] if args else kwargs.get('exploration_plan', {})
+        market_category = exploration_plan.get("market_category", "stocks")
+
+        # Use existing concurrent fetching logic
+        raw_data = await self._fetch_kalshi_sources_concurrent(market_category, exploration_plan)
+        return raw_data
+
+    async def _enhance_data(self, *args, **kwargs) -> Dict[str, Any]:
+        """
+        Enhance Kalshi data with analysis.
+
+        Args:
+            *args, **kwargs: Flexible arguments for compatibility
+
+        Returns:
+            Enhanced data with analysis
+        """
+        # Extract validated_data from args or kwargs
+        validated_data = args[0] if args else kwargs.get('validated_data', {})
+        market_category = validated_data.get("market_category", "stocks")
+
+        # Use existing consolidation and LLM analysis
+        consolidated_data = self._consolidate_kalshi_data(validated_data, market_category)
+        llm_analysis = await self._analyze_kalshi_data_llm(consolidated_data)
+
+        return {
+            "consolidated_data": consolidated_data,
+            "llm_analysis": llm_analysis,
+            "enhanced": True
+        }
 
     async def reflect(self, adjustments: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -113,52 +174,47 @@ class KalshiDataAnalyzer(BaseAgent):
                 'adjustments_analyzed': len(adjustments) if isinstance(adjustments, dict) else 0
             }
 
-    async def process_input(self, input_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    async def process_input(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Process input to fetch and analyze Kalshi prediction market data with LLM enhancement.
-        Args:
-            input_data: Dict with parameters (market_category for prediction market analysis).
-        Returns:
-            Dict with structured prediction market data and LLM analysis.
+        Process input using base class pattern while maintaining backward compatibility.
         """
-        logger.info(f"KalshiDatasub processing input: {input_data}")
+        # Use base class process_input
+        base_result = await super().process_input(input_data)
 
-        try:
-            market_category = input_data.get('market_category', 'stocks') if input_data else 'stocks'
+        # Maintain backward compatibility by flattening the result structure
+        if base_result.get("enhanced", False):
+            consolidated_data = base_result.get("consolidated_data", {}).get("consolidated_data", {})
+            llm_analysis = base_result.get("consolidated_data", {}).get("llm_analysis", {})
 
-            # Step 1: Plan Kalshi exploration with LLM
-            exploration_plan = await self._plan_kalshi_exploration(market_category, input_data)
-
-            # Step 2: Fetch data from multiple sources concurrently
-            raw_data = await self._fetch_kalshi_sources_concurrent(market_category, exploration_plan)
-
-            # Step 3: Consolidate data into structured format
-            consolidated_data = self._consolidate_kalshi_data(raw_data, market_category)
-
-            # Step 4: Analyze with LLM for insights
-            llm_analysis = await self._analyze_kalshi_data_llm(consolidated_data)
-
-            # Combine results
+            # Create backward-compatible result structure
             result = {
                 "consolidated_data": consolidated_data,
                 "llm_analysis": llm_analysis,
-                "exploration_plan": exploration_plan,
-                "enhanced": True
+                "exploration_plan": base_result.get("exploration_plan", {}),
+                "enhanced": True,
+                "data_quality": base_result.get("data_quality", 0.0)
             }
 
-            # Store Kalshi data in shared memory
+            # Add flattened fields for backward compatibility
+            if "market_sentiment" in consolidated_data:
+                result["market_sentiment"] = consolidated_data["market_sentiment"]
+
+            # Store Kalshi data in shared memory (backward compatibility)
+            market_category = input_data.get('market_category', 'stocks') if input_data else 'stocks'
             await self.store_shared_memory("kalshi_data", market_category, {
                 "prediction_market_data": consolidated_data,
                 "llm_analysis": llm_analysis,
                 "timestamp": datetime.now().isoformat()
             })
 
-            logger.info(f"KalshiDatasub output: LLM-enhanced prediction market data collected for {market_category}")
             return result
-
-        except Exception as e:
-            logger.error(f"KalshiDatasub failed: {e}")
-            return {"market_sentiment": 0.5, "error": str(e), "enhanced": False}
+        else:
+            # Return error result with backward compatibility
+            return {
+                "market_sentiment": 0.5,
+                "error": base_result.get("error", "Unknown error"),
+                "enhanced": False
+            }
 
     def _enhance_with_sentiment_analysis(self, kalshi_data: Dict[str, Any]) -> Dict[str, Any]:
         """Enhance Kalshi data with sentiment analysis and market intelligence."""
@@ -273,36 +329,46 @@ class KalshiDataAnalyzer(BaseAgent):
 
     async def _plan_kalshi_exploration(self, market_category: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
-        Use LLM to plan intelligent Kalshi prediction market exploration strategy.
+        Use LLM to plan intelligent Kalshi prediction market exploration strategy, with fallback.
         """
-        context_str = f"""
-        Market Category: {market_category}
-        Context: {context or 'General prediction market analysis'}
-        Current market conditions and available Kalshi prediction markets for alternative data insights.
-        """
+        if self.llm:
+            context_str = f"""
+            Market Category: {market_category}
+            Context: {context or 'General prediction market analysis'}
+            Current market conditions and available Kalshi prediction markets for alternative data insights.
+            """
 
-        question = f"""
-        Based on the market category {market_category} and current context, plan an intelligent Kalshi prediction market exploration strategy.
-        Consider:
-        1. Key market categories to analyze (economics, politics, stocks, crypto, etc.)
-        2. Specific market queries that would provide most relevant insights
-        3. Time horizons for prediction markets (short-term vs long-term)
-        4. Market types that correlate with traditional market movements
-        5. Sentiment indicators and crowd wisdom patterns to extract
-        6. Risk assessment based on prediction market probabilities
-        7. Integration with traditional market data for enhanced analysis
+            question = f"""
+            Based on the market category {market_category} and current context, plan an intelligent Kalshi prediction market exploration strategy.
+            Consider:
+            1. Key market categories to analyze (economics, politics, stocks, crypto, etc.)
+            2. Specific market queries that would provide most relevant insights
+            3. Time horizons for prediction markets (short-term vs long-term)
+            4. Market types that correlate with traditional market movements
+            5. Sentiment indicators and crowd wisdom patterns to extract
+            6. Risk assessment based on prediction market probabilities
+            7. Integration with traditional market data for enhanced analysis
 
-        Return a structured plan for Kalshi prediction market data collection and analysis.
-        """
+            Return a structured plan for Kalshi prediction market data collection and analysis.
+            """
 
-        plan_response = await self.reason_with_llm(context_str, question)
+            plan_response = await self.reason_with_llm(context_str, question)
 
-        return {
-            "market_category": market_category,
-            "exploration_strategy": plan_response,
-            "planned_queries": [market_category, "economics", "politics"],
-            "analysis_focus": ["sentiment_analysis", "probability_assessment", "market_correlations"]
-        }
+            return {
+                "market_category": market_category,
+                "exploration_strategy": plan_response,
+                "planned_queries": [market_category, "economics", "politics"],
+                "analysis_focus": ["sentiment_analysis", "probability_assessment", "market_correlations"]
+            }
+        else:
+            # Fallback plan without LLM
+            logger.warning("LLM not available, using fallback Kalshi exploration plan")
+            return {
+                "market_category": market_category,
+                "exploration_strategy": "Fallback exploration strategy",
+                "planned_queries": [market_category, "economics", "politics"],
+                "analysis_focus": ["sentiment_analysis", "probability_assessment", "market_correlations"]
+            }
 
     async def _fetch_kalshi_sources_concurrent(self, market_category: str, exploration_plan: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -405,40 +471,62 @@ class KalshiDataAnalyzer(BaseAgent):
 
     async def _analyze_kalshi_data_llm(self, consolidated_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Use LLM to analyze consolidated Kalshi prediction market data for insights.
+        Use LLM to analyze consolidated Kalshi prediction market data for insights, with fallback.
         """
-        context_str = f"""
-        Market Category: {consolidated_data.get('market_category', 'Unknown')}
-        Queries Analyzed: {consolidated_data.get('queries_analyzed', [])}
-        Total Markets: {consolidated_data.get('prediction_markets', {}).get('total_markets', 0)}
-        Average Probability: {consolidated_data.get('sentiment_summary', {}).get('average_probability', 'N/A')}
+        if self.llm:
+            context_str = f"""
+            Market Category: {consolidated_data.get('market_category', 'Unknown')}
+            Queries Analyzed: {consolidated_data.get('queries_analyzed', [])}
+            Total Markets: {consolidated_data.get('prediction_markets', {}).get('total_markets', 0)}
+            Average Probability: {consolidated_data.get('sentiment_summary', {}).get('average_probability', 'N/A')}
 
-        Kalshi prediction market data has been consolidated from multiple queries and market categories.
-        """
+            Kalshi prediction market data has been consolidated from multiple queries and market categories.
+            """
 
-        question = f"""
-        Analyze the consolidated Kalshi prediction market data and provide insights on:
+            question = f"""
+            Analyze the consolidated Kalshi prediction market data and provide insights on:
 
-        1. Crowd-sourced market sentiment and probability assessments
-        2. Correlations between prediction markets and traditional market expectations
-        3. Key insights from high-volume or high-conviction markets
-        4. Risk assessments based on prediction market probabilities
-        5. Potential market-moving events indicated by prediction market activity
-        6. Contrarian signals or market mispricings suggested by crowd wisdom
-        7. Integration opportunities with traditional market analysis
+            1. Crowd-sourced market sentiment and probability assessments
+            2. Correlations between prediction markets and traditional market expectations
+            3. Key insights from high-volume or high-conviction markets
+            4. Risk assessments based on prediction market probabilities
+            5. Potential market-moving events indicated by prediction market activity
+            6. Contrarian signals or market mispricings suggested by crowd wisdom
+            7. Integration opportunities with traditional market analysis
 
-        Provide actionable insights for market analysis and decision-making based on prediction market data.
-        """
+            Provide actionable insights for market analysis and decision-making based on prediction market data.
+            """
 
-        analysis_response = await self.reason_with_llm(context_str, question)
+            analysis_response = await self.reason_with_llm(context_str, question)
 
-        return {
-            "llm_analysis": analysis_response,
-            "sentiment_indicators": self._extract_kalshi_sentiment(analysis_response),
-            "market_correlations": self._extract_market_correlations(analysis_response),
-            "risk_assessment": self._extract_kalshi_risks(analysis_response),
-            "trading_insights": self._extract_trading_insights(analysis_response)
-        }
+            return {
+                "llm_analysis": analysis_response,
+                "sentiment_indicators": self._extract_kalshi_sentiment(analysis_response),
+                "market_correlations": self._extract_market_correlations(analysis_response),
+                "risk_assessment": self._extract_kalshi_risks(analysis_response),
+                "trading_insights": self._extract_trading_insights(analysis_response)
+            }
+        else:
+            # Fallback analysis without LLM
+            logger.warning("LLM not available, using fallback Kalshi analysis")
+            sentiment_summary = consolidated_data.get('sentiment_summary', {})
+            avg_probability = sentiment_summary.get('average_probability', 0.5)
+
+            # Simple sentiment assessment based on average probability
+            if avg_probability > 0.6:
+                sentiment = "Bullish"
+            elif avg_probability < 0.4:
+                sentiment = "Bearish"
+            else:
+                sentiment = "Neutral"
+
+            return {
+                "llm_analysis": "Fallback analysis without LLM",
+                "sentiment_indicators": {"overall_sentiment": sentiment},
+                "market_correlations": "Unable to determine without LLM",
+                "risk_assessment": "Moderate risk - limited analysis available",
+                "trading_insights": ["Limited insights without LLM analysis"]
+            }
 
     def _extract_kalshi_sentiment(self, llm_response: str) -> Dict[str, Any]:
         """Extract sentiment indicators from Kalshi LLM analysis."""

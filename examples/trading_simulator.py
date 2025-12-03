@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from integrations.nautilus_ibkr_bridge import get_nautilus_ibkr_bridge
+from src.integrations.nautilus_ibkr_bridge import get_nautilus_ibkr_bridge
 
 class TradingSimulator:
     """Simulates trading strategies using historical market data"""

@@ -18,7 +18,7 @@ async def test_trading_permissions():
 
     try:
         # Test IBKR connector trading permissions
-        from integrations.ibkr_connector import get_ibkr_connector
+        from src.integrations.ibkr_connector import get_ibkr_connector
         ibkr_connector = get_ibkr_connector()
 
         print("\n1. Testing account permissions retrieval...")

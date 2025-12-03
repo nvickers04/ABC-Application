@@ -12,7 +12,7 @@ async def final_test():
     print("=" * 50)
 
     try:
-        from integrations.ibkr_connector import IBKRConnector
+        from src.integrations.ibkr_connector import IBKRConnector
 
         print("1. Testing basic import...")
         print("✅ IBKR connector imported")

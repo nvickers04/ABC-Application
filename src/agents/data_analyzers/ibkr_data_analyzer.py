@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))  # Dynamic root path for imports.
 
-from src.agents.base import BaseAgent  # Absolute import.
+from src.agents.data_analyzers.base_data_analyzer import BaseDataAnalyzer
 import logging
 from typing import Dict, Any, List, Callable, Optional
 import pandas as pd
@@ -16,8 +16,8 @@ from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 import time
 from src.utils.redis_cache import get_redis_cache_manager, cache_get, cache_set
-from integrations.ibkr_historical_data import IBKRHistoricalDataProvider
-from integrations.ibkr_connector import get_ibkr_connector
+from src.integrations.ibkr_historical_data import IBKRHistoricalDataProvider
+from src.integrations.ibkr_connector import get_ibkr_connector
 from ib_insync import IB, Contract, Stock, util
 
 # Import performance optimizations (reuse from yfinance)
@@ -52,16 +52,13 @@ class MarketDataMemory:
         """Get recent market data insights."""
         return self.session_insights[-limit:]
 
-class IBKRDataAnalyzer(BaseAgent):
+class IBKRDataAnalyzer(BaseDataAnalyzer):
     """
     IBKR Data Analyzer - Fetches and analyzes market data from Interactive Brokers.
     Supports historical and live/real-time data with fallback to yfinance.
     """
     def __init__(self):
-        config_paths = {'risk': 'config/risk-constraints.yaml'}  # Relative to root.
-        prompt_paths = {'base': 'config/base_prompt.txt', 'role': 'docs/AGENTS/main-agents/data-agent.md'}  # Relative to root.
-        tools = []  # IBKRDataAnalyzer uses internal methods only
-        super().__init__(role='ibkr_data', config_paths=config_paths, prompt_paths=prompt_paths, tools=tools)
+        super().__init__(role='ibkr_data')
 
         # Initialize IBKR connector and historical provider
         self.connector = get_ibkr_connector()
@@ -261,57 +258,158 @@ class IBKRDataAnalyzer(BaseAgent):
         logger.info(f"IBKRDataAnalyzer reflecting on adjustments: {adjustments}")
         return {}
 
+    async def _plan_data_exploration(self, *args, **kwargs) -> Dict[str, Any]:
+        """Plan IBKR data exploration strategy."""
+        symbols = kwargs.get('symbols', ['SPY'])
+        data_types = kwargs.get('data_types', ['quotes', 'historical'])
+        time_horizon = kwargs.get('time_horizon', '1mo')
+
+        return {
+            "sources": ["ibkr_historical", "ibkr_live"],
+            "data_types": data_types,
+            "priorities": {"ibkr_historical": 10, "ibkr_live": 9},
+            "time_horizons": [time_horizon],
+            "symbols": symbols,
+            "reasoning": "IBKR-focused data exploration with live trading priority",
+            "expected_insights": ["Real-time IBKR quotes", "Historical IBKR bars", "Live market data"]
+        }
+
+    async def _execute_data_exploration(self, exploration_plan: Dict[str, Any], *args, **kwargs) -> Dict[str, Any]:
+        """Execute IBKR data fetching and initial processing."""
+        symbols = exploration_plan.get("symbols", ['SPY'])
+        sources = exploration_plan.get("sources", ["ibkr_historical", "ibkr_live"])
+        data_types = exploration_plan.get("data_types", ['quotes', 'historical'])
+        time_horizon = exploration_plan.get("time_horizons", ['1mo'])[0]
+
+        results = {}
+        for symbol in symbols:
+            symbol_results = {}
+            for source in sources:
+                if source in self.data_sources:
+                    source_data = await self.data_sources[source](symbol, data_types, time_horizon)
+                    if source_data:
+                        symbol_results[source] = source_data
+                else:
+                    logger.warning(f"Unknown source: {source}")
+
+            results[symbol] = symbol_results
+
+        return results
+
+    async def _enhance_data(self, raw_data: Dict[str, Any], *args, **kwargs) -> Dict[str, Any]:
+        """Enhance IBKR data with analysis and consolidation."""
+        symbols = list(raw_data.keys())
+
+        # Consolidate market data
+        consolidated_data = self._consolidate_market_data(symbols, raw_data)
+
+        # Perform LLM analysis if available
+        if self.llm:
+            try:
+                llm_analysis = await self._analyze_market_data_llm(consolidated_data)
+                consolidated_data['llm_analysis'] = llm_analysis
+            except Exception as e:
+                logger.warning(f"LLM analysis failed: {e}")
+
+        consolidated_data['symbols_processed'] = symbols
+        consolidated_data['timestamp'] = datetime.now().isoformat()
+        consolidated_data['enhanced'] = True
+
+        return consolidated_data
+
     async def process_input(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Processes input for IBKR data analysis with yfinance fallback."""
-        logger.info(f"IBKRDataAnalyzer processing input: {input_data}")
+        """
+        Process IBKR data using BaseDataAnalyzer pattern for backward compatibility.
+        """
+        if input_data is None:
+            input_data = {}
 
         try:
-            symbols = input_data.get('symbols', ['SPY']) if input_data else ['SPY']
+            symbols = input_data.get('symbols', ['SPY'])
 
             # Initialize LLM if not already done
             if not self.llm:
                 await self.async_initialize_llm()
 
-            # Use batch processing if optimizations available
+            # Use batch processing if optimizations available and multiple symbols
             if len(symbols) > 1 and OPTIMIZATIONS_AVAILABLE:
                 logger.info(f"Using optimized batch processing for {len(symbols)} symbols")
-                return await self._process_input_optimized(input_data)
-            else:
-                # Standard processing
-                exploration_plan = await self._plan_data_exploration(symbols, input_data or {})
+                result = await self._process_input_optimized(input_data)
 
-                # Execute exploration
-                exploration_results = await self._execute_data_exploration(symbols, exploration_plan)
+                # For backward compatibility, ensure expected structure
+                if isinstance(result, dict):
+                    # Store in shared memory for each symbol
+                    consolidated_data = result.get("consolidated_data", {})
+                    llm_analysis = result.get("llm_analysis", {})
 
-                # Consolidate
-                consolidated_data = self._consolidate_market_data(symbols, exploration_results)
+                    for symbol in symbols:
+                        if symbol in consolidated_data:
+                            await self.store_shared_memory("ibkr_data", symbol, {
+                                "market_data": consolidated_data[symbol],
+                                "llm_analysis": llm_analysis,
+                                "timestamp": datetime.now().isoformat(),
+                                "symbol": symbol
+                            })
 
-                # LLM analysis
-                llm_analysis = await self._analyze_market_data_llm(consolidated_data)
-
-                result = {
-                    "consolidated_data": consolidated_data,
-                    "llm_analysis": llm_analysis,
-                    "exploration_plan": exploration_plan,
-                    "enhanced": True
-                }
-
-                # Store in shared memory
-                for symbol in symbols:
-                    if symbol in consolidated_data:
-                        await self.store_shared_memory("ibkr_data", symbol, {
-                            "market_data": consolidated_data[symbol],
-                            "llm_analysis": llm_analysis,
-                            "timestamp": datetime.now().isoformat(),
-                            "symbol": symbol
-                        })
-
-                logger.info(f"IBKRDataAnalyzer output: Enhanced market data for {symbols}")
                 return result
+            else:
+                # Use base class process_input for standardized processing
+                result = await super().process_input(input_data)
+
+                # For backward compatibility, ensure expected structure and add memory storage
+                if isinstance(result, dict) and "consolidated_data" in result:
+                    consolidated_data = result["consolidated_data"]
+                    llm_analysis = result.get("llm_analysis", {})
+
+                    # Add exploration_plan if missing
+                    if "exploration_plan" not in result:
+                        exploration_plan = await self._plan_data_exploration(symbols=symbols, **input_data)
+                        result["exploration_plan"] = exploration_plan
+
+                    # Store in shared memory for each symbol
+                    for symbol in symbols:
+                        if symbol in consolidated_data:
+                            await self.store_shared_memory("ibkr_data", symbol, {
+                                "market_data": consolidated_data[symbol],
+                                "llm_analysis": llm_analysis,
+                                "timestamp": datetime.now().isoformat(),
+                                "symbol": symbol
+                            })
+
+                    logger.info(f"IBKRDataAnalyzer output: Enhanced market data for {symbols}")
+                    return result
+
+                # Fallback to original logic if base class doesn't return expected structure
+                return await self._fallback_process_input(input_data)
 
         except Exception as e:
             logger.error(f"IBKRDataAnalyzer failed: {e}")
             return {"price_data": {}, "error": str(e), "enhanced": False}
+
+    async def _fallback_process_input(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Fallback processing method for backward compatibility.
+        """
+        symbols = input_data.get('symbols', ['SPY'])
+
+        # Standard processing
+        exploration_plan = await self._plan_data_exploration(symbols=symbols, **input_data)
+
+        # Execute exploration
+        exploration_results = await self._execute_data_exploration(exploration_plan)
+
+        # Consolidate
+        consolidated_data = self._consolidate_market_data(symbols, exploration_results)
+
+        # LLM analysis
+        llm_analysis = await self._analyze_market_data_llm(consolidated_data)
+
+        return {
+            "consolidated_data": consolidated_data,
+            "llm_analysis": llm_analysis,
+            "exploration_plan": exploration_plan,
+            "enhanced": True
+        }
 
     # Reuse _process_input_optimized, _batch_process_symbols, _process_symbol_optimized from yfinance, but adapt fetches to IBKR methods
     async def _process_input_optimized(self, input_data: Dict[str, Any]) -> Dict[str, Any]:

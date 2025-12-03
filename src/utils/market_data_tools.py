@@ -40,9 +40,10 @@ class MarketDataAppAPITool(BaseTool):
         Returns:
             dict: Market data
         """
-        api_key = get_vault_secret('MARKETDATAAPP_API_KEY')
-        if not api_key:
-            return {"error": "MarketDataApp API key not found in Vault."}
+        try:
+            api_key = get_vault_secret('MARKETDATAAPP_API_KEY')
+        except ValueError:
+            return {"error": "MarketDataApp API key not found in Vault or environment variables."}
 
         try:
             base_url = "https://api.marketdataapp.com/v1"

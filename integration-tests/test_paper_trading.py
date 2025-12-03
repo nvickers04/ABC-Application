@@ -14,7 +14,7 @@ async def test_paper_trading():
 
     try:
         # Import the connector
-        from integrations.ibkr_connector import IBKRConnector
+        from src.integrations.ibkr_connector import IBKRConnector
 
         print("✅ IBKR connector imported successfully")
 

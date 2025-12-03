@@ -15,7 +15,7 @@ from pathlib import Path
 # Add the project root to the path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from integrations.nautilus_ibkr_bridge import get_nautilus_ibkr_bridge
+from src.integrations.nautilus_ibkr_bridge import get_nautilus_ibkr_bridge
 from src.agents.data import DataAgent
 from src.agents.strategy import StrategyAgent
 from src.agents.risk import RiskAgent

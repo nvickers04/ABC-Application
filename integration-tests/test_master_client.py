@@ -11,7 +11,7 @@ async def test_master_client():
     print("🧪 Testing IBKR connection with Master Client ID 0")
 
     try:
-        from integrations.ibkr_connector import IBKRConnector
+        from src.integrations.ibkr_connector import IBKRConnector
 
         # Create connector
         connector = IBKRConnector()

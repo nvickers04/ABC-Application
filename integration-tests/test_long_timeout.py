@@ -11,7 +11,7 @@ async def test_with_long_timeout():
     print("🧪 Testing IBKR connection with extended timeout (30 seconds)")
 
     try:
-        from integrations.ibkr_connector import IBKRConnector
+        from src.integrations.ibkr_connector import IBKRConnector
 
         # Create connector
         connector = IBKRConnector()

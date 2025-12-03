@@ -36,89 +36,143 @@ The ABC Application system implements comprehensive API health monitoring to ens
 ### Core Health Check Classes
 
 ```python
-# src/monitoring/health_checker.py
+# src/utils/api_health_monitor.py
 import asyncio
+import logging
 import time
-from typing import Dict, List, Optional
-from dataclasses import dataclass
+from datetime import datetime, timedelta
+from typing import Dict, List, Any, Optional
+import threading
+import json
+import os
+from dataclasses import dataclass, asdict
 from enum import Enum
 
-class HealthStatus(Enum):
+class APIStatus(Enum):
     HEALTHY = "healthy"
     DEGRADED = "degraded"
     UNHEALTHY = "unhealthy"
     UNKNOWN = "unknown"
 
 @dataclass
-class HealthCheckResult:
-    service_name: str
-    status: HealthStatus
-    response_time_ms: float
-    timestamp: float
-    message: str
-    details: Dict = None
+class APIHealthMetrics:
+    """Health metrics for an API endpoint"""
+    api_name: str
+    status: APIStatus
+    response_time: float
+    success_rate: float
+    error_count: int
+    total_requests: int
+    last_check: datetime
+    last_error: Optional[str] = None
+    consecutive_failures: int = 0
+    circuit_breaker_state: str = "CLOSED"
 
-    @property
-    def is_healthy(self) -> bool:
-        return self.status == HealthStatus.HEALTHY
+class APIHealthMonitor:
+    """Monitors health of all API endpoints"""
 
-class HealthChecker:
-    def __init__(self):
-        self.checks = {}
-        self.last_results = {}
-        self.alert_thresholds = {
-            'response_time_warning': 5000,  # 5 seconds
-            'response_time_critical': 30000,  # 30 seconds
-            'error_rate_warning': 0.05,  # 5%
-            'error_rate_critical': 0.20  # 20%
+    def __init__(self, check_interval: int = 300):  # 5 minutes default
+        self.check_interval = check_interval
+        self.metrics: Dict[str, APIHealthMetrics] = {}
+        self.monitoring_active = False
+        self.monitor_thread: Optional[threading.Thread] = None
+
+        # API endpoints to monitor
+        self.api_endpoints = {
+            'marketdataapp_api': self._check_marketdataapp_api,
+            'kalshi_api': self._check_kalshi_api,
+            'yfinance': self._check_yfinance,
+            'news_api': self._check_news_api,
+            'economic_data': self._check_economic_data,
+            'currents_news': self._check_currents_news,
+            'twitter_api': self._check_twitter_api,
+            'whale_wisdom': self._check_whale_wisdom,
+            'grok_api': self._check_grok_api
         }
 
-    def register_check(self, name: str, check_func, interval_seconds: int = 60):
-        """Register a health check function"""
-        self.checks[name] = {
-            'function': check_func,
-            'interval': interval_seconds,
-            'last_run': 0
-        }
+        # Initialize metrics for all APIs
+        for api_name in self.api_endpoints.keys():
+            self.metrics[api_name] = APIHealthMetrics(
+                api_name=api_name,
+                status=APIStatus.UNKNOWN,
+                response_time=0.0,
+                success_rate=0.0,
+                error_count=0,
+                total_requests=0,
+                last_check=datetime.now()
+            )
 
-    async def run_health_checks(self) -> Dict[str, HealthCheckResult]:
-        """Run all registered health checks"""
-        results = {}
-        current_time = time.time()
+    def start_monitoring(self):
+        """Start the background monitoring thread"""
+        if self.monitoring_active:
+            logger.warning("API health monitoring is already active")
+            return
 
-        for name, check_info in self.checks.items():
-            if current_time - check_info['last_run'] >= check_info['interval']:
-                try:
-                    start_time = time.time()
-                    result = await check_info['function']()
-                    response_time = (time.time() - start_time) * 1000
+        self.monitoring_active = True
+        self.monitor_thread = threading.Thread(target=self._monitoring_loop, daemon=True)
+        self.monitor_thread.start()
+        logger.info(f"API health monitoring started with {self.check_interval}s interval")
 
-                    if isinstance(result, dict):
-                        status = HealthStatus(result.get('status', 'unknown'))
-                        message = result.get('message', '')
-                        details = result.get('details', {})
-                    else:
-                        status = HealthStatus.HEALTHY if result else HealthStatus.UNHEALTHY
-                        message = "Check passed" if result else "Check failed"
-                        details = {}
+    def stop_monitoring(self):
+        """Stop the background monitoring thread"""
+        self.monitoring_active = False
+        if self.monitor_thread:
+            self.monitor_thread.join(timeout=5)
+        logger.info("API health monitoring stopped")
 
-                    health_result = HealthCheckResult(
-                        service_name=name,
-                        status=status,
-                        response_time_ms=response_time,
-                        timestamp=current_time,
-                        message=message,
-                        details=details
-                    )
+    def _check_all_apis(self):
+        """Check health of all APIs"""
+        logger.info("Starting API health checks...")
 
-                    results[name] = health_result
-                    self.last_results[name] = health_result
-                    check_info['last_run'] = current_time
+        for api_name, check_func in self.api_endpoints.items():
+            try:
+                start_time = time.time()
+                success = check_func()
+                response_time = time.time() - start_time
 
-                except Exception as e:
-                    health_result = HealthCheckResult(
-                        service_name=name,
-                        status=HealthStatus.UNHEALTHY,
+                self._update_metrics(api_name, success, response_time)
+
+            except Exception as e:
+                logger.error(f"Error checking {api_name}: {e}")
+                self._update_metrics(api_name, False, 0.0, str(e))
+
+        logger.info("API health checks completed")
+
+    def _update_metrics(self, api_name: str, success: bool, response_time: float, error_msg: Optional[str] = None):
+        """Update health metrics for an API"""
+        metrics = self.metrics[api_name]
+        metrics.total_requests += 1
+        metrics.last_check = datetime.now()
+
+        if success:
+            metrics.response_time = response_time
+            metrics.consecutive_failures = 0
+            if error_msg:
+                metrics.last_error = None
+        else:
+            metrics.error_count += 1
+            metrics.consecutive_failures += 1
+            if error_msg:
+                metrics.last_error = error_msg
+
+        # Calculate success rate (rolling window of last 100 requests)
+        window_size = min(100, metrics.total_requests)
+        recent_successes = metrics.total_requests - metrics.error_count
+        metrics.success_rate = recent_successes / window_size if window_size > 0 else 0.0
+
+        # Determine status
+        if metrics.consecutive_failures >= 5:
+            metrics.status = APIStatus.UNHEALTHY
+            metrics.circuit_breaker_state = "OPEN"
+        elif metrics.consecutive_failures >= 2:
+            metrics.status = APIStatus.DEGRADED
+            metrics.circuit_breaker_state = "HALF_OPEN"
+        elif metrics.success_rate >= 0.95:
+            metrics.status = APIStatus.HEALTHY
+            metrics.circuit_breaker_state = "CLOSED"
+        else:
+            metrics.status = APIStatus.DEGRADED
+            metrics.circuit_breaker_state = "CLOSED"
                         response_time_ms=0,
                         timestamp=current_time,
                         message=f"Check failed with exception: {str(e)}"

@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))  # Dynamic root path for imports.
 
-from src.agents.base import BaseAgent  # Absolute import.
+from src.agents.data_analyzers.base_data_analyzer import BaseDataAnalyzer  # Absolute import.
 import logging
 from typing import Dict, Any, List, Optional
 import pandas as pd
@@ -18,7 +18,7 @@ from src.utils.tools import microstructure_analysis_tool
 
 logger = logging.getLogger(__name__)
 
-class MicrostructureDataAnalyzer(BaseAgent):
+class MicrostructureDataAnalyzer(BaseDataAnalyzer):
     """
     Microstructure Data Subagent.
     Reasoning: Fetches and analyzes real-time market microstructure for optimal execution.
@@ -27,7 +27,58 @@ class MicrostructureDataAnalyzer(BaseAgent):
         config_paths = {'risk': 'config/risk-constraints.yaml'}  # Relative to root.
         prompt_paths = {'base': 'config/base_prompt.txt', 'role': 'docs/AGENTS/main-agents/data-agent.md'}  # Relative to root.
         tools = []  # MicrostructureDatasub uses internal methods instead of tools
-        super().__init__(role='microstructure_data', config_paths=config_paths, prompt_paths=prompt_paths, tools=tools)
+        super().__init__(role='microstructure_data')
+
+    async def _plan_data_exploration(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Plan microstructure data exploration.
+
+        Args:
+            input_data: Input parameters
+
+        Returns:
+            Exploration plan
+        """
+        symbols = input_data.get("symbols", [])
+        return {
+            "symbols": symbols,
+            "sources": ["quotes", "trades", "order_book"],
+            "strategy": "real_time_fetch"
+        }
+
+    async def _execute_data_exploration(self, exploration_plan: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Execute microstructure data exploration.
+
+        Args:
+            exploration_plan: Plan from _plan_data_exploration
+
+        Returns:
+            Raw microstructure data
+        """
+        symbols = exploration_plan.get("symbols", [])
+        # Fetch data using tool
+        data = await microstructure_analysis_tool(symbols=symbols)
+        return {"microstructure_data": data, "symbols": symbols}
+
+    async def _enhance_data(self, validated_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Enhance microstructure data with analysis.
+
+        Args:
+            validated_data: Validated data
+
+        Returns:
+            Enhanced data with analysis
+        """
+        data = validated_data.get("microstructure_data", [])
+        return {
+            "microstructure_data": data,
+            "analysis": {
+                "total_quotes": len(data),
+                "liquidity_metrics": {}
+            }
+        }
 
     async def reflect(self, metrics: Dict[str, Any]) -> Dict[str, Any]:
         """

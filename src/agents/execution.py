@@ -14,6 +14,8 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 import numpy as np
 
+logger = logging.getLogger(__name__)
+
 # Add IBKR connector import (lazy)
 IBKR_AVAILABLE = False
 get_ibkr_connector = None
@@ -46,60 +48,9 @@ try:
     TIGERBEETLE_AVAILABLE = True
     print("Real TigerBeetle client available")
 except ImportError:
-    print("TigerBeetle client not available - using mock fallback")
-    TIGERBEETLE_AVAILABLE = True
-
-    # Mock TigerBeetle classes for development fallback
-    class MockTigerBeetleClient:
-        def __init__(self, cluster_id=0, addresses=None):
-            logger.info(f"Mock TigerBeetle client initialized with cluster {cluster_id}")
-
-        def create_transfers(self, transfers):
-            logger.info(f"Mock TigerBeetle: Created {len(transfers)} transfers")
-            return []
-
-        def create_accounts(self, accounts):
-            logger.info(f"Mock TigerBeetle: Created {len(accounts)} accounts")
-            return []
-
-    class MockAccount:
-        def __init__(self, id, debits_pending, debits_posted, credits_pending, credits_posted,
-                     user_data_128, user_data_64, user_data_32, ledger, code, flags):
-            self.id = id
-            self.debits_pending = debits_pending
-            self.debits_posted = debits_posted
-            self.credits_pending = credits_pending
-            self.credits_posted = credits_posted
-            self.user_data_128 = user_data_128
-            self.user_data_64 = user_data_64
-            self.user_data_32 = user_data_32
-            self.ledger = ledger
-            self.code = code
-            self.flags = flags
-
-    class MockTransfer:
-        def __init__(self, id, debit_account_id, credit_account_id, amount, ledger, code):
-            self.id = id
-            self.debit_account_id = debit_account_id
-            self.credit_account_id = credit_account_id
-            self.amount = amount
-            self.ledger = ledger
-            self.code = code
-
-    class MockAccountFlags:
-        NONE = 0
-
-    # Use mock classes
-    class MockTB:
-        Client = MockTigerBeetleClient
-        Account = MockAccount
-        Transfer = MockTransfer
-        AccountFlags = MockAccountFlags
-
-    tb = MockTB()
-    logger.info("Using mock TigerBeetle client for development")
-
-logger = logging.getLogger(__name__)
+    print("TigerBeetle client not available - no fallback implemented")
+    TIGERBEETLE_AVAILABLE = False
+    tb = None  # Prevent NameError
 
 class ExecutionAgent(BaseAgent):
     """Execution Agent for trade execution and optimization."""
@@ -134,7 +85,7 @@ class ExecutionAgent(BaseAgent):
                 logger.warning(f"Failed to connect to TigerBeetle: {e}")
                 self.tb_client = None
         else:
-            logger.info("TigerBeetle not available - using mock client")
+            logger.info("TigerBeetle not available - transaction logging disabled")
 
         # Initialize memory
         if not self.memory:
@@ -159,7 +110,7 @@ class ExecutionAgent(BaseAgent):
         """Get IBKR connector with lazy initialization"""
         if self.ibkr_connector is None:
             try:
-                from integrations.ibkr_connector import get_ibkr_connector
+                from src.integrations.ibkr_connector import get_ibkr_connector
                 self.ibkr_connector = get_ibkr_connector()
                 logger.info("IBKR connector initialized successfully")
             except ImportError as e:
@@ -1605,7 +1556,7 @@ class ExecutionAgent(BaseAgent):
 
     async def _log_trade_to_tigerbeetle(self, symbol: str, quantity: int, action: str, trade_result: Dict[str, Any]):
         """Log trade transaction to TigerBeetle for persistence."""
-        if not self.tb_client:
+        if not self.tb_client or tb is None:
             logger.debug("TigerBeetle not available - skipping transaction log")
             return
 
@@ -1657,7 +1608,7 @@ class ExecutionAgent(BaseAgent):
 
     def _ensure_account_exists(self, account_id: int, symbol: str):
         """Ensure account exists in TigerBeetle."""
-        if not self.tb_client:
+        if not self.tb_client or tb is None:
             return
 
         try:

@@ -19,7 +19,9 @@ async def test_process_input_basic():
     result = await analyzer.process_input(input_data)
     assert isinstance(result, dict)
     assert 'consolidated_data' in result
-    assert 'llm_analysis' in result
+    assert 'enhanced' in result
+    assert 'data_quality' in result
+    assert 'symbols_processed' in result
 
 @REQUIRES_NETWORK
 @pytest.mark.asyncio
@@ -33,7 +35,8 @@ async def test_fetch_yfinance_data(mock_api_calls):
 @pytest.mark.asyncio
 async def test_plan_data_exploration():
     analyzer = YfinanceDataAnalyzer()
-    plan = await analyzer._plan_data_exploration(['AAPL'], {})
+    input_data = {'symbols': ['AAPL'], 'data_types': ['historical']}
+    plan = await analyzer._plan_data_exploration(input_data)
     assert isinstance(plan, dict)
     assert 'sources' in plan
     assert 'data_types' in plan

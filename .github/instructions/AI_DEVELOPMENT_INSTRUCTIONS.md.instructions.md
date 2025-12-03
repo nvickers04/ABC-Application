@@ -211,10 +211,7 @@ class [AgentName]Agent(BaseAgent):
             return result
         except Exception as e:
             logger.error(f"Analysis failed for {self.name}: {e}")
-            return {
-                "error": str(e),
-                "fallback_analysis": "Basic analysis due to error"
-            }
+            raise  # Re-raise exception instead of providing fallback
 ```
 
 ### Documentation Update Template
@@ -300,6 +297,7 @@ docs: Update [documentation] for [feature]
 - Implement health checks
 - Use timeouts for external calls
 - Handle rate limiting gracefully
-- Provide fallback mechanisms
+- Implement robust error handling with retries; minimize fallback mechanisms that could compromise data integrity or system reliability
+- For data persistence systems like TigerBeetle, do not implement fallbacks to file-based storage (e.g., JSON files); ensure proper error handling and recovery instead
 
 This instructions file ensures consistent, high-quality development that maintains coherence between documentation and implementation while following established patterns and best practices.

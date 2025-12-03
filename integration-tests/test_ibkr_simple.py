@@ -24,7 +24,7 @@ async def test_ibkr_connection():
     logger.info("🔄 Testing IBKR Paper Trading Connection...")
 
     try:
-        from integrations.ibkr_connector import get_ibkr_connector
+        from src.integrations.ibkr_connector import get_ibkr_connector
 
         # Get connector
         connector = get_ibkr_connector()

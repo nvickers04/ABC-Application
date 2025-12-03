@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))  # Dynamic root path for imports.
 
-from src.agents.base import BaseAgent  # Absolute import.
+from src.agents.data_analyzers.base_data_analyzer import BaseDataAnalyzer
 import logging
 from typing import Dict, Any, List, Optional
 import numpy as np
@@ -39,17 +39,14 @@ class SentimentMemory:
         """Get recent sentiment insights."""
         return self.session_insights[-limit:]
 
-class SentimentDataAnalyzer(BaseAgent):
+class SentimentDataAnalyzer(BaseDataAnalyzer):
     """
     Comprehensive Sentiment Data Subagent implementing full specification.
     Multi-dimensional sentiment analysis across news, social media, and market data.
     """
 
     def __init__(self):
-        config_paths = {'risk': 'config/risk-constraints.yaml'}  # Relative to root.
-        prompt_paths = {'base': 'config/base_prompt.txt', 'role': 'docs/AGENTS/main-agents/data-agent.md'}  # Relative to root.
-        tools = []  # SentimentDatasub uses internal methods instead of tools
-        super().__init__(role='sentiment_data', config_paths=config_paths, prompt_paths=prompt_paths, tools=tools)
+        super().__init__(role='sentiment_data')
 
         # Initialize Redis cache manager
         self.redis_cache = get_redis_cache_manager()
@@ -115,88 +112,131 @@ class SentimentDataAnalyzer(BaseAgent):
         logger.info(f"Sentiment Reflecting on adjustments: {adjustments}")
         return {}
 
+    async def _plan_data_exploration(self, *args, **kwargs) -> Dict[str, Any]:
+        """Plan sentiment data exploration strategy."""
+        focus_areas = kwargs.get('focus_areas', ['news', 'social_media', 'market_data'])
+        symbols = kwargs.get('symbols', ['SPY', 'AAPL'])
+        time_horizon = kwargs.get('time_horizon', 'current')
+
+        return {
+            "focus_areas": focus_areas,
+            "symbols": symbols,
+            "time_horizon": time_horizon,
+            "include_llm_analysis": kwargs.get('llm_analysis', True)
+        }
+
+    async def _execute_data_exploration(self, exploration_plan: Dict[str, Any], *args, **kwargs) -> Dict[str, Any]:
+        """Execute sentiment data fetching and initial processing."""
+        focus_areas = exploration_plan.get("focus_areas", ['news', 'social_media', 'market_data'])
+        symbols = exploration_plan.get("symbols", ['SPY', 'AAPL'])
+        time_horizon = exploration_plan.get("time_horizon", 'current')
+
+        # Aggregate sentiment from multiple sources
+        sentiment_data = await self._aggregate_sentiment_data(focus_areas, symbols, time_horizon)
+
+        return sentiment_data
+
+    async def _enhance_data(self, raw_data: Dict[str, Any], *args, **kwargs) -> Dict[str, Any]:
+        """Enhance sentiment data with analysis and insights."""
+        sentiment_data = raw_data.copy()
+
+        # Perform LLM-driven sentiment analysis if requested
+        exploration_plan = kwargs.get('exploration_plan', {})
+        if exploration_plan.get('include_llm_analysis', True):
+            focus_areas = exploration_plan.get("focus_areas", ['news', 'social_media', 'market_data'])
+            sentiment_data = await self._perform_llm_sentiment_analysis(sentiment_data, focus_areas)
+
+        # Calculate composite sentiment scores
+        sentiment_data['composite_sentiment'] = self._calculate_composite_sentiment(sentiment_data)
+
+        # Assess market impact
+        sentiment_data['market_impact'] = self._assess_market_impact(sentiment_data)
+
+        # Generate collaborative insights
+        sentiment_data['collaborative_insights'] = self._generate_collaborative_insights(sentiment_data)
+
+        return {
+            "sentiment_score": sentiment_data.get('composite_sentiment', {}).get('score', 0.5),
+            "sentiment": sentiment_data
+        }
+
     async def process_input(self, input_data: Dict[str, Any] = None) -> Dict[str, Any]:
         """
-        Comprehensive sentiment analysis across multiple dimensions.
+        Process sentiment data using BaseDataAnalyzer pattern for backward compatibility.
         """
-        logger.info(f"SentimentDataAnalyzer processing input: {input_data or 'Default analysis'}")
-
-        # Extract analysis parameters
-        focus_areas = input_data.get('focus_areas', ['news', 'social_media', 'market_data']) if input_data else ['news', 'social_media', 'market_data']
-        time_horizon = input_data.get('time_horizon', 'current')
-        include_llm_analysis = input_data.get('llm_analysis', True)
-        symbols = input_data.get('symbols', ['SPY', 'AAPL']) if input_data else ['SPY', 'AAPL']
-
-        # Create cache key
-        cache_key = f"sentiment_{'_'.join(focus_areas)}_{time_horizon}_{'_'.join(symbols)}"
-
-        # Check cache first
-        if self._is_cache_valid(cache_key):
-            logger.info(f"Using cached sentiment result for: {cache_key}")
-            return self._get_cached_sentiment(cache_key)
+        if input_data is None:
+            input_data = {}
 
         try:
-            # Aggregate sentiment from multiple sources
-            sentiment_data = await self._aggregate_sentiment_data(focus_areas, symbols, time_horizon)
+            # Extract analysis parameters for caching and memory operations
+            focus_areas = input_data.get('focus_areas', ['news', 'social_media', 'market_data'])
+            time_horizon = input_data.get('time_horizon', 'current')
+            symbols = input_data.get('symbols', ['SPY', 'AAPL'])
 
-            # Perform LLM-driven sentiment analysis
-            if include_llm_analysis:
-                sentiment_data = await self._perform_llm_sentiment_analysis(sentiment_data, focus_areas)
+            # Create cache key
+            cache_key = f"sentiment_{'_'.join(focus_areas)}_{time_horizon}_{'_'.join(symbols)}"
 
-            # Calculate composite sentiment scores
-            sentiment_data['composite_sentiment'] = self._calculate_composite_sentiment(sentiment_data)
+            # Check cache first
+            if self._is_cache_valid(cache_key):
+                logger.info(f"Using cached sentiment result for: {cache_key}")
+                return self._get_cached_sentiment(cache_key)
 
-            # Assess market impact
-            sentiment_data['market_impact'] = self._assess_market_impact(sentiment_data)
+            # Use base class process_input for standardized processing
+            result = await super().process_input(input_data)
 
-            # Generate collaborative insights
-            sentiment_data['collaborative_insights'] = self._generate_collaborative_insights(sentiment_data)
+            # For backward compatibility, extract the consolidated_data and return it directly
+            if isinstance(result, dict) and "consolidated_data" in result:
+                consolidated_data = result["consolidated_data"]
 
-            # Update memory
-            self._update_memory(sentiment_data)
+                # Update memory
+                sentiment_data = consolidated_data.get("sentiment", {})
+                self._update_memory(sentiment_data)
 
-            # Cache the result
-            self._cache_sentiment(cache_key, {
-                "sentiment_score": sentiment_data.get('composite_sentiment', {}).get('score', 0.5),
-                "sentiment": sentiment_data
-            })
+                # Cache the result
+                self._cache_sentiment(cache_key, consolidated_data)
 
-            # Store sentiment data in shared memory for each symbol
-            for symbol in symbols:
-                await self.store_shared_memory("sentiment_data", symbol, {
-                    "sentiment_score": sentiment_data.get('composite_sentiment', {}).get('score', 0.5),
-                    "sentiment": sentiment_data,
-                    "timestamp": datetime.now().isoformat()
-                })
+                # Store sentiment data in shared memory for each symbol
+                for symbol in symbols:
+                    await self.store_shared_memory("sentiment_data", symbol, {
+                        "sentiment_score": consolidated_data.get('sentiment_score', 0.5),
+                        "sentiment": sentiment_data,
+                        "timestamp": datetime.now().isoformat()
+                    })
 
-                # Store quality assessment for cross-verification
-                quality_assessment = {
-                    "analyzer": "sentiment",
-                    "symbol": symbol,
-                    "sentiment_score": sentiment_data.get('composite_sentiment', {}).get('score', 0.5),
-                    "sentiment_label": sentiment_data.get('composite_sentiment', {}).get('label', 'neutral'),
-                    "confidence": sentiment_data.get('composite_sentiment', {}).get('confidence', 0.5),
-                    "sources_used": sentiment_data.get('composite_sentiment', {}).get('sources_contributed', 0),
-                    "consistency_score": sentiment_data.get('consistency_analysis', {}).get('consistency_score', 0.5),
-                    "market_impact": sentiment_data.get('market_impact', {}).get('overall_impact', 'neutral'),
-                    "anomalies_detected": len(sentiment_data.get('anomalies', [])),
-                    "timestamp": datetime.now().isoformat(),
-                    "llm_insights": {
-                        "narrative": sentiment_data.get('sentiment_narrative', ''),
-                        "market_prediction": sentiment_data.get('market_prediction', {}),
-                        "consistency": sentiment_data.get('consistency_analysis', {}).get('consistency', 'unknown')
+                    # Store quality assessment for cross-verification
+                    composite_sentiment = sentiment_data.get('composite_sentiment', {})
+                    quality_assessment = {
+                        "analyzer": "sentiment",
+                        "symbol": symbol,
+                        "sentiment_score": composite_sentiment.get('score', 0.5),
+                        "sentiment_label": composite_sentiment.get('label', 'neutral'),
+                        "confidence": composite_sentiment.get('confidence', 0.5),
+                        "sources_used": composite_sentiment.get('sources_contributed', 0),
+                        "consistency_score": sentiment_data.get('consistency_analysis', {}).get('consistency_score', 0.5),
+                        "market_impact": sentiment_data.get('market_impact', {}).get('overall_impact', 'neutral'),
+                        "anomalies_detected": len(sentiment_data.get('anomalies', [])),
+                        "timestamp": datetime.now().isoformat(),
+                        "llm_insights": {
+                            "narrative": sentiment_data.get('sentiment_narrative', ''),
+                            "market_prediction": sentiment_data.get('market_prediction', {}),
+                            "consistency": sentiment_data.get('consistency_analysis', {}).get('consistency', 'unknown')
+                        }
                     }
-                }
-                await self.store_shared_memory("data_quality_assessments", f"sentiment_{symbol}", quality_assessment)
+                    await self.store_shared_memory("data_quality_assessments", f"sentiment_{symbol}", quality_assessment)
 
-            logger.info(f"SentimentDataAnalyzer completed analysis: {len(sentiment_data.get('sources', {}))} sources processed")
-            return {
-                "sentiment_score": sentiment_data.get('composite_sentiment', {}).get('score', 0.5),
-                "sentiment": sentiment_data
-            }
+                logger.info(f"SentimentDataAnalyzer completed analysis: {len(sentiment_data.get('sources', {}))} sources processed")
+                return consolidated_data
+
+            # Fallback
+            return result
 
         except Exception as e:
             logger.error(f"SentimentDataAnalyzer failed: {e}")
+            focus_areas = input_data.get('focus_areas', ['news', 'social_media', 'market_data']) if input_data else ['news', 'social_media', 'market_data']
+            time_horizon = input_data.get('time_horizon', 'current')
+            symbols = input_data.get('symbols', ['SPY', 'AAPL']) if input_data else ['SPY', 'AAPL']
+            cache_key = f"sentiment_{'_'.join(focus_areas)}_{time_horizon}_{'_'.join(symbols)}"
+
             result = {
                 "sentiment_score": 0.5,
                 "sentiment": {

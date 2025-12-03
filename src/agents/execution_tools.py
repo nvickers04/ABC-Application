@@ -14,19 +14,19 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from src.utils.tools import microstructure_analysis_tool
-from integrations.nautilus_ibkr_bridge import get_nautilus_ibkr_bridge
+from src.integrations.ibkr_connector import get_ibkr_connector
 
 logger = logging.getLogger(__name__)
 
 class IBKRExecuteTool:
     """
-    Tool for executing orders via IBKR paper trading using NautilusIBKRBridge
+    Tool for executing orders via IBKR paper trading using IBKRConnector
     """
 
     def __init__(self):
-        self.bridge = get_nautilus_ibkr_bridge()
+        self.connector = get_ibkr_connector()
         self.name = "ibkr_execute_tool"
-        self.description = "Execute orders through IBKR paper trading account with nautilus enhancements"
+        self.description = "Execute orders through IBKR paper trading account"
 
     async def execute(self, symbol: str, quantity: int, action: str = 'BUY',
                      order_type: str = 'MKT', price: Optional[float] = None) -> Dict[str, Any]:
@@ -46,7 +46,7 @@ class IBKRExecuteTool:
         try:
             logger.info(f"Executing {action} {quantity} {symbol} via NautilusIBKRBridge")
 
-            result = await self.bridge.place_order(
+            result = await self.connector.place_order(
                 symbol=symbol,
                 quantity=quantity,
                 order_type=order_type,
@@ -195,7 +195,7 @@ class ScalingPingTool:
         """
         try:
             # Get current positions using bridge
-            positions = await self.bridge.get_positions()
+            positions = await self.connector.get_positions()
 
             # Find position for symbol
             position_data = None

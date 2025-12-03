@@ -9,63 +9,119 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))  # Dynamic root pat
 import asyncio
 import logging
 from typing import Dict, Any, List, Optional
+from datetime import datetime
 import pandas as pd
-from src.agents.base import BaseAgent  # Absolute import.
+from src.agents.data_analyzers.base_data_analyzer import BaseDataAnalyzer  # Absolute import.
 from src.utils.tools import institutional_holdings_analysis_tool, thirteen_f_filings_tool
 
 logger = logging.getLogger(__name__)
 
-class InstitutionalDataAnalyzer(BaseAgent):
+class InstitutionalDataAnalyzer(BaseDataAnalyzer):
     def __init__(self):
         # Temporarily disable tools until they are properly implemented as StructuredTool objects
-        super().__init__("institutional_data", config_paths={}, prompt_paths={}, tools=[])
+        super().__init__(role="institutional_data")
 
-    async def process_input(self, input_data: Dict[str, Any] = None) -> Dict[str, Any]:
+    async def _plan_data_exploration(self, *args, **kwargs) -> Dict[str, Any]:
         """
-        Process input to fetch and analyze institutional holdings data with LLM enhancement.
+        Plan institutional data exploration.
+
         Args:
-            input_data: Dict with parameters (symbol for holdings analysis).
+            *args, **kwargs: Flexible arguments for compatibility
+
         Returns:
-            Dict with structured institutional holdings data and LLM analysis.
+            Exploration plan
         """
-        logger.info(f"InstitutionalDatasub processing input: {input_data}")
+        # Extract input_data from args or kwargs
+        input_data = args[0] if args else kwargs.get('input_data', {})
+        symbol = input_data.get("symbol", "AAPL")
 
-        try:
-            symbol = input_data.get('symbol', 'AAPL') if input_data else 'AAPL'
+        # Use existing LLM-based planning
+        plan = await self._plan_institutional_exploration(symbol, input_data)
+        return plan
 
-            # Step 1: Plan institutional exploration with LLM
-            exploration_plan = await self._plan_institutional_exploration(symbol, input_data)
+    async def _execute_data_exploration(self, *args, **kwargs) -> Dict[str, Any]:
+        """
+        Execute institutional data exploration.
 
-            # Step 2: Fetch data from multiple sources concurrently
-            raw_data = await self._fetch_institutional_sources_concurrent(symbol, exploration_plan)
+        Args:
+            *args, **kwargs: Flexible arguments for compatibility
 
-            # Step 3: Consolidate data into structured DataFrames
-            consolidated_data = self._consolidate_institutional_data(raw_data, symbol)
+        Returns:
+            Raw institutional data
+        """
+        # Extract exploration_plan from args or kwargs
+        exploration_plan = args[0] if args else kwargs.get('exploration_plan', {})
+        symbol = exploration_plan.get("symbol", "AAPL")
 
-            # Step 4: Analyze with LLM for insights
-            llm_analysis = await self._analyze_institutional_data_llm(consolidated_data)
+        # Use existing concurrent fetching logic
+        raw_data = await self._fetch_institutional_sources_concurrent(symbol, exploration_plan)
+        return raw_data
 
-            # Combine results
+    async def _enhance_data(self, *args, **kwargs) -> Dict[str, Any]:
+        """
+        Enhance institutional data with analysis.
+
+        Args:
+            *args, **kwargs: Flexible arguments for compatibility
+
+        Returns:
+            Enhanced data with analysis
+        """
+        # Extract validated_data from args or kwargs
+        validated_data = args[0] if args else kwargs.get('validated_data', {})
+        symbol = validated_data.get("symbol", "AAPL")
+
+        # Use existing consolidation and LLM analysis
+        consolidated_data = self._consolidate_institutional_data(validated_data, symbol)
+        llm_analysis = await self._analyze_institutional_data_llm(consolidated_data)
+
+        return {
+            "consolidated_data": consolidated_data,
+            "llm_analysis": llm_analysis,
+            "enhanced": True
+        }
+
+    async def process_input(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Process input using base class pattern while maintaining backward compatibility.
+        """
+        # Use base class process_input
+        base_result = await super().process_input(input_data)
+
+        # Maintain backward compatibility by flattening the result structure
+        if base_result.get("enhanced", False):
+            consolidated_data = base_result.get("consolidated_data", {}).get("consolidated_data", {})
+            llm_analysis = base_result.get("consolidated_data", {}).get("llm_analysis", {})
+
+            # Create backward-compatible result structure
             result = {
                 "consolidated_data": consolidated_data,
                 "llm_analysis": llm_analysis,
-                "exploration_plan": exploration_plan,
-                "enhanced": True
+                "exploration_plan": base_result.get("exploration_plan", {}),
+                "enhanced": True,
+                "data_quality": base_result.get("data_quality", 0.0)
             }
 
-            # Store institutional data in shared memory
+            # Add flattened fields for backward compatibility
+            if "summary" in consolidated_data:
+                result.update(consolidated_data["summary"])
+
+            # Store institutional data in shared memory (backward compatibility)
+            symbol = input_data.get('symbol', 'AAPL') if input_data else 'AAPL'
             await self.store_shared_memory("institutional_data", symbol, {
                 "institutional_holdings": consolidated_data,
                 "llm_analysis": llm_analysis,
                 "timestamp": datetime.now().isoformat()
             })
 
-            logger.info(f"InstitutionalDatasub output: LLM-enhanced institutional data collected for {symbol}")
             return result
-
-        except Exception as e:
-            logger.error(f"InstitutionalDatasub failed: {e}")
-            return {"institutional_ownership": 0.0, "error": str(e), "enhanced": False}
+        else:
+            # Return error result with backward compatibility
+            return {
+                "institutional_ownership": 0.0,
+                "error": base_result.get("error", "Unknown error"),
+                "enhanced": False
+            }
 
     def _parse_institutional_result(self, result: Dict[str, Any], symbol: str) -> Dict[str, Any]:
         """Parse institutional holdings tool result into structured format."""
@@ -186,27 +242,38 @@ class InstitutionalDataAnalyzer(BaseAgent):
         }
 
     async def _plan_institutional_exploration(self, symbol: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """Use LLM to plan intelligent exploration of institutional holdings data."""
-        context_str = f"""
-        Symbol: {symbol}
-        Market Context: {context or 'General market analysis'}
-        Current Holdings Data: {self.fetch_institutional_holdings(symbol)}
-        """
-        
-        question = f"""
-        Plan a comprehensive exploration strategy for institutional holdings of {symbol}.
-        Consider:
-        1. Key institutional investors to analyze (top holders, activist investors, index funds)
-        2. Recent 13F filing changes and trends
-        3. Ownership concentration and positioning insights
-        4. Risk assessment based on institutional ownership patterns
-        5. Market intelligence from institutional behavior
-        
-        Provide a structured plan with priorities and data sources to explore.
-        """
-        
-        plan_response = await self.reason_with_llm(context_str, question)
-        return {"plan": plan_response, "symbol": symbol, "timestamp": pd.Timestamp.now().isoformat()}
+        """Use LLM to plan intelligent exploration of institutional holdings data, with fallback."""
+        if self.llm:
+            context_str = f"""
+            Symbol: {symbol}
+            Market Context: {context or 'General market analysis'}
+            Current Holdings Data: {self.fetch_institutional_holdings(symbol)}
+            """
+
+            question = f"""
+            Plan a comprehensive exploration strategy for institutional holdings of {symbol}.
+            Consider:
+            1. Key institutional investors to analyze (top holders, activist investors, index funds)
+            2. Recent 13F filing changes and trends
+            3. Ownership concentration and positioning insights
+            4. Risk assessment based on institutional ownership patterns
+            5. Market intelligence from institutional behavior
+
+            Provide a structured plan with priorities and data sources to explore.
+            """
+
+            plan_response = await self.reason_with_llm(context_str, question)
+            return {"plan": plan_response, "symbol": symbol, "timestamp": pd.Timestamp.now().isoformat()}
+        else:
+            # Fallback plan without LLM
+            logger.warning("LLM not available, using fallback institutional exploration plan")
+            return {
+                "plan": "Fallback institutional exploration plan",
+                "symbol": symbol,
+                "sources": ["whale_wisdom", "sec_edgar", "institutional_db"],
+                "strategy": "multi_source_fetch",
+                "timestamp": pd.Timestamp.now().isoformat()
+            }
 
     async def _fetch_institutional_sources_concurrent(self, symbol: str, plan: Dict[str, Any]) -> Dict[str, Any]:
         """Fetch institutional data from multiple sources concurrently."""
@@ -350,41 +417,62 @@ class InstitutionalDataAnalyzer(BaseAgent):
             return "Small Holder"
 
     async def _analyze_institutional_data_llm(self, consolidated_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Use LLM for risk assessment and positioning insights from institutional data."""
-        context_str = f"""
-        Institutional Data Analysis for {consolidated_data.get('symbol', 'Unknown')}:
-        
-        Summary Statistics:
-        {consolidated_data.get('summary', {})}
-        
-        Holdings Data:
-        {consolidated_data.get('holdings_df', [])}
-        
-        Filings Trends:
-        {consolidated_data.get('filings_df', [])}
-        
-        Ownership Trends:
-        {consolidated_data.get('trends_df', [])}
-        """
-        
-        question = """
-        Analyze this institutional ownership data and provide insights on:
-        1. Risk assessment based on ownership concentration and changes
-        2. Institutional positioning insights (bullish/bearish signals)
-        3. Key institutional investors and their potential impact
-        4. Market intelligence from institutional behavior patterns
-        5. Recommendations for portfolio positioning based on institutional activity
-        
-        Focus on risk management and alignment with our goals (<5% drawdown, 10-20% monthly ROI).
-        """
-        
-        analysis_response = await self.reason_with_llm(context_str, question)
-        return {
-            "llm_analysis": analysis_response,
-            "risk_assessment": self._extract_risk_from_llm(analysis_response),
-            "positioning_insights": self._extract_insights_from_llm(analysis_response),
-            "timestamp": pd.Timestamp.now().isoformat()
-        }
+        """Use LLM for risk assessment and positioning insights from institutional data, with fallback."""
+        if self.llm:
+            context_str = f"""
+            Institutional Data Analysis for {consolidated_data.get('symbol', 'Unknown')}:
+
+            Summary Statistics:
+            {consolidated_data.get('summary', {})}
+
+            Holdings Data:
+            {consolidated_data.get('holdings_df', [])}
+
+            Filings Trends:
+            {consolidated_data.get('filings_df', [])}
+
+            Ownership Trends:
+            {consolidated_data.get('trends_df', [])}
+            """
+
+            question = """
+            Analyze this institutional ownership data and provide insights on:
+            1. Risk assessment based on ownership concentration and changes
+            2. Institutional positioning insights (bullish/bearish signals)
+            3. Key institutional investors and their potential impact
+            4. Market intelligence from institutional behavior patterns
+            5. Recommendations for portfolio positioning based on institutional activity
+
+            Focus on risk management and alignment with our goals (<5% drawdown, 10-20% monthly ROI).
+            """
+
+            analysis_response = await self.reason_with_llm(context_str, question)
+            return {
+                "llm_analysis": analysis_response,
+                "risk_assessment": self._extract_risk_from_llm(analysis_response),
+                "positioning_insights": self._extract_insights_from_llm(analysis_response),
+                "timestamp": pd.Timestamp.now().isoformat()
+            }
+        else:
+            # Fallback analysis without LLM
+            logger.warning("LLM not available, using fallback institutional analysis")
+            summary = consolidated_data.get('summary', {})
+            total_ownership = summary.get('total_institutional_ownership', 0)
+
+            # Simple risk assessment based on ownership concentration
+            if total_ownership > 0.8:
+                risk = "High Risk - Highly Concentrated Ownership"
+            elif total_ownership > 0.6:
+                risk = "Moderate Risk - Significant Institutional Ownership"
+            else:
+                risk = "Low Risk - Diversified Ownership"
+
+            return {
+                "llm_analysis": "Fallback analysis without LLM",
+                "risk_assessment": risk,
+                "positioning_insights": ["Unable to determine without LLM"],
+                "timestamp": pd.Timestamp.now().isoformat()
+            }
 
     def _extract_risk_from_llm(self, llm_response: str) -> str:
         """Extract risk assessment from LLM response."""

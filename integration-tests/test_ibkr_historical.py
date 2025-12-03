@@ -8,7 +8,7 @@ from pathlib import Path
 # Add current directory to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from integrations.ibkr_historical_data import IBKRHistoricalDataProvider
+from src.integrations.ibkr_historical_data import IBKRHistoricalDataProvider
 
 async def test_ibkr_historical():
     """Test IBKR historical data provider"""
