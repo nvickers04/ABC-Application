@@ -90,7 +90,39 @@
   - Run integration tests with alerting enabled (link to todo: "Run comprehensive system integration test")
   - **Effort**: 3-4 hours. **Dependencies**: Langfuse setup (optional). **Success**: Monitoring data flows to health channel; no conflicts with Discord
 
+### Langfuse Integration for Agent Monitoring
+#### Phase 1: Environment Setup (1-2 hours)
+- [ ] Install Langfuse Python SDK: Add `langfuse` to `requirements.txt` and run `pip install langfuse`. (**Effort**: 10min; **Deps**: None; **Success**: `import langfuse` works.)
+- [ ] Create Langfuse account: Sign up at langfuse.com and get API keys (public_key, secret_key). (**Effort**: 15min; **Deps**: None; **Success**: Keys obtained.)
+- [ ] Set up local/cloud instance: For development, use cloud; for production, consider self-hosted Docker. (**Effort**: 20min; **Deps**: Docker if self-hosting; **Success**: Dashboard accessible.)
+- [ ] Create config file: Add `config/langfuse_config.yaml` with keys (public_key, secret_key, host="https://cloud.langfuse.com" or local URL). (**Effort**: 10min; **Deps**: None; **Success**: File loads in Python.)
+- [ ] Test connection: Create temp script `test_langfuse.py` with client init and basic trace; run it. (**Effort**: 15min; **Deps**: SDK; **Success**: Traces appear in dashboard.)
 
+#### Phase 2: Integrate Langfuse into Base Agent (2-3 hours)
+- [ ] Update `src/agents/base.py`: Import LangfuseCallbackHandler; initialize in `__init__` with config; add to LLM calls. (**Effort**: 45min; **Deps**: Phase 1; **Success**: Basic traces logged for LLM interactions.)
+- [ ] Add span decorators: Wrap key methods like `_process_input` with `@langfuse.span(name="AgentProcess")` for detailed tracing. (**Effort**: 30min; **Deps**: Base integration; **Success**: Method-level traces visible.)
+- [ ] Enhance tracing: Add metadata (agent role, input size, processing time) to spans. (**Effort**: 30min; **Deps**: Span decorators; **Success**: Rich trace data in dashboard.)
+- [ ] Integrate with memory ops: Trace memory reads/writes in `advanced_memory.py`. (**Effort**: 30min; **Deps**: Base tracing; **Success**: Memory operations tracked.)
+
+#### Phase 3: Multi-Agent Tracing and Monitoring (2-4 hours)
+- [ ] Add A2A protocol tracing: In `a2a_protocol.py`, trace message sends/receives with sender/receiver metadata. (**Effort**: 45min; **Deps**: Phase 2; **Success**: Inter-agent communication traced.)
+- [ ] Workflow orchestration tracing: In `live_workflow_orchestrator.py`, trace phase executions and agent responses. (**Effort**: 45min; **Deps**: A2A tracing; **Success**: Full workflow traces.)
+- [ ] Consensus polling traces: In `consensus_poller.py`, trace poll creation, voting, and resolution. (**Effort**: 30min; **Deps**: Workflow tracing; **Success**: Consensus decisions logged.)
+- [ ] Error and alert integration: Link Langfuse traces to AlertManager alerts for correlation. (**Effort**: 30min; **Deps**: Alert system; **Success**: Traces include alert context.)
+
+#### Phase 4: Dashboard and Analytics (1-2 hours)
+- [ ] Set up custom metrics: Track agent performance (response time, success rate, token usage). (**Effort**: 30min; **Deps**: Phase 3; **Success**: Metrics dashboard populated.)
+- [ ] Create monitoring views: Use Langfuse dashboard for agent health, error patterns, and optimization opportunities. (**Effort**: 30min; **Deps**: Metrics; **Success**: Visual insights available.)
+- [ ] Integrate with health channel: Send summary metrics from Langfuse to Discord health channel periodically. (**Effort**: 30min; **Deps**: Discord health monitoring; **Success**: Hybrid monitoring active.)
+
+#### Phase 5: Testing and Validation (1-2 hours)
+- [ ] Unit tests: Mock Langfuse client in agent tests; verify traces are sent. (**Effort**: 30min; **Deps**: Phase 2; **Success**: Tests pass with tracing.)
+- [ ] Integration tests: Run workflows and verify end-to-end traces in dashboard. (**Effort**: 45min; **Deps**: Phase 3; **Success**: Complete traces for full workflows.)
+- [ ] Performance validation: Ensure tracing doesn't impact agent response times significantly. (**Effort**: 30min; **Deps**: Integration tests; **Success**: <5% performance overhead.)
+
+#### Phase 6: Rollout and Monitoring (Ongoing)
+- [ ] Deploy to production: Update deployment scripts with Langfuse config. (**Effort**: 30min; **Deps**: All phases; **Success**: Production traces active.)
+- [ ] Monitor and iterate: Weekly review traces for agent improvements; alert on anomalies. (**Effort**: Ongoing; **Success**: Continuous optimization.)
 
 ### ✅ Completed Infrastructure Improvements
 - **Health Monitoring**: FastAPI health server with comprehensive endpoints (/health, /health/components, /metrics)
