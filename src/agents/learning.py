@@ -1170,9 +1170,14 @@ Provide specific directive recommendations with values and detailed rationale fo
             directives = general_directives.to_dict('records') if not general_directives.empty else []
             directives.extend(pyramiding_directives)
 
-        # Store converged strategies as SOPs in Acontext for cross-agent propagation
+        # Store converged strategies as SOPs in Acontext (non-blocking background task)
         if convergence.get('converged', False) and directives:
-            await self._store_converged_strategy_sop(directives, convergence, sd_variance, fade_weight)
+            # Create background task to avoid blocking the main flow
+            asyncio.create_task(
+                self._store_converged_strategy_sop_background(
+                    directives, convergence, sd_variance, fade_weight
+                )
+            )
 
         # Return as DataFrame
         if directives and len(directives) > 0:
@@ -1182,6 +1187,20 @@ Provide specific directive recommendations with values and detailed rationale fo
             return df_result
         else:
             return pd.DataFrame([{'refinement': 'baseline_optimization', 'value': 1.02, 'reason': 'Baseline optimization'}])
+
+    async def _store_converged_strategy_sop_background(self, directives: List[Dict[str, Any]],
+                                                       convergence: Dict[str, Any],
+                                                       sd_variance: float,
+                                                       fade_weight: float) -> None:
+        """
+        Background task wrapper for storing converged strategy SOP.
+        Handles errors gracefully without affecting the main flow.
+        """
+        try:
+            await self._store_converged_strategy_sop(directives, convergence, sd_variance, fade_weight)
+        except Exception as e:
+            logger.warning(f"Background SOP storage failed: {e}")
+
 
     async def _store_converged_strategy_sop(self, directives: List[Dict[str, Any]], 
                                             convergence: Dict[str, Any],

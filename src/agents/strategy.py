@@ -322,12 +322,16 @@ class StrategyAgent(BaseAgent):
                     refinement = directive_item.get('refinement', '')
                     value = directive_item.get('value', 1.0)
                     
-                    # Apply sizing adjustments to pyramiding engine
+                    # Apply sizing adjustments to pyramiding engine with bounds checking
                     if 'sizing' in refinement and self.pyramiding_engine:
                         current_risk = self.pyramiding_engine.base_risk_pct
-                        self.pyramiding_engine.base_risk_pct = current_risk * value
+                        new_risk = current_risk * value
+                        # Enforce bounds: min 0.1% (0.001), max 10% (0.10)
+                        new_risk = max(0.001, min(0.10, new_risk))
+                        self.pyramiding_engine.base_risk_pct = new_risk
                         adjustments['sizing_adjusted'] = value
-                        logger.info(f"Strategy agent adjusted sizing by {value}x based on directive")
+                        adjustments['new_risk_pct'] = new_risk
+                        logger.info(f"Strategy agent adjusted sizing by {value}x to {new_risk:.4f} based on directive")
                     
                     # Apply efficiency optimizations
                     if 'efficiency' in refinement:
@@ -336,16 +340,20 @@ class StrategyAgent(BaseAgent):
                         self.memory['batch_directives']['efficiency_factor'] = value
                         adjustments['efficiency_factor'] = value
                     
-                    # Apply pyramiding tier adjustments
+                    # Apply pyramiding tier adjustments with bounds checking
                     if 'pyramiding' in refinement and self.pyramiding_engine:
                         if 'tier_boost' in refinement:
                             current_max = self.pyramiding_engine.max_tiers
-                            self.pyramiding_engine.max_tiers = int(current_max * value)
-                            adjustments['max_tiers_adjusted'] = self.pyramiding_engine.max_tiers
+                            new_max = int(current_max * value)
+                            # Enforce bounds: min 1, max 10 tiers
+                            new_max = max(1, min(10, new_max))
+                            self.pyramiding_engine.max_tiers = new_max
+                            adjustments['max_tiers_adjusted'] = new_max
                         elif 'conservative' in refinement:
                             current_max = self.pyramiding_engine.max_tiers
-                            self.pyramiding_engine.max_tiers = max(2, int(current_max * value))
-                            adjustments['max_tiers_adjusted'] = self.pyramiding_engine.max_tiers
+                            new_max = max(1, min(10, int(current_max * value)))
+                            self.pyramiding_engine.max_tiers = new_max
+                            adjustments['max_tiers_adjusted'] = new_max
                 
                 # Store directive for reference
                 if 'applied_directives' not in self.memory:
@@ -369,11 +377,15 @@ class StrategyAgent(BaseAgent):
                 if self.pyramiding_engine:
                     config = content.get('config', {})
                     if 'max_tiers' in config:
-                        self.pyramiding_engine.max_tiers = config['max_tiers']
-                        adjustments['max_tiers'] = config['max_tiers']
+                        # Apply bounds: min 1, max 10 tiers
+                        new_max = max(1, min(10, config['max_tiers']))
+                        self.pyramiding_engine.max_tiers = new_max
+                        adjustments['max_tiers'] = new_max
                     if 'base_risk_pct' in config:
-                        self.pyramiding_engine.base_risk_pct = config['base_risk_pct']
-                        adjustments['base_risk_pct'] = config['base_risk_pct']
+                        # Apply bounds: min 0.1%, max 10%
+                        new_risk = max(0.001, min(0.10, config['base_risk_pct']))
+                        self.pyramiding_engine.base_risk_pct = new_risk
+                        adjustments['base_risk_pct'] = new_risk
                     
                     return {
                         'applied': True,

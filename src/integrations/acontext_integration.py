@@ -40,10 +40,7 @@ AcontextClient = None
 AcontextAsyncClient = None
 
 try:
-    from acontext import AcontextClient as _AcontextClient
-    from acontext import AcontextAsyncClient as _AcontextAsyncClient
-    AcontextClient = _AcontextClient
-    AcontextAsyncClient = _AcontextAsyncClient
+    from acontext import AcontextClient, AcontextAsyncClient
     ACONTEXT_AVAILABLE = True
     logger.info("Acontext SDK available for SOP storage integration")
 except ImportError as e:
@@ -265,6 +262,12 @@ class AcontextIntegration:
             
             logger.info(f"Stored SOP {directive.id} in Acontext with ID: {sop_id}")
             self._consecutive_failures = 0
+            
+            # Recovery from fallback mode if operation succeeded
+            if self._fallback_mode:
+                logger.info("Successfully recovered from fallback mode")
+                self._fallback_mode = False
+                
             return sop_id
 
         except Exception as e:
@@ -281,6 +284,36 @@ class AcontextIntegration:
             if self.config.get('fallback', {}).get('enabled', True):
                 return await self._store_sop_fallback(directive)
             return None
+
+    async def attempt_recovery_from_fallback(self) -> bool:
+        """
+        Attempt to recover from fallback mode by testing Acontext connectivity.
+        
+        Returns:
+            True if recovery successful, False otherwise
+        """
+        if not self._fallback_mode:
+            return True  # Already not in fallback mode
+            
+        try:
+            if not ACONTEXT_AVAILABLE or not self.async_client:
+                return False
+                
+            # Try to ping the service
+            await asyncio.wait_for(
+                self.async_client.ping(),
+                timeout=5.0
+            )
+            
+            # If successful, exit fallback mode
+            logger.info("Recovery from fallback mode successful")
+            self._fallback_mode = False
+            self._consecutive_failures = 0
+            return True
+            
+        except Exception as e:
+            logger.debug(f"Recovery attempt failed: {e}")
+            return False
 
     async def _store_sop_fallback(self, directive: TradingDirective) -> Optional[str]:
         """Store SOP in local fallback storage."""

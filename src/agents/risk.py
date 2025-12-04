@@ -185,8 +185,11 @@ class RiskAgent(BaseAgent):
                         current_constraint['var_confidence'] = constraint['var_confidence']
                         adjustments['var_confidence_updated'] = constraint['var_confidence']
                 
-                # Store in batch_adjustments for tracking
-                self.memory['batch_adjustments'][f'directive_{directive_id}'] = {
+                # Store in structured directive tracking
+                if 'applied_directives' not in self.memory:
+                    self.memory['applied_directives'] = {}
+                self.memory['applied_directives'][directive_id] = {
+                    'category': 'risk_constraint',
                     'constraint': constraint,
                     'priority': priority,
                     'timestamp': datetime.now().isoformat(),
