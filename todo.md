@@ -8,6 +8,7 @@
 - **Memory Management**: Confirmed normal ML memory usage (~129MB per agent), no leaks detected
 - **Testing Infrastructure**: Fixed pytest configuration, tests now run properly
 - **Component Documentation**: Updated architecture.md with component descriptions and system overview
+- **LangChain 1.x Memory**: Updated learning agent to use new LangChain 1.x chat history patterns (RunnableWithMessageHistory, InMemoryChatMessageHistory, RedisChatMessageHistory)
 
 ### ⚠️ Critical Items for Paper Trading Stability
 **MUST COMPLETE before paper trading:**

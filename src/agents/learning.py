@@ -76,9 +76,9 @@ except ImportError as e:
 
 # Try to import LangChain 1.x memory components
 try:
-    from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
-    from langchain_core.runnables.history import RunnableWithMessageHistory
-    from collections import deque
+    from langchain_core.chat_history import InMemoryChatMessageHistory
+    from langchain_core.messages import HumanMessage, AIMessage
+    from langchain_community.chat_message_histories import RedisChatMessageHistory
     LANGCHAIN_MEMORY_AVAILABLE = True
     logger.info("LangChain 1.x memory available for agent conversations")
 except ImportError as e:
@@ -195,10 +195,17 @@ class LearningAgent(BaseAgent):
             # Initialize LangChain 1.x memory for agent conversations
             if LANGCHAIN_MEMORY_AVAILABLE:
                 try:
-                    # Use deque to store conversation messages (LangChain 1.x style)
-                    self.conversation_memory = deque(maxlen=100)  # Keep last 100 messages
+                    # Try Redis-backed chat history first, fall back to in-memory
+                    try:
+                        self.conversation_memory = RedisChatMessageHistory(
+                            session_id=f"learning_agent_{self.role}",
+                            redis_url="redis://localhost:6379"
+                        )
+                        logger.info("Redis-backed conversation memory initialized")
+                    except Exception:
+                        self.conversation_memory = InMemoryChatMessageHistory()
+                        logger.info("In-memory conversation memory initialized")
                     self.memory_initialized = True
-                    logger.info("LangChain 1.x conversation memory initialized")
                 except Exception as e:
                     logger.warning(f"Failed to initialize conversation memory: {e}")
                     self.conversation_memory = None
@@ -206,7 +213,7 @@ class LearningAgent(BaseAgent):
             else:
                 self.conversation_memory = None
                 self.memory_initialized = False
-                logger.info("LangChain 1.x memory not available - conversations will not persist")
+                logger.info("LangChain memory not available - conversations will not persist")
             
         except Exception as e:
             logger.warning(f"Failed to initialize ML components: {e}")
@@ -414,7 +421,7 @@ class LearningAgent(BaseAgent):
 
     def add_to_conversation_memory(self, user_input: str, agent_response: str):
         """
-        Add a conversation turn to the LangChain 1.x memory for context preservation.
+        Add a conversation turn to the LangChain 1.x chat history for context preservation.
 
         Args:
             user_input: The input/query from the user or system
@@ -422,24 +429,24 @@ class LearningAgent(BaseAgent):
         """
         if self.memory_initialized and self.conversation_memory:
             try:
-                # Add messages to memory using LangChain 1.x message format
-                self.conversation_memory.append(HumanMessage(content=user_input))
-                self.conversation_memory.append(AIMessage(content=agent_response))
-                logger.debug("Added conversation to LangChain 1.x memory")
+                # Add the conversation to chat history using LangChain 1.x message format
+                self.conversation_memory.add_message(HumanMessage(content=user_input))
+                self.conversation_memory.add_message(AIMessage(content=agent_response))
+                logger.debug("Added conversation to LangChain 1.x chat history")
             except Exception as e:
                 logger.warning(f"Failed to add to conversation memory: {e}")
 
     def get_conversation_history(self) -> str:
         """
-        Retrieve the conversation history from LangChain memory.
+        Retrieve the conversation history from LangChain 1.x chat history.
 
         Returns:
             Formatted string of conversation history
         """
         if self.memory_initialized and self.conversation_memory:
             try:
-                history = self.conversation_memory.load_memory_variables({})
-                messages = history.get("chat_history", [])
+                # Access messages directly from chat history
+                messages = self.conversation_memory.messages
                 if messages:
                     # Format messages into readable history
                     history_text = ""
