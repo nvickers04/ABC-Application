@@ -160,14 +160,7 @@ class EconomicDataAnalyzer(BaseDataAnalyzer):
         if input_data is None:
             input_data = {}
 
-        # Use base class process_input
-        result = await super().process_input(input_data)
-
-        # For backward compatibility, return consolidated_data directly if it exists
-        if "consolidated_data" in result and isinstance(result["consolidated_data"], dict):
-            return result["consolidated_data"]
-
-        # Fallback to original behavior
+        # For backward compatibility, handle direct indicator fetching
         indicators = input_data.get('indicators', ['GDP', 'CPI', 'UNEMPLOYMENT'])
         return self.fetch_economic_indicators(indicators)
 

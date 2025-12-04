@@ -102,14 +102,7 @@ class MarketDataAppDataAnalyzer(BaseDataAnalyzer):
         if input_data is None:
             input_data = {}
 
-        # Use base class process_input for standardized processing
-        result = await super().process_input(input_data)
-
-        # For backward compatibility, return consolidated_data directly if it exists
-        if "consolidated_data" in result and isinstance(result["consolidated_data"], dict):
-            return result["consolidated_data"]
-
-        # Fallback: call the original logic
+        # For backward compatibility, call the original logic
         symbol = input_data.get('symbol', 'SPY')
 
         # Use LLM to determine optimal data endpoints to explore

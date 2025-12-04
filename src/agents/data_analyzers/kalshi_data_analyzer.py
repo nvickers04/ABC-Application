@@ -178,8 +178,28 @@ class KalshiDataAnalyzer(BaseDataAnalyzer):
         """
         Process input using base class pattern while maintaining backward compatibility.
         """
-        # Use base class process_input
-        base_result = await super().process_input(input_data)
+        # For backward compatibility, handle direct processing
+        # Get exploration plan
+        exploration_plan = await self._plan_data_exploration(input_data)
+
+        # Execute data fetching
+        raw_data = await self._execute_data_exploration(exploration_plan)
+
+        # Validate data quality
+        validated_data = self._validate_data_quality(raw_data)
+
+        # Enhance with analysis
+        enhanced_data = await self._enhance_data(validated_data)
+
+        # Store in memory
+        await self._store_analysis_results(input_data, enhanced_data)
+
+        base_result = {
+            "consolidated_data": enhanced_data,
+            "data_quality": self._calculate_data_quality_score(validated_data),
+            "exploration_plan": exploration_plan,
+            "enhanced": True
+        }
 
         # Maintain backward compatibility by flattening the result structure
         if base_result.get("enhanced", False):

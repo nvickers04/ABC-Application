@@ -2527,6 +2527,10 @@ class LiveWorkflowOrchestrator:
                 await self.handle_alert_stats_command(message)
                 return
 
+            if content == "!alert_dashboard":
+                await self.handle_alert_dashboard_command(message)
+                return
+
             if content == "!commands" or content == "!help":
                 await self.handle_commands_command(message)
                 return
@@ -3235,6 +3239,103 @@ Format your response as JSON:
         except Exception as e:
             logger.error(f"Error in alert stats command: {e}")
             await message.channel.send(f"❌ **Alert stats failed:** {str(e)}")
+
+    async def handle_alert_dashboard_command(self, message):
+        """Handle the !alert_dashboard command to show comprehensive alert monitoring dashboard."""
+        try:
+            from src.utils.alert_manager import get_alert_manager
+            alert_manager = get_alert_manager()
+
+            # Get monitoring dashboard data
+            dashboard = alert_manager.get_monitoring_dashboard()
+
+            # Create main embed
+            embed = discord.Embed(
+                title="📊 Alert Monitoring Dashboard",
+                description="Comprehensive alert system monitoring and analytics",
+                color=0x3498DB,
+                timestamp=datetime.now()
+            )
+
+            # System Health
+            health = dashboard['alert_system_health']
+            # Determine overall status based on health metrics
+            has_issues = (
+                health['alert_queue_size'] > 100 or
+                health['recent_critical_alerts'] > 0 or
+                not health['orchestrator_connected']
+            )
+            health_status = "✅ Healthy" if not has_issues else "⚠️ Issues Detected"
+            embed.add_field(
+                name="System Health",
+                value=f"{health_status}\nQueue: {health['alert_queue_size']} alerts",
+                inline=True
+            )
+
+            # Performance Indicators
+            perf = dashboard['performance_indicators']
+            embed.add_field(
+                name="Performance",
+                value=f"Avg Response: {perf['avg_response_time_ms']}ms\nMax Response: {perf['max_response_time_ms']}ms\nAlerts/Hour: {perf['alerts_per_hour']:.1f}",
+                inline=True
+            )
+
+            # Quality Metrics
+            metrics = dashboard['metrics_summary']
+            embed.add_field(
+                name="Quality",
+                value=f"Total Alerts: {metrics['total_alerts']}\nFalse Positive Rate: {perf['false_positive_rate_percent']:.1f}%",
+                inline=True
+            )
+
+            # Alert Distribution by Level
+            level_dist = dashboard['alert_distribution']['by_level']
+            level_str = "\n".join(f"{level.title()}: {count}" for level, count in level_dist.items() if count > 0)
+            if level_str:
+                embed.add_field(
+                    name="Alert Distribution",
+                    value=level_str,
+                    inline=False
+                )
+
+            # Top Components
+            top_comp = dashboard['alert_distribution']['by_component']
+            if top_comp:
+                comp_str = "\n".join(f"• {comp}: {count}" for comp, count in list(top_comp.items())[:5])
+                embed.add_field(
+                    name="Top Components",
+                    value=comp_str,
+                    inline=False
+                )
+
+            # Recent Alerts
+            recent = dashboard['recent_alerts']
+            if recent:
+                recent_str = "\n".join(
+                    f"{alert['level'][0].upper()}: {alert['component']} - {alert['age_minutes']}min ago"
+                    for alert in recent[:5]
+                )
+                embed.add_field(
+                    name="Recent Alerts",
+                    value=recent_str,
+                    inline=False
+                )
+
+            # Recommendations
+            recs = dashboard['recommendations']
+            if recs:
+                rec_str = "\n".join(recs[:3])  # Show top 3 recommendations
+                embed.add_field(
+                    name="Recommendations",
+                    value=rec_str,
+                    inline=False
+                )
+
+            await message.channel.send(embed=embed)
+
+        except Exception as e:
+            logger.error(f"Error in alert dashboard command: {e}")
+            await message.channel.send(f"❌ **Alert dashboard failed:** {str(e)}")
 
     async def handle_commands_command(self, message):
         """Handle the !commands command to show all available commands."""

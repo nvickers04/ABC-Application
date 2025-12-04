@@ -179,7 +179,12 @@ async def test_place_order(mock_connector_class, mock_validate_trading, mock_che
         action="BUY"
     )
 
-    assert result == {"order_id": 123, "status": "submitted"}
+    assert result == {
+        "order_id": 123,
+        "status": "submitted",
+        "risk_analysis": {"score": 0.1},
+        "market_check": True
+    }
     mock_ibkr_connector.place_order.assert_called_once()
     mock_check_risk.assert_called_once()
     mock_validate_trading.assert_called_once()

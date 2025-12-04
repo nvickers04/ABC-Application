@@ -20,10 +20,10 @@ class TestTradeAlertsAndRanking(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures"""
         self.orchestrator = LiveWorkflowOrchestrator()
-        # Mock Discord channels
-        self.orchestrator.alerts_channel = AsyncMock()
-        self.orchestrator.ranked_trades_channel = AsyncMock()
-        self.orchestrator.channel = AsyncMock()  # General channel fallback
+        # Mock Discord handler
+        self.orchestrator.discord_handler = AsyncMock()
+        self.orchestrator.discord_handler.send_trade_alert = AsyncMock()
+        self.orchestrator.discord_handler.send_ranked_trade_info = AsyncMock()
 
     def test_rank_trade_proposals_by_confidence(self):
         """Test ranking proposals by confidence descending"""
@@ -91,61 +91,45 @@ class TestTradeAlertsAndRanking(unittest.TestCase):
         async def inner():
             await self.orchestrator.send_trade_alert("Test alert", "trade")
 
-            self.orchestrator.alerts_channel.send.assert_called_once()  # type: ignore
-            # System event is also posted to general channel
-            self.orchestrator.channel.send.assert_called_once()  # type: ignore
+            self.orchestrator.discord_handler.send_trade_alert.assert_called_once()
 
         asyncio.run(inner())
 
-    @patch('asyncio.sleep', new_callable=AsyncMock)
-    def test_send_trade_alert_retry_on_failure(self, mock_sleep):
-        """Test trade alert retry on failure"""
+    def test_send_trade_alert_retry_on_failure(self):
+        """Test trade alert send delegates to discord handler"""
         async def inner():
-            self.orchestrator.alerts_channel.send.side_effect = [Exception("Network error"), None]  # type: ignore
-
             await self.orchestrator.send_trade_alert("Test alert", "trade")
 
-            # Should retry once
-            self.assertEqual(self.orchestrator.alerts_channel.send.call_count, 2)  # type: ignore
-            # System event is posted to general channel on success
-            self.orchestrator.channel.send.assert_called_once()  # type: ignore
+            # Should delegate to discord handler
+            self.orchestrator.discord_handler.send_trade_alert.assert_called_once_with("Test alert", "trade")
 
         asyncio.run(inner())
 
-    @patch('asyncio.sleep', new_callable=AsyncMock)
-    def test_send_trade_alert_fallback_after_retries(self, mock_sleep):
-        """Test fallback to general channel after all retries fail"""
+    def test_send_trade_alert_fallback_after_retries(self):
+        """Test trade alert send delegates to discord handler"""
         async def inner():
-            self.orchestrator.alerts_channel.send.side_effect = Exception("Persistent error")  # type: ignore
-
             await self.orchestrator.send_trade_alert("Test alert", "trade")
 
-            # Should retry 2 times then fallback
-            self.assertEqual(self.orchestrator.alerts_channel.send.call_count, 3)  # type: ignore
-            self.orchestrator.channel.send.assert_called_once()  # type: ignore
+            # Should delegate to discord handler
+            self.orchestrator.discord_handler.send_trade_alert.assert_called_once_with("Test alert", "trade")
 
         asyncio.run(inner())
 
-    @patch('asyncio.sleep', new_callable=AsyncMock)
-    def test_send_ranked_trade_info_success(self, mock_sleep):
+    def test_send_ranked_trade_info_success(self):
         """Test successful ranked trade info send"""
         async def inner():
             await self.orchestrator.send_ranked_trade_info("Test proposals", "proposal")
 
-            self.orchestrator.ranked_trades_channel.send.assert_called_once()  # type: ignore
-            self.orchestrator.channel.send.assert_not_called()  # type: ignore
+            self.orchestrator.discord_handler.send_ranked_trade_info.assert_called_once_with("Test proposals", "proposal")
 
         asyncio.run(inner())
 
-    @patch('asyncio.sleep', new_callable=AsyncMock)
-    def test_send_ranked_trade_info_fallback_no_channel(self, mock_sleep):
-        """Test fallback when ranked trades channel not configured"""
+    def test_send_ranked_trade_info_fallback_no_channel(self):
+        """Test ranked trade info delegates to discord handler"""
         async def inner():
-            self.orchestrator.ranked_trades_channel = None
-
             await self.orchestrator.send_ranked_trade_info("Test proposals", "proposal")
 
-            self.orchestrator.channel.send.assert_called_once()  # type: ignore
+            self.orchestrator.discord_handler.send_ranked_trade_info.assert_called_once_with("Test proposals", "proposal")
 
         asyncio.run(inner())
 

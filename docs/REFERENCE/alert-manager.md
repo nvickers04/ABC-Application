@@ -128,6 +128,21 @@ All major components integrate with AlertManager:
 - **Data Analyzers**: Alerts on API failures, data quality issues
 - **Discord Operations**: Alerts on message sending failures
 
+### Discord Commands
+
+The AlertManager provides several Discord commands for monitoring and testing:
+
+- **`!alert_test`**: Send a test alert to verify the system is working
+- **`!alert_history`**: Show the last 10 alerts with details
+- **`!alert_stats`**: Display alert statistics and trends
+- **`!alert_dashboard`**: Show comprehensive monitoring dashboard with performance metrics
+
+Example usage:
+```
+!alert_dashboard
+```
+Shows system health, performance indicators, alert distribution, and recommendations.
+
 ## Configuration
 
 ### Environment Variables
@@ -269,10 +284,173 @@ hasattr(orchestrator, 'perform_system_health_check')  # Should return True
 - Discord notifications are batched to avoid rate limits
 - Context data is minimized to reduce memory usage
 
+## Maintenance Procedures
+
+### Regular Maintenance Tasks
+
+#### Daily Monitoring
+1. Check `!alert_dashboard` for system health and performance metrics
+2. Review `!alert_stats` for alert trends and patterns
+3. Monitor alert queue size (should not exceed 1000 alerts)
+
+#### Weekly Maintenance
+1. Review escalation history for patterns requiring policy updates
+2. Check alert metrics for false positive rates > 5%
+3. Verify Discord notification delivery
+4. Clean up old alert logs if needed
+
+#### Monthly Maintenance
+1. Review and update escalation policies based on incident response
+2. Audit alert suppression rules for effectiveness
+3. Update notification filters based on team feedback
+4. Check alert performance metrics and optimize if needed
+
+### Configuration Updates
+
+#### Updating Escalation Policies
+```python
+# Access alert manager
+alert_manager = get_alert_manager()
+
+# Update escalation policies
+alert_manager.escalation_policies['default']['levels'][0]['delay_minutes'] = 2
+
+# Reload policies (if dynamic reloading implemented)
+alert_manager._load_escalation_policies()
+```
+
+#### Modifying Notification Filters
+```python
+# Update component filters
+alert_manager.notification_filters['component_filters']['new_component'] = {
+    'min_level': 'warning',
+    'rate_limit': 5
+}
+```
+
+## Troubleshooting Guide
+
+### Common Issues and Solutions
+
+#### 1. Alerts Not Appearing in Discord
+**Symptoms**: Alerts logged but not sent to Discord channels
+**Causes**:
+- Orchestrator not connected to AlertManager
+- Discord bot not initialized
+- Wrong channel configuration
+- Bot permissions issues
+
+**Solutions**:
+```bash
+# Check orchestrator connection
+python -c "
+from src.utils.alert_manager import get_alert_manager
+from src.agents.live_workflow_orchestrator import LiveWorkflowOrchestrator
+alert_manager = get_alert_manager()
+print(f'Orchestrator connected: {alert_manager.orchestrator is not None}')
+"
+
+# Verify Discord channel access
+# Check DISCORD_ALERTS_CHANNEL environment variable
+# Ensure bot has send_messages permission in alerts channel
+```
+
+#### 2. Alert Queue Growing Too Large
+**Symptoms**: Alert queue exceeds 1000 items, memory usage high
+**Causes**:
+- High error rate in monitored components
+- Alert suppression rules not working
+- Escalation policies causing alert storms
+
+**Solutions**:
+```python
+# Clear alert queue
+alert_manager = get_alert_manager()
+alert_manager.clear_alerts()
+
+# Review and update suppression rules
+# Check for alert storms from specific components
+recent_alerts = alert_manager.get_recent_alerts(100)
+component_counts = {}
+for alert in recent_alerts:
+    component_counts[alert.component] = component_counts.get(alert.component, 0) + 1
+print("Alert counts by component:", component_counts)
+```
+
+#### 3. False Positive Alerts
+**Symptoms**: Too many non-critical alerts, alert fatigue
+**Causes**:
+- Low alert thresholds
+- Missing suppression rules
+- Component misconfiguration
+
+**Solutions**:
+1. Review alert levels in component integrations
+2. Add suppression rules for known benign errors
+3. Update component-specific filters
+
+#### 4. Escalation Not Working
+**Symptoms**: Critical alerts not escalating to email/SMS
+**Causes**:
+- Email/SMS not configured
+- Escalation conditions not met
+- External service failures
+
+**Solutions**:
+```bash
+# Check escalation configuration
+alert_manager = get_alert_manager()
+print("Escalation policies:", alert_manager.escalation_policies)
+
+# Verify external service configuration
+print(f"Email enabled: {alert_manager.email_enabled}")
+print(f"Slack enabled: {alert_manager.slack_enabled}")
+```
+
+#### 5. High Response Times
+**Symptoms**: Alert processing taking >1 second
+**Causes**:
+- Large alert queue
+- Complex escalation logic
+- External service delays
+
+**Solutions**:
+1. Monitor `!alert_dashboard` performance indicators
+2. Reduce alert queue size
+3. Optimize escalation conditions
+4. Check external service response times
+
+### Performance Tuning
+
+#### Optimizing Alert Processing
+- Keep alert queue size < 500 for best performance
+- Use component-specific filters to reduce noise
+- Limit escalation history to last 50 events
+- Configure appropriate rate limits per component
+
+#### Memory Management
+- Alert objects are lightweight but accumulate in queue
+- Set appropriate `max_queue_size` (default: 1000)
+- Clear old alerts periodically
+- Monitor memory usage in dashboard
+
+### Emergency Procedures
+
+#### Alert System Failure
+1. **Immediate**: Check system logs for AlertManager errors
+2. **Fallback**: Use direct logging if AlertManager fails
+3. **Recovery**: Restart orchestrator to reconnect AlertManager
+4. **Prevention**: Add health checks for AlertManager itself
+
+#### Alert Storm Response
+1. **Identify**: Use `!alert_dashboard` to find high-frequency component
+2. **Suppress**: Add temporary suppression rule
+3. **Investigate**: Check component logs for root cause
+4. **Resolve**: Fix underlying issue and remove suppression
+
 ## Future Enhancements
 
 - Alert escalation policies (email after repeated failures)
 - Alert correlation and deduplication
-- Metrics and analytics dashboard
 - Alert routing based on time/severity rules
 - Integration with external monitoring systems (DataDog, New Relic)
