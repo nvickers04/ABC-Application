@@ -580,10 +580,10 @@ class AlertManager:
         try:
             # Find alerts channel
             alerts_channel = None
-            if hasattr(self.orchestrator, 'channel') and self.orchestrator.channel:
+            if hasattr(self.orchestrator, 'health_channel') and self.orchestrator.health_channel:
                 # Check if current channel is alerts
-                if hasattr(self.orchestrator.channel, 'name') and self.orchestrator.channel.name == self.discord_alerts_channel:
-                    alerts_channel = self.orchestrator.channel
+                if hasattr(self.orchestrator.health_channel, 'name') and self.orchestrator.health_channel.name == self.discord_alerts_channel:
+                    alerts_channel = self.orchestrator.health_channel
                 else:
                     # Try to find alerts channel in guild
                     if hasattr(self.orchestrator, 'guild') and self.orchestrator.guild:
