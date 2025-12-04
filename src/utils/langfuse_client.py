@@ -832,7 +832,7 @@ def trace_llm_call(model_name: str):
                 # Log generation
                 if trace_id:
                     # Extract prompt from args if possible
-                    prompt = str(args[1])[:2000] if len(args) > 1 else "unknown"
+                    prompt = str(args[1])[:2000] if len(args) > 1 and args[1] is not None else "unknown"
                     output = str(result)[:2000] if result else "no_output"
                     
                     client.log_generation(
