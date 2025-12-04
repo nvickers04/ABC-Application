@@ -16,6 +16,7 @@ import logging
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Dict, Any, List, Optional, Callable
+from src.utils.logging_config import log_error_with_context
 # Simplified without pydantic for compatibility
 
 logger = logging.getLogger(__name__)
@@ -126,7 +127,11 @@ class ConsensusPoller:
             try:
                 asyncio.create_task(callback(poll))
             except Exception as e:
-                logger.error(f"Error in state change callback: {e}")
+                log_error_with_context(
+                    logger, e, "state_change_callback",
+                    component="consensus_poller",
+                    extra_context={"poll_id": poll.poll_id}
+                )
 
         # Update metrics and send alerts based on state change
         self._update_metrics(poll)
@@ -160,7 +165,11 @@ class ConsensusPoller:
                     self.metrics["avg_response_time"] = sum(self.metrics["poll_durations"]) / len(self.metrics["poll_durations"])
 
         except Exception as e:
-            logger.error(f"Error updating metrics for poll {poll.poll_id}: {e}")
+            log_error_with_context(
+                logger, e, "update_metrics",
+                component="consensus_poller",
+                extra_context={"poll_id": poll.poll_id}
+            )
 
     def _send_state_alert(self, poll: ConsensusResult):
         """Send alerts for important poll state changes"""
@@ -286,7 +295,11 @@ class ConsensusPoller:
                 await asyncio.sleep(self.poll_interval)
 
         except Exception as e:
-            logger.error(f"Error polling agents for {poll_id}: {e}")
+            log_error_with_context(
+                logger, e, "poll_agents",
+                component="consensus_poller",
+                extra_context={"poll_id": poll_id}
+            )
             await self._handle_failure(poll_id, str(e))
 
     async def _send_status_update(self, poll_id: str):

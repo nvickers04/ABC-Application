@@ -22,15 +22,7 @@ from src.utils.advanced_memory import get_memory_health_status
 from src.utils.api_health_monitor import get_api_health_summary
 from src.integrations.nautilus_ibkr_bridge import get_nautilus_ibkr_bridge
 
-# Setup logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('logs/trading_day_monitor.log'),
-        logging.StreamHandler()
-    ]
-)
+# Logging configured centrally in logging_config.py
 logger = logging.getLogger(__name__)
 
 class TradingDayMonitor:

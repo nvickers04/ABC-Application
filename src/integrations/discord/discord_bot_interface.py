@@ -28,7 +28,7 @@ from src.agents.learning import LearningAgent
 from src.utils.a2a_protocol import A2AProtocol
 from src.utils.vault_client import get_vault_secret
 
-logging.basicConfig(level=logging.INFO)
+# Logging configured centrally in logging_config.py
 logger = logging.getLogger(__name__)
 
 class DiscordBotInterface(commands.Bot):

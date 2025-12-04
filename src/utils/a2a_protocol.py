@@ -25,8 +25,7 @@ import discord  # For Embed objects
 # Import reducer for handling multiple updates
 from langgraph.graph import add_messages
 
-# Setup logging for traceability (every message audited)
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+# Logging configured centrally in logging_config.py
 logger = logging.getLogger(__name__)
 
 # Pydantic Schemas for Messages (from spec—ensures structure)
