@@ -1,0 +1,19 @@
+{
+  "id": "test-directive-001",
+  "category": "test",
+  "name": "Test Directive",
+  "description": "A test directive for fallback mode",
+  "content": {
+    "test_key": "test_value"
+  },
+  "applies_to": [
+    "strategy",
+    "risk"
+  ],
+  "source": "learning",
+  "priority": "medium",
+  "sop_id": "local_test-directive-001",
+  "created_at": "2025-12-04T16:42:34.803821",
+  "expires_at": "2026-03-04T16:42:34.803821",
+  "metadata": null
+}

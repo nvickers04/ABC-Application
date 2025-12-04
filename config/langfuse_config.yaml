@@ -11,11 +11,18 @@
 #   - LANGFUSE_SECRET_KEY
 #   - LANGFUSE_HOST (optional, defaults to cloud)
 
+# API Keys (set via environment variables or directly here)
+api_keys:
+  public_key: "pk-lf-2a0d97e1-3bc9-4273-81f2-2fcdf40b4bfc"
+  secret_key: "${LANGFUSE_SECRET_KEY}"  # Set this environment variable with your secret key
+  # Alternative: Uncomment and set directly (less secure)
+  # secret_key: "sk-lf-63cfca16-1157-4141-be1f-703b82d6c14f"
+
 # Connection settings
 connection:
   # Host URL - use default cloud endpoint or self-hosted instance
   # For self-hosted: host: "https://your-langfuse-instance.com"
-  host: "${LANGFUSE_HOST:-https://cloud.langfuse.com}"
+  host: "https://us.cloud.langfuse.com"
   # Timeout for API calls in seconds
   timeout: 30
   # Enable/disable Langfuse integration globally

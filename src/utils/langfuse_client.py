@@ -44,8 +44,12 @@ except ImportError:
 
 # Try to import langfuse
 try:
-    from langfuse import Langfuse
-    from langfuse.decorators import langfuse_context, observe
+    from langfuse import Langfuse, observe
+    # Try to import langfuse_context if available (may not exist in newer versions)
+    try:
+        from langfuse.decorators import langfuse_context
+    except ImportError:
+        langfuse_context = None
     LANGFUSE_AVAILABLE = True
 except ImportError:
     LANGFUSE_AVAILABLE = False
