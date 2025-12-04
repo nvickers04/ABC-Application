@@ -28,7 +28,7 @@ from src.agents.learning import LearningAgent
 from src.utils.a2a_protocol import A2AProtocol
 from src.utils.vault_client import get_vault_secret
 
-logging.basicConfig(level=logging.INFO)
+# Logging configured centrally in logging_config.py
 logger = logging.getLogger(__name__)
 
 class DiscordBotInterface(commands.Bot):
@@ -1082,6 +1082,107 @@ class DiscordBotInterface(commands.Bot):
                 
             except Exception as e:
                 await ctx.send(f"❌ Error checking system health: {str(e)}")
+
+        @self.command(name='langfuse_metrics')
+        async def langfuse_metrics(ctx):
+            """Get Langfuse tracing metrics and health summary"""
+            try:
+                # Import Langfuse client
+                try:
+                    from src.utils.langfuse_client import get_langfuse_client
+                    langfuse_client = get_langfuse_client()
+                except ImportError:
+                    await ctx.send("⚠️ Langfuse client not available")
+                    return
+                
+                embed = discord.Embed(
+                    title="📊 Langfuse Tracing Metrics",
+                    color=0x3498db,
+                    timestamp=datetime.now()
+                )
+                
+                # Get health summary
+                health_summary = langfuse_client.get_health_summary()
+                
+                # Status
+                status_emoji = "✅" if health_summary.get('enabled') else "⚠️"
+                embed.add_field(
+                    name="Status",
+                    value=f"{status_emoji} {'Enabled' if health_summary.get('enabled') else 'Disabled'}",
+                    inline=True
+                )
+                
+                # Trace counts
+                embed.add_field(
+                    name="Total Traces",
+                    value=str(health_summary.get('total_traces', 0)),
+                    inline=True
+                )
+                
+                embed.add_field(
+                    name="Total Spans",
+                    value=str(health_summary.get('total_spans', 0)),
+                    inline=True
+                )
+                
+                # Active counts
+                embed.add_field(
+                    name="Active Traces",
+                    value=str(health_summary.get('active_traces', 0)),
+                    inline=True
+                )
+                
+                embed.add_field(
+                    name="Active Spans",
+                    value=str(health_summary.get('active_spans', 0)),
+                    inline=True
+                )
+                
+                # Error rate
+                error_rate = health_summary.get('error_rate', 0)
+                error_emoji = "✅" if error_rate < 5 else "⚠️" if error_rate < 10 else "❌"
+                embed.add_field(
+                    name="Error Rate",
+                    value=f"{error_emoji} {error_rate:.1f}%",
+                    inline=True
+                )
+                
+                # Token usage
+                token_usage = health_summary.get('token_usage', {})
+                if token_usage:
+                    total_tokens = token_usage.get('total_tokens', 0)
+                    embed.add_field(
+                        name="Token Usage",
+                        value=f"Total: {total_tokens:,}\nPrompt: {token_usage.get('prompt_tokens', 0):,}\nCompletion: {token_usage.get('completion_tokens', 0):,}",
+                        inline=False
+                    )
+                
+                # Traces by agent
+                traces_by_agent = health_summary.get('traces_by_agent', {})
+                if traces_by_agent:
+                    agent_traces = "\n".join([f"• {agent}: {count}" for agent, count in traces_by_agent.items()][:10])
+                    embed.add_field(
+                        name="Traces by Agent",
+                        value=agent_traces if agent_traces else "No traces yet",
+                        inline=False
+                    )
+                
+                # Response times
+                avg_times = health_summary.get('avg_response_times', {})
+                if avg_times:
+                    times_str = "\n".join([f"• {agent}: {time:.2f}s" for agent, time in avg_times.items()][:10])
+                    embed.add_field(
+                        name="Avg Response Times",
+                        value=times_str if times_str else "No data",
+                        inline=False
+                    )
+                
+                embed.set_footer(text=f"Last updated: {health_summary.get('timestamp', 'N/A')}")
+                
+                await ctx.send(embed=embed)
+                
+            except Exception as e:
+                await ctx.send(f"❌ Error getting Langfuse metrics: {str(e)}")
 
         @self.command(name='emergency_stop')
         async def emergency_stop(ctx):

@@ -300,3 +300,29 @@ class TestAlertIntegration:
         assert AlertLevel.WARNING in levels
         assert AlertLevel.ERROR in levels
         assert AlertLevel.INFO in levels
+
+    @pytest.mark.asyncio
+    async def test_alert_dashboard_command(self, orchestrator, alert_manager):
+        """Test !alert_dashboard command displays monitoring dashboard"""
+        # Mock Discord message
+        mock_message = AsyncMock()
+        mock_message.channel = AsyncMock()
+
+        # Send some test alerts to populate metrics
+        await alert_manager.send_alert(AlertLevel.ERROR, "TestComponent", "Test error")
+        await alert_manager.send_alert(AlertLevel.WARNING, "TestComponent", "Test warning")
+        await alert_manager.send_alert(AlertLevel.INFO, "TestComponent", "Test info")
+
+        # Call the dashboard command
+        await orchestrator.handle_alert_dashboard_command(mock_message)
+
+        # Verify embed was sent
+        mock_message.channel.send.assert_called_once()
+        call_args = mock_message.channel.send.call_args
+        embed = call_args[1]['embed']
+
+        # Verify embed structure
+        assert embed.title == "📊 Alert Monitoring Dashboard"
+        assert "System Health" in [field.name for field in embed.fields]
+        assert "Performance" in [field.name for field in embed.fields]
+        assert "Quality" in [field.name for field in embed.fields]

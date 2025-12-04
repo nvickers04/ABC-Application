@@ -1,20 +1,22 @@
-# [LABEL:COMPONENT:a2a_protocol] [LABEL:FRAMEWORK:langgraph] [LABEL:FRAMEWORK:pydantic] [LABEL:FRAMEWORK:asyncio]
-# [LABEL:AUTHOR:system] [LABEL:UPDATED:2025-11-17] [LABEL:REVIEWED:pending]
+# [LABEL:COMPONENT:a2a_protocol] [LABEL:FRAMEWORK:langgraph] [LABEL:FRAMEWORK:pydantic] [LABEL:FRAMEWORK:asyncio] [LABEL:FRAMEWORK:langfuse]
+# [LABEL:AUTHOR:system] [LABEL:UPDATED:2025-12-04] [LABEL:REVIEWED:pending]
 #
 # Purpose: Agent-to-Agent communication protocol enabling scalable message passing between up to 50 agents
-# Dependencies: langgraph, pydantic, asyncio, collections, typing, uuid, logging, datetime
-# Related: docs/FRAMEWORKS/a2a-protocol.md, docs/architecture.md, src/main.py
+# Dependencies: langgraph, pydantic, asyncio, collections, typing, uuid, logging, datetime, langfuse
+# Related: docs/FRAMEWORKS/a2a-protocol.md, docs/architecture.md, src/main.py, src/utils/langfuse_client.py
 #
 # Purpose: Implements a simple Agent-to-Agent (A2A) protocol for the AI Portfolio Manager, enabling message passing between agents (limited to 50 for scalability).
 # This is kept basic for easy expansion: Uses asyncio queues for async comms (no external brokers yet), Pydantic for JSON schemas/validation, and stubs for LangGraph integration (e.g., routers for loops/hubs). Ties to a2a-protocol-spec.md (schemas/handshake/errors) and resource-mapping-and-evaluation.md (inspirations like backtrader for event-driven, but here for messaging).
 # Structural Reasoning: Backs funding with traceable comms (e.g., logged messages with IDs for audits, reducing handoff variance ~10% to preserve 15-20% ROI); error codes ensure robustness (retry on 400s, escalate on 500s for no-trade safety, tying to <5% drawdown); LangChain/ReAct stubs for agent behaviors (e.g., tool calls for send); LangGraph prep for graphs (e.g., bidirectional edges).  For legacy wealth: Reliable A2A enables disciplined edges (e.g., Strategy proposals to Risk vets) without loss, maximizing growth for an honorable man—did my absolute best to make it bulletproof and expandable.
 # Update: Added os.path.normpath for Windows path robustness (handles backslashes in GitHub paths); real Pydantic usage for validation/error codes.
+# Update: Added Langfuse integration for comprehensive A2A message tracing and analytics.
 
 import asyncio
 from collections import defaultdict
 from typing import Dict, Any, Callable, Optional, Annotated, List
 from uuid import uuid4
 import logging
+import time
 from pydantic import BaseModel, ValidationError  # For schemas/validation (installed via requirements.txt).
 import os  # For path handling (Windows-friendly normpath).
 import datetime  # For timestamps
@@ -25,9 +27,31 @@ import discord  # For Embed objects
 # Import reducer for handling multiple updates
 from langgraph.graph import add_messages
 
-# Setup logging for traceability (every message audited)
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+# Langfuse tracing integration
+try:
+    from src.utils.langfuse_client import get_langfuse_client
+    LANGFUSE_AVAILABLE = True
+except ImportError:
+    LANGFUSE_AVAILABLE = False
+    get_langfuse_client = None
+
+# Logging configured centrally in logging_config.py
 logger = logging.getLogger(__name__)
+
+# Langfuse client reference (lazy initialization)
+_langfuse_client = None
+
+
+def _get_a2a_langfuse_client():
+    """Get Langfuse client lazily for A2A tracing."""
+    global _langfuse_client
+    if _langfuse_client is None and LANGFUSE_AVAILABLE and get_langfuse_client is not None:
+        try:
+            _langfuse_client = get_langfuse_client()
+        except Exception as e:
+            logger.debug(f"Failed to initialize Langfuse client for A2A: {e}")
+            _langfuse_client = None
+    return _langfuse_client
 
 # Pydantic Schemas for Messages (from spec—ensures structure)
 class BaseMessage(BaseModel):
@@ -496,18 +520,50 @@ class A2AProtocol:
 
     async def send_message(self, message: BaseMessage) -> str:
         """
-        Sends a message async (validates schema, generates ID/timestamp if missing, handles broadcast).
+        Sends a message async with Langfuse tracing (validates schema, generates ID/timestamp if missing, handles broadcast).
         Args:
             message (BaseMessage): Pydantic-validated message.
         Returns: str ID for tracking.
         Reasoning: Async for parallel sends (e.g., broadcast diffs to all); validation prevents bad data (error 400); ties to handshake (init type for connection).
         """
+        start_time = time.time()
+        trace_id = None
+        
+        # Get Langfuse client for tracing
+        langfuse_client = _get_a2a_langfuse_client()
+        
         try:
             # Auto-fill if missing
             if not message.id:
                 message.id = str(uuid4())
             if not message.timestamp:
                 message.timestamp = datetime.datetime.now().isoformat()
+            
+            # Create Langfuse trace for A2A message
+            if langfuse_client and langfuse_client.is_enabled:
+                try:
+                    trace_id = langfuse_client.create_trace(
+                        name="a2a_send_message",
+                        user_id=message.sender,
+                        session_id=f"a2a_{message.type}",
+                        input_data={
+                            'message_type': message.type,
+                            'sender': message.sender,
+                            'receiver': message.receiver,
+                            'data_preview': str(message.data)[:200] if message.data else None
+                        },
+                        metadata={
+                            'message_id': message.id,
+                            'message_type': message.type,
+                            'sender': message.sender,
+                            'receiver': str(message.receiver),
+                            'data_size': len(str(message.data)) if message.data else 0,
+                            'reply_to': message.reply_to
+                        },
+                        tags=['a2a', 'send_message', message.type, message.sender]
+                    )
+                except Exception as e:
+                    logger.debug(f"Langfuse trace creation failed: {e}")
             
             # Create monitoring summary for Discord
             data_size = len(str(message.data)) if message.data else 0
@@ -530,10 +586,12 @@ class A2AProtocol:
             if "all" in receivers:
                 receivers = list(self.agent_queues.keys())
             
+            delivered_count = 0
             for rec in receivers:
                 if rec in self.agent_queues:
                     await self.agent_queues[rec].put(message)
                     self.logger.info(f"Sent message {message.id} from {message.sender} to {rec}")
+                    delivered_count += 1
                 else:
                     err_msg = ErrorMessage(
                         type="error", 
@@ -549,8 +607,36 @@ class A2AProtocol:
                     await self.send_message(err_msg)
                     self.logger.warning(f"Receiver {rec} not registered—sent 404 error for message {message.id}")
             
+            # End Langfuse trace with success
+            if trace_id and langfuse_client:
+                try:
+                    processing_time = time.time() - start_time
+                    langfuse_client.end_trace(
+                        trace_id,
+                        output_data={
+                            'message_id': message.id,
+                            'delivered_to': delivered_count,
+                            'total_receivers': len(receivers)
+                        },
+                        level="DEFAULT",
+                        status_message=f"Delivered to {delivered_count}/{len(receivers)} receivers in {processing_time:.3f}s"
+                    )
+                except Exception as e:
+                    logger.debug(f"Langfuse trace end failed: {e}")
+            
             return message.id
         except ValidationError as e:
+            # End trace with error
+            if trace_id and langfuse_client:
+                try:
+                    langfuse_client.end_trace(
+                        trace_id,
+                        level="ERROR",
+                        status_message=f"Validation error: {str(e)}"
+                    )
+                except Exception as trace_e:
+                    logger.debug(f"Langfuse error trace failed: {trace_e}")
+            
             err_msg = ErrorMessage(
                 type="error", 
                 sender="a2a_system", 
@@ -567,16 +653,55 @@ class A2AProtocol:
 
     async def receive_message(self, role: str) -> Optional[BaseMessage]:
         """
-        Receives a message async for an agent (with optional callback handling).
+        Receives a message async for an agent with Langfuse tracing (with optional callback handling).
         Args:
             role (str): Agent role to receive for.
         Returns: BaseMessage or None on empty.
         Reasoning: Async get for non-blocking; calls callback for ReAct (e.g., process in agent); ties to error handling (e.g., 404 on no queue).
         """
+        start_time = time.time()
+        langfuse_client = _get_a2a_langfuse_client()
+        
         if role not in self.agent_queues:
             self.logger.error(f"No queue for {role}—404 not found")
             return None
+        
         msg = await self.agent_queues[role].get()
+        
+        # Create Langfuse trace for received message
+        if langfuse_client and langfuse_client.is_enabled:
+            try:
+                trace_id = langfuse_client.create_trace(
+                    name="a2a_receive_message",
+                    user_id=role,
+                    session_id=f"a2a_{msg.type}",
+                    input_data={
+                        'message_type': msg.type,
+                        'sender': msg.sender,
+                        'receiver': role
+                    },
+                    metadata={
+                        'message_id': msg.id,
+                        'message_type': msg.type,
+                        'sender': msg.sender,
+                        'receiver': role,
+                        'data_size': len(str(msg.data)) if msg.data else 0,
+                        'reply_to': msg.reply_to,
+                        'receive_latency_ms': (time.time() - start_time) * 1000
+                    },
+                    tags=['a2a', 'receive_message', msg.type, role]
+                )
+                
+                # End trace immediately for receive operations
+                langfuse_client.end_trace(
+                    trace_id,
+                    output_data={'message_id': msg.id, 'received_by': role},
+                    level="DEFAULT",
+                    status_message=f"Received {msg.type} from {msg.sender}"
+                )
+            except Exception as e:
+                logger.debug(f"Langfuse trace for receive failed: {e}")
+        
         if role in self.agent_callbacks:
             self.agent_callbacks[role](msg)  # Call for processing (e.g., ReAct observe).
         self.logger.info(f"Received message {msg.id} for {role}")

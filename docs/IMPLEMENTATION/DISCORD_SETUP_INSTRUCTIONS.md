@@ -158,7 +158,7 @@ If you want to configure specific channels for the bot:
 2. **Right-click each channel** → **"Copy Channel ID"**
 3. **Add to `.env`** (optional - system works without this):
    ```
-   DISCORD_GENERAL_CHANNEL_ID=your_general_channel_id_here
+   DISCORD_HEALTH_CHANNEL_ID=your_health_monitoring_channel_id_here
    DISCORD_ALERTS_CHANNEL_ID=your_alerts_channel_id_here
    DISCORD_RANKED_TRADES_CHANNEL_ID=your_ranked_trades_channel_id_here
    DISCORD_COMMANDS_CHANNEL_ID=your_commands_channel_id_here
@@ -172,7 +172,8 @@ To enable the bot to use specific channels:
 2. **Update your `.env` file** (optional - bot will use default channels without this):
    ```
    # Example channel IDs (replace with your actual IDs)
-   DISCORD_GENERAL_CHANNEL_ID=1234567890123456789
+   # Health monitoring channel for system status, API health, memory usage
+   DISCORD_HEALTH_CHANNEL_ID=1234567890123456789
    DISCORD_ALERTS_CHANNEL_ID=1234567890123456789
    DISCORD_RANKED_TRADES_CHANNEL_ID=1234567890123456789
    DISCORD_COMMANDS_CHANNEL_ID=1234567890123456789
@@ -192,7 +193,7 @@ To enable the bot to use specific channels:
    - Check terminal for connection messages
 
 3. **Test commands in Discord:**
-   - Go to `#general` or any channel
+   - Go to `#health-monitoring` or any channel
    - Type: `!status`
    - Should get a system status response
 

@@ -47,7 +47,7 @@ Create a single Discord application for the unified orchestrator at https://disc
 ```
 
 ### 2. Channel Configuration
-Set up a general channel for workflow coordination and summaries.
+Set up a health monitoring channel for system status, API health, workflow coordination and summaries.
 
 ### 3. Permissions
 Ensure the bot has appropriate permissions in your Discord server.
@@ -148,8 +148,8 @@ The Discord system is designed as a **communication interface** that:
 4. Intervene thoughtfully to enhance rather than disrupt the process
 
 ### Channel Organization
-- Use a dedicated channel for workflow coordination
-- Keep general channels available for cross-agent discussions
+- Use the health monitoring channel for workflow coordination and system status
+- Keep specialized channels (alerts, ranked trades) for their respective purposes
 - Archive completed workflow summaries for reference
 
 This system transforms your AI trading platform into a collaborative human-AI decision-making environment while preserving the sophisticated agent processes that make your system effective.

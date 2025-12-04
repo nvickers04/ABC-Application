@@ -201,6 +201,14 @@ class CommandRegistry:
             command_type=CommandType.LEGACY
         ))
 
+        self.register_command(CommandInfo(
+            name="alert_dashboard",
+            description="Show comprehensive alert monitoring dashboard",
+            usage="!alert_dashboard",
+            category="Monitoring & Health",
+            command_type=CommandType.LEGACY
+        ))
+
         # System Commands
         self.register_command(CommandInfo(
             name="commands",

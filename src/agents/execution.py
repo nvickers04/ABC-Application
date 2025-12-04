@@ -92,6 +92,100 @@ class ExecutionAgent(BaseAgent):
             self.memory = {"outcome_logs": [], "scaling_history": [], "delayed_orders": [], "scheduled_jobs": {}}
             self.save_memory()
 
+    async def _apply_directive_by_category(self, directive_id: str, category: str,
+                                           content: Dict[str, Any], priority: str) -> Dict[str, Any]:
+        """
+        Execution-specific directive handling for cross-agent propagation.
+        Handles execution_rule and learning_insight categories with execution-specific logic.
+        
+        Args:
+            directive_id: Unique directive identifier
+            category: Directive category
+            content: Directive content
+            priority: Priority level
+            
+        Returns:
+            Application result dict
+        """
+        try:
+            adjustments = {}
+            
+            # Handle execution rule directives
+            if category == 'execution_rule':
+                rules = content.get('rules', {})
+                
+                # Apply slippage tolerance adjustments
+                if 'slippage_tolerance' in rules:
+                    if 'execution_params' not in self.memory:
+                        self.memory['execution_params'] = {}
+                    self.memory['execution_params']['slippage_tolerance'] = rules['slippage_tolerance']
+                    adjustments['slippage_tolerance'] = rules['slippage_tolerance']
+                    logger.info(f"Execution agent updated slippage tolerance to {rules['slippage_tolerance']}")
+                
+                # Apply timing optimization adjustments
+                if 'timing_enabled' in rules:
+                    if hasattr(self, 'timing_optimizer'):
+                        # Enable/disable timing optimization
+                        self.timing_optimizer.enabled = rules['timing_enabled']
+                        adjustments['timing_enabled'] = rules['timing_enabled']
+                
+                return {
+                    'applied': True,
+                    'adjustments': adjustments,
+                    'directive_id': directive_id,
+                    'reason': 'Applied execution rule directive',
+                }
+            
+            # Handle learning insights with execution implications
+            elif category == 'learning_insight':
+                directives_list = content.get('directives', [])
+                
+                for directive_item in directives_list:
+                    refinement = directive_item.get('refinement', '')
+                    value = directive_item.get('value', 1.0)
+                    
+                    # Apply position sizing adjustments from learning
+                    if 'sizing' in refinement:
+                        if 'execution_params' not in self.memory:
+                            self.memory['execution_params'] = {}
+                        self.memory['execution_params']['sizing_factor'] = value
+                        adjustments['sizing_factor'] = value
+                        logger.info(f"Execution agent adjusted sizing factor to {value}")
+                    
+                    # Apply efficiency focus adjustments
+                    if 'efficiency' in refinement:
+                        if 'execution_params' not in self.memory:
+                            self.memory['execution_params'] = {}
+                        self.memory['execution_params']['efficiency_focus'] = value
+                        adjustments['efficiency_focus'] = value
+                
+                # Store directive reference
+                if 'applied_learning_directives' not in self.memory:
+                    self.memory['applied_learning_directives'] = []
+                self.memory['applied_learning_directives'].append({
+                    'directive_id': directive_id,
+                    'adjustments': adjustments,
+                    'timestamp': datetime.now().isoformat(),
+                })
+                
+                return {
+                    'applied': True,
+                    'adjustments': adjustments,
+                    'directive_id': directive_id,
+                    'reason': f'Applied {len(directives_list)} learning insights to execution',
+                }
+            
+            # Fall back to base implementation for other categories
+            return await super()._apply_directive_by_category(directive_id, category, content, priority)
+            
+        except Exception as e:
+            logger.error(f"Error applying directive in execution agent: {e}")
+            return {
+                'applied': False,
+                'reason': f'Error: {str(e)}',
+                'directive_id': directive_id,
+            }
+
     def _ensure_scheduler_running(self):
         """Ensure the task scheduler is running"""
         if not self.scheduler.running:

@@ -1,24 +1,50 @@
-# [LABEL:COMPONENT:consensus_poller] [LABEL:FRAMEWORK:asyncio] [LABEL:FRAMEWORK:pydantic]
-# [LABEL:AUTHOR:system] [LABEL:UPDATED:2025-12-03] [LABEL:REVIEWED:pending]
+# [LABEL:COMPONENT:consensus_poller] [LABEL:FRAMEWORK:asyncio] [LABEL:FRAMEWORK:pydantic] [LABEL:FRAMEWORK:langfuse]
+# [LABEL:AUTHOR:system] [LABEL:UPDATED:2025-12-04] [LABEL:REVIEWED:pending]
 #
-# Purpose: Consensus polling system for agent-to-agent decision making with Discord visibility
-# Dependencies: asyncio, pydantic, typing, datetime, json, redis (optional)
-# Related: src/utils/a2a_protocol.py, src/integrations/discord/, docs/workflows.md
+# Purpose: Consensus polling system for agent-to-agent decision making with Discord visibility and Langfuse tracing
+# Dependencies: asyncio, pydantic, typing, datetime, json, redis (optional), langfuse
+# Related: src/utils/a2a_protocol.py, src/integrations/discord/, docs/workflows.md, src/utils/langfuse_client.py
 #
 # Purpose: Implements a polling-based consensus mechanism for agent collaboration with configurable
-# timeouts, state tracking, and Discord integration for visibility and interaction.
+# timeouts, state tracking, Discord integration for visibility and interaction, and Langfuse tracing.
 #
 # States: pending, voting, consensus_reached, timeout, failed
 
 import asyncio
 import json
 import logging
+import time
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Dict, Any, List, Optional, Callable
+from src.utils.logging_config import log_error_with_context
+
+# Langfuse tracing integration
+try:
+    from src.utils.langfuse_client import get_langfuse_client
+    LANGFUSE_AVAILABLE = True
+except ImportError:
+    LANGFUSE_AVAILABLE = False
+    get_langfuse_client = None
+
 # Simplified without pydantic for compatibility
 
 logger = logging.getLogger(__name__)
+
+# Langfuse client reference (lazy initialization)
+_consensus_langfuse_client = None
+
+
+def _get_consensus_langfuse_client():
+    """Get Langfuse client lazily for consensus polling tracing."""
+    global _consensus_langfuse_client
+    if _consensus_langfuse_client is None and LANGFUSE_AVAILABLE and get_langfuse_client is not None:
+        try:
+            _consensus_langfuse_client = get_langfuse_client()
+        except Exception as e:
+            logger.debug(f"Failed to initialize Langfuse client for consensus polling: {e}")
+            _consensus_langfuse_client = None
+    return _consensus_langfuse_client
 
 class ConsensusState(Enum):
     """States for consensus polling process"""
@@ -126,7 +152,11 @@ class ConsensusPoller:
             try:
                 asyncio.create_task(callback(poll))
             except Exception as e:
-                logger.error(f"Error in state change callback: {e}")
+                log_error_with_context(
+                    logger, e, "state_change_callback",
+                    component="consensus_poller",
+                    extra_context={"poll_id": poll.poll_id}
+                )
 
         # Update metrics and send alerts based on state change
         self._update_metrics(poll)
@@ -160,7 +190,11 @@ class ConsensusPoller:
                     self.metrics["avg_response_time"] = sum(self.metrics["poll_durations"]) / len(self.metrics["poll_durations"])
 
         except Exception as e:
-            logger.error(f"Error updating metrics for poll {poll.poll_id}: {e}")
+            log_error_with_context(
+                logger, e, "update_metrics",
+                component="consensus_poller",
+                extra_context={"poll_id": poll.poll_id}
+            )
 
     def _send_state_alert(self, poll: ConsensusResult):
         """Send alerts for important poll state changes"""
@@ -207,9 +241,33 @@ class ConsensusPoller:
         timeout_seconds: Optional[int] = None,
         metadata: Optional[Dict[str, Any]] = None
     ) -> str:
-        """Create a new consensus poll"""
+        """Create a new consensus poll with Langfuse tracing"""
         poll_id = self._generate_poll_id()
         timeout_at = datetime.now() + timedelta(seconds=timeout_seconds or self.default_timeout)
+        
+        # Create Langfuse trace for poll creation
+        langfuse_client = _get_consensus_langfuse_client()
+        trace_id = None
+        if langfuse_client and langfuse_client.is_enabled:
+            try:
+                trace_id = langfuse_client.create_trace(
+                    name="consensus_create_poll",
+                    user_id="consensus_poller",
+                    session_id=poll_id,
+                    input_data={
+                        'question_preview': question[:200] if question else None,
+                        'agents_count': len(agents_to_poll)
+                    },
+                    metadata={
+                        'poll_id': poll_id,
+                        'agents_to_poll': agents_to_poll,
+                        'timeout_seconds': timeout_seconds or self.default_timeout,
+                        'question_length': len(question) if question else 0
+                    },
+                    tags=['consensus', 'create_poll']
+                )
+            except Exception as e:
+                logger.debug(f"Langfuse trace creation failed: {e}")
 
         poll = ConsensusResult(
             poll_id=poll_id,
@@ -221,17 +279,33 @@ class ConsensusPoller:
             metadata=metadata or {},
             votes={agent: {"status": "pending"} for agent in agents_to_poll}
         )
+        
+        # Store trace_id in poll metadata for later reference
+        if trace_id:
+            poll.metadata['langfuse_trace_id'] = trace_id
 
         self.active_polls[poll_id] = poll
         self._persist_poll(poll)
 
         logger.info(f"Created consensus poll {poll_id} for question: {question}")
         self._notify_state_change(poll)
+        
+        # End trace with poll creation success
+        if trace_id and langfuse_client:
+            try:
+                langfuse_client.end_trace(
+                    trace_id,
+                    output_data={'poll_id': poll_id, 'state': poll.state.value},
+                    level="DEFAULT",
+                    status_message=f"Poll created with {len(agents_to_poll)} agents"
+                )
+            except Exception as e:
+                logger.debug(f"Langfuse trace end failed: {e}")
 
         return poll_id
 
     async def start_poll(self, poll_id: str) -> bool:
-        """Start polling for the given poll ID"""
+        """Start polling for the given poll ID with Langfuse tracing"""
         if poll_id not in self.active_polls:
             logger.error(f"Poll {poll_id} not found")
             return False
@@ -245,6 +319,27 @@ class ConsensusPoller:
         poll.updated_at = datetime.now()
         self._persist_poll(poll)
         self._notify_state_change(poll)
+        
+        # Create Langfuse trace for poll start
+        langfuse_client = _get_consensus_langfuse_client()
+        if langfuse_client and langfuse_client.is_enabled:
+            try:
+                trace_id = langfuse_client.create_trace(
+                    name="consensus_start_poll",
+                    user_id="consensus_poller",
+                    session_id=poll_id,
+                    input_data={'poll_id': poll_id},
+                    metadata={
+                        'poll_id': poll_id,
+                        'agents_count': len(poll.votes),
+                        'timeout_at': poll.timeout_at.isoformat() if poll.timeout_at else None
+                    },
+                    tags=['consensus', 'start_poll']
+                )
+                # Store trace_id for polling phase
+                poll.metadata['polling_trace_id'] = trace_id
+            except Exception as e:
+                logger.debug(f"Langfuse trace creation failed: {e}")
 
         # Start the polling task
         asyncio.create_task(self._poll_agents(poll_id))
@@ -253,7 +348,7 @@ class ConsensusPoller:
         return True
 
     async def _poll_agents(self, poll_id: str):
-        """Poll agents until consensus or timeout"""
+        """Poll agents until consensus or timeout with Langfuse tracing"""
         poll = self.active_polls.get(poll_id)
         if not poll:
             return
@@ -286,7 +381,11 @@ class ConsensusPoller:
                 await asyncio.sleep(self.poll_interval)
 
         except Exception as e:
-            logger.error(f"Error polling agents for {poll_id}: {e}")
+            log_error_with_context(
+                logger, e, "poll_agents",
+                component="consensus_poller",
+                extra_context={"poll_id": poll_id}
+            )
             await self._handle_failure(poll_id, str(e))
 
     async def _send_status_update(self, poll_id: str):

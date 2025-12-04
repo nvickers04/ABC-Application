@@ -580,10 +580,10 @@ class AlertManager:
         try:
             # Find alerts channel
             alerts_channel = None
-            if hasattr(self.orchestrator, 'channel') and self.orchestrator.channel:
+            if hasattr(self.orchestrator, 'health_channel') and self.orchestrator.health_channel:
                 # Check if current channel is alerts
-                if hasattr(self.orchestrator.channel, 'name') and self.orchestrator.channel.name == self.discord_alerts_channel:
-                    alerts_channel = self.orchestrator.channel
+                if hasattr(self.orchestrator.health_channel, 'name') and self.orchestrator.health_channel.name == self.discord_alerts_channel:
+                    alerts_channel = self.orchestrator.health_channel
                 else:
                     # Try to find alerts channel in guild
                     if hasattr(self.orchestrator, 'guild') and self.orchestrator.guild:
@@ -1275,15 +1275,8 @@ def graceful_degradation(func: Callable):
 # Global instances
 alert_manager = AlertManager()
 
-# Initialize component health monitor and connect to alert manager
-try:
-    from .component_health_monitor import get_component_health_monitor
-    component_health_monitor = get_component_health_monitor()
-    component_health_monitor.set_alert_manager(alert_manager)
-    logger.info("ComponentHealthMonitor initialized and connected to AlertManager")
-except Exception as e:
-    logger.warning(f"Failed to initialize ComponentHealthMonitor: {e}")
-    component_health_monitor = None
+# Component health monitor initialized lazily to avoid circular import
+component_health_monitor = None
 
 
 def get_alert_manager() -> AlertManager:
@@ -1293,4 +1286,14 @@ def get_alert_manager() -> AlertManager:
 
 def get_component_health_monitor():
     """Get the global ComponentHealthMonitor instance"""
+    global component_health_monitor
+    if component_health_monitor is None:
+        try:
+            from .component_health_monitor import get_component_health_monitor as _get_monitor
+            component_health_monitor = _get_monitor()
+            component_health_monitor.set_alert_manager(alert_manager)
+            logger.info("ComponentHealthMonitor initialized and connected to AlertManager")
+        except Exception as e:
+            logger.warning(f"Failed to initialize ComponentHealthMonitor: {e}")
+            component_health_monitor = None
     return component_health_monitor

@@ -82,7 +82,7 @@ class LiveWorkflowOrchestrator:
     def __init__(self):
         # Discord components
         self.client = None
-        self.channel = None  # General channel for summaries
+        self.health_channel = None  # Health monitoring channel for system status, API health, memory usage
         self.alerts_channel = None  # Dedicated channel for trade alerts
         self.ranked_trades_channel = None  # Dedicated channel for ranked trade proposals
         self.commands_channel = None  # Dedicated channel for command documentation
@@ -323,9 +323,9 @@ class LiveWorkflowOrchestrator:
                 print(f"📊 Routing to ranked trades channel: {command[:50]}...")
                 return self.ranked_trades_channel
 
-        # Default to general channel for analysis and coordination
-        print(f"💬 Using general channel: {command[:50]}...")
-        return self.channel
+        # Default to health monitoring channel for analysis and coordination
+        print(f"💬 Using health monitoring channel: {command[:50]}...")
+        return self.health_channel
 
     async def send_trade_alert(self, alert_message: str, alert_type: str = "trade"):
         """Send a trade alert using the Discord response handler"""
@@ -1019,8 +1019,8 @@ class LiveWorkflowOrchestrator:
 
     async def execute_phase_with_agents(self, phase_key: str, phase_title: str):
         """Execute a phase using ENHANCED PARALLEL COLLABORATION - agents share full workflow context and collaborate simultaneously"""
-        logger.info(f"Discord bot connection status - ready: {self.discord_ready.is_set()}, channel: {self.channel is not None}, client: {self.client is not None}")
-        if not self.channel:
+        logger.info(f"Discord bot connection status - ready: {self.discord_ready.is_set()}, channel: {self.health_channel is not None}, client: {self.client is not None}")
+        if not self.health_channel:
             logger.error(f"No channel available for phase {phase_key}")
             await self.alert_manager.error(
                 Exception(f"No Discord channel available for phase execution: {phase_key}"),
@@ -1029,10 +1029,10 @@ class LiveWorkflowOrchestrator:
             )
             return
 
-        general_channel = cast(discord.TextChannel, self.channel)
+        health_channel = cast(discord.TextChannel, self.health_channel)
         self.current_phase = phase_key
 
-        # Announce phase start in general channel
+        # Announce phase start in health monitoring channel
         await self.discord_handler.send_workflow_status(f"\n{phase_title}")
         await self.discord_handler.send_workflow_status("─" * 50)
 
@@ -1052,7 +1052,7 @@ class LiveWorkflowOrchestrator:
         self.responses_collected.extend(agent_responses)
 
         # Generate and post debate summary - COMMENTED OUT FOR TROUBLESHOOTING
-        # await self._post_debate_summary(general_channel, agent_responses, phase_key)
+        # await self._post_debate_summary(health_channel, agent_responses, phase_key)
 
         # Announce parallel execution with clear separation
         await self.discord_handler.send_workflow_status(f"\n🎯 **PARALLEL EXECUTION:** {len(commands)} commands sent to {len(self.agent_instances)} agents simultaneously!")
@@ -1260,8 +1260,8 @@ class LiveWorkflowOrchestrator:
     async def _post_system_event(self, event_type: str, message: str, details: str = "", embed_data: Optional[Dict[str, Any]] = None):
         """Post comprehensive real-time system event summaries to Discord."""
         try:
-            if self.channel and hasattr(self.channel, 'send'):
-                general_channel = cast(discord.TextChannel, self.channel)
+            if self.health_channel and hasattr(self.health_channel, 'send'):
+                health_channel = cast(discord.TextChannel, self.health_channel)
 
                 # Enhanced event emojis and colors
                 event_config = {
@@ -1320,15 +1320,15 @@ class LiveWorkflowOrchestrator:
 
                 embed.set_footer(text="ABC Application - Real-Time System Monitor")
 
-                await general_channel.send(embed=embed)
+                await health_channel.send(embed=embed)
 
         except Exception as e:
             print(f"Failed to post system event: {e}")
             # Fallback to simple message
             try:
-                if self.channel and hasattr(self.channel, 'send'):
-                    general_channel = cast(discord.TextChannel, self.channel)
-                    await general_channel.send(f"ℹ️ **System Event:** {message}")
+                if self.health_channel and hasattr(self.health_channel, 'send'):
+                    health_channel = cast(discord.TextChannel, self.health_channel)
+                    await health_channel.send(f"ℹ️ **System Event:** {message}")
             except:
                 pass
 
@@ -1898,8 +1898,8 @@ class LiveWorkflowOrchestrator:
     async def perform_system_health_check(self):
         """Perform comprehensive system health check before starting workflows."""
         print("🔍 Performing system health check...")
-        if self.channel and hasattr(self.channel, 'send'):
-            await self.channel.send("🔍 **System Health Check Starting...**")
+        if self.health_channel and hasattr(self.health_channel, 'send'):
+            await self.health_channel.send("🔍 **System Health Check Starting...**")
 
         health_issues = []
         health_warnings = []
@@ -1913,9 +1913,9 @@ class LiveWorkflowOrchestrator:
             r = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
             r.ping()
             print("✅ Redis connection: OK")
-            if self.channel and hasattr(self.channel, 'send'):
-                general_channel = cast(discord.TextChannel, self.channel)
-                await general_channel.send("✅ Redis connection: OK")
+            if self.health_channel and hasattr(self.health_channel, 'send'):
+                health_channel = cast(discord.TextChannel, self.health_channel)
+                await health_channel.send("✅ Redis connection: OK")
             passed_checks += 1
         except Exception as e:
             health_issues.append(f"Redis connection failed: {e}")
@@ -1930,9 +1930,9 @@ class LiveWorkflowOrchestrator:
                 client = tb.ClientSync(cluster_id=0, replica_addresses="127.0.0.1:3000")
             # Just test client creation - don't query to avoid hanging
             print("✅ TigerBeetle client creation: OK")
-            if self.channel and hasattr(self.channel, 'send'):
-                general_channel = cast(discord.TextChannel, self.channel)
-                await general_channel.send("✅ TigerBeetle client creation: OK")
+            if self.health_channel and hasattr(self.health_channel, 'send'):
+                health_channel = cast(discord.TextChannel, self.health_channel)
+                await health_channel.send("✅ TigerBeetle client creation: OK")
             client.close()
             passed_checks += 1
         except Exception as e:
@@ -1945,9 +1945,9 @@ class LiveWorkflowOrchestrator:
             import langchain_community
             import langchain_core
             print("✅ LangChain imports: OK")
-            if self.channel and hasattr(self.channel, 'send'):
-                general_channel = cast(discord.TextChannel, self.channel)
-                await general_channel.send("✅ LangChain imports: OK")
+            if self.health_channel and hasattr(self.health_channel, 'send'):
+                health_channel = cast(discord.TextChannel, self.health_channel)
+                await health_channel.send("✅ LangChain imports: OK")
             passed_checks += 1
         except ImportError as e:
             health_warnings.append(f"LangChain import warning: {e}")
@@ -1960,9 +1960,9 @@ class LiveWorkflowOrchestrator:
             # Test connection by attempting to get positions with timeout
             positions = await asyncio.wait_for(connector.get_positions(), timeout=5.0)
             print("✅ IBKR connection: OK")
-            if self.channel and hasattr(self.channel, 'send'):
-                general_channel = cast(discord.TextChannel, self.channel)
-                await general_channel.send("✅ IBKR connection: OK")
+            if self.health_channel and hasattr(self.health_channel, 'send'):
+                health_channel = cast(discord.TextChannel, self.health_channel)
+                await health_channel.send("✅ IBKR connection: OK")
             passed_checks += 1
         except asyncio.TimeoutError:
             health_warnings.append("IBKR connection timeout")
@@ -1976,9 +1976,9 @@ class LiveWorkflowOrchestrator:
             api_key = get_vault_secret('MARKETDATAAPP_API_KEY')
             if api_key:
                 print("✅ MarketDataApp API key available")
-                if self.channel and hasattr(self.channel, 'send'):
-                    general_channel = cast(discord.TextChannel, self.channel)
-                    await general_channel.send("✅ MarketDataApp API key available")
+                if self.health_channel and hasattr(self.health_channel, 'send'):
+                    health_channel = cast(discord.TextChannel, self.health_channel)
+                    await health_channel.send("✅ MarketDataApp API key available")
                 passed_checks += 1
             else:
                 health_warnings.append("MarketDataApp API key not configured")
@@ -1990,9 +1990,9 @@ class LiveWorkflowOrchestrator:
         try:
             import financedatabase as fd
             print("✅ FinanceDatabase import: OK")
-            if self.channel and hasattr(self.channel, 'send'):
-                general_channel = cast(discord.TextChannel, self.channel)
-                await general_channel.send("✅ FinanceDatabase import: OK")
+            if self.health_channel and hasattr(self.health_channel, 'send'):
+                health_channel = cast(discord.TextChannel, self.health_channel)
+                await health_channel.send("✅ FinanceDatabase import: OK")
             passed_checks += 1
         except ImportError as e:
             health_warnings.append(f"FinanceDatabase import failed: {e}")
@@ -2002,9 +2002,9 @@ class LiveWorkflowOrchestrator:
         try:
             import stable_baselines3
             print("✅ Stable-Baselines3 import: OK")
-            if self.channel and hasattr(self.channel, 'send'):
-                general_channel = cast(discord.TextChannel, self.channel)
-                await general_channel.send("✅ Stable-Baselines3 import: OK")
+            if self.health_channel and hasattr(self.health_channel, 'send'):
+                health_channel = cast(discord.TextChannel, self.health_channel)
+                await health_channel.send("✅ Stable-Baselines3 import: OK")
             passed_checks += 1
         except ImportError as e:
             health_warnings.append(f"Stable-Baselines3 import failed: {e}")
@@ -2014,9 +2014,9 @@ class LiveWorkflowOrchestrator:
         try:
             import sklearn
             print("✅ scikit-learn import: OK")
-            if self.channel and hasattr(self.channel, 'send'):
-                general_channel = cast(discord.TextChannel, self.channel)
-                await general_channel.send("✅ scikit-learn import: OK")
+            if self.health_channel and hasattr(self.health_channel, 'send'):
+                health_channel = cast(discord.TextChannel, self.health_channel)
+                await health_channel.send("✅ scikit-learn import: OK")
             passed_checks += 1
         except ImportError as e:
             health_warnings.append(f"scikit-learn import failed: {e}")
@@ -2026,9 +2026,9 @@ class LiveWorkflowOrchestrator:
         try:
             import tensorflow as tf
             print("✅ TensorFlow import: OK")
-            if self.channel and hasattr(self.channel, 'send'):
-                general_channel = cast(discord.TextChannel, self.channel)
-                await general_channel.send("✅ TensorFlow import: OK")
+            if self.health_channel and hasattr(self.health_channel, 'send'):
+                health_channel = cast(discord.TextChannel, self.health_channel)
+                await health_channel.send("✅ TensorFlow import: OK")
             passed_checks += 1
         except ImportError as e:
             health_warnings.append(f"TensorFlow import failed: {e}")
@@ -2038,9 +2038,9 @@ class LiveWorkflowOrchestrator:
         try:
             import yfinance as yf
             print("✅ yfinance import: OK")
-            if self.channel and hasattr(self.channel, 'send'):
-                general_channel = cast(discord.TextChannel, self.channel)
-                await general_channel.send("✅ yfinance import: OK")
+            if self.health_channel and hasattr(self.health_channel, 'send'):
+                health_channel = cast(discord.TextChannel, self.health_channel)
+                await health_channel.send("✅ yfinance import: OK")
             passed_checks += 1
         except ImportError as e:
             health_warnings.append(f"yfinance import failed: {e}")
@@ -2050,9 +2050,9 @@ class LiveWorkflowOrchestrator:
         try:
             import fredapi
             print("✅ FRED API import: OK")
-            if self.channel and hasattr(self.channel, 'send'):
-                general_channel = cast(discord.TextChannel, self.channel)
-                await general_channel.send("✅ FRED API import: OK")
+            if self.health_channel and hasattr(self.health_channel, 'send'):
+                health_channel = cast(discord.TextChannel, self.health_channel)
+                await health_channel.send("✅ FRED API import: OK")
             passed_checks += 1
         except ImportError as e:
             health_warnings.append(f"FRED API import failed: {e}")
@@ -2064,9 +2064,9 @@ class LiveWorkflowOrchestrator:
             tools = get_available_tools()
             tool_count = len(tools)
             print(f"🛠️ Tools available: {tool_count}")
-            if self.channel and hasattr(self.channel, 'send'):
-                general_channel = cast(discord.TextChannel, self.channel)
-                await general_channel.send(f"🛠️ Tools available: {tool_count}")
+            if self.health_channel and hasattr(self.health_channel, 'send'):
+                health_channel = cast(discord.TextChannel, self.health_channel)
+                await health_channel.send(f"🛠️ Tools available: {tool_count}")
             if tool_count < 10:  # Arbitrary minimum
                 health_warnings.append(f"Low tool count: {tool_count} tools available")
         except Exception as e:
@@ -2098,46 +2098,46 @@ class LiveWorkflowOrchestrator:
 
         if passed_checks == total_checks and alert_status == "NORMAL":
             print(f"🎯 System Stability: {stability_ratio} dependencies stable - FULLY OPERATIONAL")
-            if self.channel and hasattr(self.channel, 'send'):
-                general_channel = cast(discord.TextChannel, self.channel)
-                await general_channel.send(f"🎯 **System Stability: {stability_ratio} dependencies stable - FULLY OPERATIONAL**")
+            if self.health_channel and hasattr(self.health_channel, 'send'):
+                health_channel = cast(discord.TextChannel, self.health_channel)
+                await health_channel.send(f"🎯 **System Stability: {stability_ratio} dependencies stable - FULLY OPERATIONAL**")
         elif passed_checks >= total_checks * 0.8 and alert_status != "ALERTING":
             print(f"⚠️ System Stability: {stability_ratio} dependencies stable - MOSTLY OPERATIONAL")
-            if self.channel and hasattr(self.channel, 'send'):
-                general_channel = cast(discord.TextChannel, self.channel)
-                await general_channel.send(f"⚠️ **System Stability: {stability_ratio} dependencies stable - MOSTLY OPERATIONAL**")
+            if self.health_channel and hasattr(self.health_channel, 'send'):
+                health_channel = cast(discord.TextChannel, self.health_channel)
+                await health_channel.send(f"⚠️ **System Stability: {stability_ratio} dependencies stable - MOSTLY OPERATIONAL**")
         else:
             status_msg = f"❌ System Stability: {stability_ratio} dependencies stable - LIMITED OPERATIONALITY"
             if alert_status == "ALERTING":
                 status_msg += " (ALERTING - Workflow Auto-Paused)"
             print(status_msg)
-            if self.channel and hasattr(self.channel, 'send'):
-                general_channel = cast(discord.TextChannel, self.channel)
-                await general_channel.send(f"**{status_msg}**")
+            if self.health_channel and hasattr(self.health_channel, 'send'):
+                health_channel = cast(discord.TextChannel, self.health_channel)
+                await health_channel.send(f"**{status_msg}**")
 
         # Report results
         if health_issues:
             print("❌ Critical health issues found:")
-            if self.channel and hasattr(self.channel, 'send'):
-                general_channel = cast(discord.TextChannel, self.channel)
-                await general_channel.send("❌ **Critical health issues found:**")
+            if self.health_channel and hasattr(self.health_channel, 'send'):
+                health_channel = cast(discord.TextChannel, self.health_channel)
+                await health_channel.send("❌ **Critical health issues found:**")
                 for issue in health_issues:
-                    await general_channel.send(f"  - {issue}")
+                    await health_channel.send(f"  - {issue}")
             for issue in health_issues:
                 print(f"  - {issue}")
         else:
             print("✅ All critical dependencies OK")
-            if self.channel and hasattr(self.channel, 'send'):
-                general_channel = cast(discord.TextChannel, self.channel)
-                await general_channel.send("✅ **All critical dependencies OK**")
+            if self.health_channel and hasattr(self.health_channel, 'send'):
+                health_channel = cast(discord.TextChannel, self.health_channel)
+                await health_channel.send("✅ **All critical dependencies OK**")
 
         if health_warnings:
             print("⚠️ Health warnings:")
-            if self.channel and hasattr(self.channel, 'send'):
-                general_channel = cast(discord.TextChannel, self.channel)
-                await general_channel.send("⚠️ **Health warnings:**")
+            if self.health_channel and hasattr(self.health_channel, 'send'):
+                health_channel = cast(discord.TextChannel, self.health_channel)
+                await health_channel.send("⚠️ **Health warnings:**")
                 for warning in health_warnings:
-                    await general_channel.send(f"  - {warning}")
+                    await health_channel.send(f"  - {warning}")
             for warning in health_warnings:
                 print(f"  - {warning}")
 
@@ -2463,7 +2463,7 @@ class LiveWorkflowOrchestrator:
             if message.author == self.client.user:
                 return
 
-            # Handle workflow control commands (only in general channel)
+            # Handle workflow control commands (only in health monitoring channel)
             content = message.content.strip()
 
             if content == "!start_workflow" and not self.workflow_active:
@@ -2525,6 +2525,10 @@ class LiveWorkflowOrchestrator:
 
             if content == "!alert_stats":
                 await self.handle_alert_stats_command(message)
+                return
+
+            if content == "!alert_dashboard":
+                await self.handle_alert_dashboard_command(message)
                 return
 
             if content == "!commands" or content == "!help":
@@ -2601,13 +2605,13 @@ class LiveWorkflowOrchestrator:
                     print(f"🚨 Alerts channel configured: #{self.alerts_channel.name}")
                 else:
                     print(f"⚠️ Alerts channel ID {alerts_channel_id} not found")
-                    await self._send_channel_warning("Alerts channel not found. Trade alerts will use general channel.")
+                    await self._send_channel_warning("Alerts channel not found. Trade alerts will use health monitoring channel.")
             except ValueError:
                 print(f"⚠️ Invalid alerts channel ID: {alerts_channel_id}")
-                await self._send_channel_warning("Invalid alerts channel ID. Trade alerts will use general channel.")
+                await self._send_channel_warning("Invalid alerts channel ID. Trade alerts will use health monitoring channel.")
         else:
-            print("⚠️ DISCORD_ALERTS_CHANNEL_ID not set, trade alerts will go to general channel")
-            await self._send_channel_warning("DISCORD_ALERTS_CHANNEL_ID not set. Trade alerts will use general channel.")
+            print("⚠️ DISCORD_ALERTS_CHANNEL_ID not set, trade alerts will go to health monitoring channel")
+            await self._send_channel_warning("DISCORD_ALERTS_CHANNEL_ID not set. Trade alerts will use health monitoring channel.")
 
         # Set up ranked trades channel for trade proposals
         ranked_trades_channel_id = os.getenv('DISCORD_RANKED_TRADES_CHANNEL_ID')
@@ -2618,18 +2622,18 @@ class LiveWorkflowOrchestrator:
                     print(f"📊 Ranked trades channel configured: #{self.ranked_trades_channel.name}")
                 else:
                     print(f"⚠️ Ranked trades channel ID {ranked_trades_channel_id} not found")
-                    await self._send_channel_warning("Ranked trades channel not found. Trade proposals will use general channel.")
+                    await self._send_channel_warning("Ranked trades channel not found. Trade proposals will use health monitoring channel.")
             except ValueError:
                 print(f"⚠️ Invalid ranked trades channel ID: {ranked_trades_channel_id}")
-                await self._send_channel_warning("Invalid ranked trades channel ID. Trade proposals will use general channel.")
+                await self._send_channel_warning("Invalid ranked trades channel ID. Trade proposals will use health monitoring channel.")
         else:
-            print("⚠️ DISCORD_RANKED_TRADES_CHANNEL_ID not set, ranked trades will go to general channel")
-            await self._send_channel_warning("DISCORD_RANKED_TRADES_CHANNEL_ID not set. Trade proposals will use general channel.")
+            print("⚠️ DISCORD_RANKED_TRADES_CHANNEL_ID not set, ranked trades will go to health monitoring channel")
+            await self._send_channel_warning("DISCORD_RANKED_TRADES_CHANNEL_ID not set. Trade proposals will use health monitoring channel.")
 
     async def _send_channel_warning(self, message: str):
-        """Send a channel configuration warning to the general channel."""
-        if self.channel and isinstance(self.channel, discord.TextChannel):
-            await self.channel.send(f"⚠️ **Configuration Warning**: {message}")
+        """Send a channel configuration warning to the health monitoring channel."""
+        if self.health_channel and isinstance(self.health_channel, discord.TextChannel):
+            await self.health_channel.send(f"⚠️ **Configuration Warning**: {message}")
 
     async def handle_share_news_command(self, message):
         """
@@ -3236,6 +3240,103 @@ Format your response as JSON:
             logger.error(f"Error in alert stats command: {e}")
             await message.channel.send(f"❌ **Alert stats failed:** {str(e)}")
 
+    async def handle_alert_dashboard_command(self, message):
+        """Handle the !alert_dashboard command to show comprehensive alert monitoring dashboard."""
+        try:
+            from src.utils.alert_manager import get_alert_manager
+            alert_manager = get_alert_manager()
+
+            # Get monitoring dashboard data
+            dashboard = alert_manager.get_monitoring_dashboard()
+
+            # Create main embed
+            embed = discord.Embed(
+                title="📊 Alert Monitoring Dashboard",
+                description="Comprehensive alert system monitoring and analytics",
+                color=0x3498DB,
+                timestamp=datetime.now()
+            )
+
+            # System Health
+            health = dashboard['alert_system_health']
+            # Determine overall status based on health metrics
+            has_issues = (
+                health['alert_queue_size'] > 100 or
+                health['recent_critical_alerts'] > 0 or
+                not health['orchestrator_connected']
+            )
+            health_status = "✅ Healthy" if not has_issues else "⚠️ Issues Detected"
+            embed.add_field(
+                name="System Health",
+                value=f"{health_status}\nQueue: {health['alert_queue_size']} alerts",
+                inline=True
+            )
+
+            # Performance Indicators
+            perf = dashboard['performance_indicators']
+            embed.add_field(
+                name="Performance",
+                value=f"Avg Response: {perf['avg_response_time_ms']}ms\nMax Response: {perf['max_response_time_ms']}ms\nAlerts/Hour: {perf['alerts_per_hour']:.1f}",
+                inline=True
+            )
+
+            # Quality Metrics
+            metrics = dashboard['metrics_summary']
+            embed.add_field(
+                name="Quality",
+                value=f"Total Alerts: {metrics['total_alerts']}\nFalse Positive Rate: {perf['false_positive_rate_percent']:.1f}%",
+                inline=True
+            )
+
+            # Alert Distribution by Level
+            level_dist = dashboard['alert_distribution']['by_level']
+            level_str = "\n".join(f"{level.title()}: {count}" for level, count in level_dist.items() if count > 0)
+            if level_str:
+                embed.add_field(
+                    name="Alert Distribution",
+                    value=level_str,
+                    inline=False
+                )
+
+            # Top Components
+            top_comp = dashboard['alert_distribution']['by_component']
+            if top_comp:
+                comp_str = "\n".join(f"• {comp}: {count}" for comp, count in list(top_comp.items())[:5])
+                embed.add_field(
+                    name="Top Components",
+                    value=comp_str,
+                    inline=False
+                )
+
+            # Recent Alerts
+            recent = dashboard['recent_alerts']
+            if recent:
+                recent_str = "\n".join(
+                    f"{alert['level'][0].upper()}: {alert['component']} - {alert['age_minutes']}min ago"
+                    for alert in recent[:5]
+                )
+                embed.add_field(
+                    name="Recent Alerts",
+                    value=recent_str,
+                    inline=False
+                )
+
+            # Recommendations
+            recs = dashboard['recommendations']
+            if recs:
+                rec_str = "\n".join(recs[:3])  # Show top 3 recommendations
+                embed.add_field(
+                    name="Recommendations",
+                    value=rec_str,
+                    inline=False
+                )
+
+            await message.channel.send(embed=embed)
+
+        except Exception as e:
+            logger.error(f"Error in alert dashboard command: {e}")
+            await message.channel.send(f"❌ **Alert dashboard failed:** {str(e)}")
+
     async def handle_commands_command(self, message):
         """Handle the !commands command to show all available commands."""
         try:
@@ -3505,11 +3606,11 @@ Format your response as JSON:
 
     async def start_workflow(self):
         """Start the CONTINUOUS ALPHA DISCOVERY WORKFLOW - agents collaborate continuously!"""
-        if not self.channel:
+        if not self.health_channel:
             print("❌ No channel available for workflow")
             return
 
-        channel = cast(discord.TextChannel, self.channel)
+        channel = cast(discord.TextChannel, self.health_channel)
 
         # CRITICAL: Check for working AI before allowing workflow
         agents_with_ai = sum(1 for agent in self.agent_instances.values() if hasattr(agent, 'llm') and agent.llm is not None)
@@ -3621,11 +3722,11 @@ Format your response as JSON:
 
     async def start_premarket_analysis_workflow(self):
         """Start the premarket analysis workflow - focused on early market preparation"""
-        if not self.channel:
+        if not self.health_channel:
             print("❌ No channel available for workflow")
             return
 
-        channel = cast(discord.TextChannel, self.channel)
+        channel = cast(discord.TextChannel, self.health_channel)
 
         if self.workflow_active:
             await channel.send("⚠️ Workflow already active! Complete current workflow first.")
@@ -3666,11 +3767,11 @@ Format your response as JSON:
 
     async def start_market_open_execution_workflow(self):
         """Start the market open execution workflow - fast-track execution leveraging premarket analysis"""
-        if not self.channel:
+        if not self.health_channel:
             print("❌ No channel available for workflow")
             return
 
-        channel = cast(discord.TextChannel, self.channel)
+        channel = cast(discord.TextChannel, self.health_channel)
 
         if self.workflow_active:
             await channel.send("⚠️ Workflow already active! Complete current workflow first.")
@@ -3712,11 +3813,11 @@ Format your response as JSON:
 
     async def start_trade_monitoring_workflow(self):
         """Start the trade monitoring workflow for active positions"""
-        if not self.channel:
+        if not self.health_channel:
             print("❌ No channel available for monitoring")
             return
 
-        channel = cast(discord.TextChannel, self.channel)
+        channel = cast(discord.TextChannel, self.health_channel)
 
         # Don't check workflow_active here - monitoring can run alongside other activities
         # But ensure we don't have conflicting workflows
@@ -3786,10 +3887,10 @@ Format your response as JSON:
 
     async def complete_monitoring_workflow(self):
         """Complete the monitoring workflow"""
-        if not self.channel:
+        if not self.health_channel:
             return
 
-        channel = cast(discord.TextChannel, self.channel)
+        channel = cast(discord.TextChannel, self.health_channel)
         self.monitoring_active = False
         self.current_phase = "monitoring_completed"
 
@@ -3811,7 +3912,7 @@ Format your response as JSON:
 
     async def execute_phase(self, phase_key: str, phase_title: str):
         """Execute a single phase of the workflow"""
-        if not self.channel:
+        if not self.health_channel:
             print(f"❌ No channel available for phase {phase_key}")
             await self.alert_manager.error(
                 Exception(f"No Discord channel available for phase execution: {phase_key}"),
@@ -3820,12 +3921,12 @@ Format your response as JSON:
             )
             return
 
-        general_channel = cast(discord.TextChannel, self.channel)
+        health_channel = cast(discord.TextChannel, self.health_channel)
         self.current_phase = phase_key
 
-        # Announce phase start in general channel
-        await general_channel.send(f"\n{phase_title}")
-        await general_channel.send("─" * 50)
+        # Announce phase start in health monitoring channel
+        await health_channel.send(f"\n{phase_title}")
+        await health_channel.send("─" * 50)
 
         commands = self.phase_commands.get(phase_key, [])
         max_wait_time = self.phase_delays.get(phase_key, 86400)
@@ -3836,24 +3937,24 @@ Format your response as JSON:
 
             # Determine which channel to send this command to
             target_channel = self.get_command_channel(command)
-            channel_name = target_channel.name if target_channel and target_channel != general_channel else "general"
+            channel_name = target_channel.name if target_channel and target_channel != health_channel else "health-monitoring"
             channel_emoji = "🚨" if target_channel == self.alerts_channel else "📊" if target_channel == self.ranked_trades_channel else "💬"
 
-            # Announce command routing in general channel
-            await general_channel.send(f"**Command {i}/{len(commands)}:** {command}")
-            await general_channel.send(f"📤 Routing to {channel_emoji} #{channel_name}")
+            # Announce command routing in health monitoring channel
+            await health_channel.send(f"**Command {i}/{len(commands)}:** {command}")
+            await health_channel.send(f"📤 Routing to {channel_emoji} #{channel_name}")
 
             # Send the command to the appropriate channel
             if target_channel:
                 print(f"Routing command to #{channel_name}: {command[:50]}...")
                 await target_channel.send(command)
             else:
-                # Fallback to general channel if target not found
-                print("ERROR: No target channel, using general")
-                await general_channel.send(command)
+                # Fallback to health monitoring channel if target not found
+                print("ERROR: No target channel, using health-monitoring")
+                await health_channel.send(command)
 
             # Wait for responses with extended timing for complex analysis
-            await general_channel.send(f"⏳ Waiting up to {max_wait_time}s for agent responses...")
+            await health_channel.send(f"⏳ Waiting up to {max_wait_time}s for agent responses...")
 
             # Track responses for this specific command
             initial_response_count = len(self.responses_collected)
@@ -3867,7 +3968,7 @@ Format your response as JSON:
                 current_responses = len([r for r in self.responses_collected if r['phase'] == phase_key])
                 if current_responses > initial_response_count:
                     responses_received = current_responses - initial_response_count
-                    await general_channel.send(f"📥 Received {responses_received} response(s) so far...")
+                    await health_channel.send(f"📥 Received {responses_received} response(s) so far...")
 
                     # If we got responses, wait a bit longer for additional ones
                     if responses_received >= 1:
@@ -3877,9 +3978,9 @@ Format your response as JSON:
             # Final count
             final_responses = len([r for r in self.responses_collected if r['phase'] == phase_key]) - initial_response_count
             if final_responses > 0:
-                await general_channel.send(f"✅ **Phase {phase_key}**: {final_responses} responses received")
+                await health_channel.send(f"✅ **Phase {phase_key}**: {final_responses} responses received")
             else:
-                await general_channel.send(f"⏰ **Phase {phase_key}**: No responses within {max_wait_time}s")
+                await health_channel.send(f"⏰ **Phase {phase_key}**: No responses within {max_wait_time}s")
                 await self.alert_manager.warning(
                     f"No agent responses received for phase: {phase_key}",
                     {"phase": phase_key, "phase_title": phase_title, "timeout_seconds": max_wait_time},
@@ -3887,17 +3988,17 @@ Format your response as JSON:
                 )
 
         # Phase complete
-        await general_channel.send(f"✅ **{phase_title} Complete!**")
+        await health_channel.send(f"✅ **{phase_title} Complete!**")
 
         # Brief pause between phases
         await asyncio.sleep(3)
 
     async def pause_workflow(self):
         """Pause the current workflow"""
-        if self.channel is None:
+        if self.health_channel is None:
             return
 
-        channel = cast(discord.TextChannel, self.channel)
+        channel = cast(discord.TextChannel, self.health_channel)
         self.workflow_active = False
         await channel.send("Workflow paused. Type `!resume_workflow` to continue.")
 
@@ -3911,10 +4012,10 @@ Format your response as JSON:
 
     async def resume_workflow(self):
         """Resume a paused workflow"""
-        if self.channel is None:
+        if self.health_channel is None:
             return
 
-        channel = cast(discord.TextChannel, self.channel)
+        channel = cast(discord.TextChannel, self.health_channel)
         if not self.workflow_active:
             self.workflow_active = True
             await channel.send("Workflow resumed. Continuing from current phase.")
@@ -3931,20 +4032,20 @@ Format your response as JSON:
 
     async def stop_workflow(self):
         """Stop the current workflow"""
-        if self.channel is None:
+        if self.health_channel is None:
             return
 
-        channel = cast(discord.TextChannel, self.channel)
+        channel = cast(discord.TextChannel, self.health_channel)
         self.workflow_active = False
         self.current_phase = "stopped"
         await channel.send("Workflow stopped. All progress saved.")
 
     async def send_status_update(self):
         """Send current workflow status"""
-        if self.channel is None:
+        if self.health_channel is None:
             return
 
-        channel = cast(discord.TextChannel, self.channel)
+        channel = cast(discord.TextChannel, self.health_channel)
         status_msg = f"📊 **Workflow Status:** {self.current_phase.replace('_', ' ').title()}\n"
         status_msg += f"🤖 Active: {'Yes' if self.workflow_active else 'No'}\n"
         status_msg += f"💬 Responses Collected: {len(self.responses_collected)}\n"
@@ -3959,10 +4060,10 @@ Format your response as JSON:
 
     async def complete_workflow(self):
         """Complete the workflow and provide summary with audit logging"""
-        if self.channel is None:
+        if self.health_channel is None:
             return
 
-        channel = cast(discord.TextChannel, self.channel)
+        channel = cast(discord.TextChannel, self.health_channel)
         self.workflow_active = False
         self.current_phase = "completed"
 
@@ -4207,7 +4308,7 @@ Format your response as JSON:
                 return
 
             target_channel = self.get_command_channel(command)
-            channel_name = target_channel.name if target_channel else "general"
+            channel_name = target_channel.name if target_channel else "health-monitoring"
 
             await channel.send(f"\n**Command {i}/{len(commands)}: {command}** → #{channel_name}")
 
@@ -4274,7 +4375,7 @@ Format your response as JSON:
     async def _execute_single_command(self, command, channel, phase_key, max_wait_time):
         """Execute a single command and display responses in real-time"""
         target_channel = self.get_command_channel(command)
-        channel_name = target_channel.name if target_channel else "general"
+        channel_name = target_channel.name if target_channel else "health-monitoring"
 
         await channel.send(f"Supervision Command: {command} → #{channel_name}")
 
@@ -4371,7 +4472,7 @@ Format your response as JSON:
     async def _handle_consensus_state_change(self, poll):
         """Handle consensus poll state changes and status updates, notify Discord"""
         try:
-            if not self.channel:
+            if not self.health_channel:
                 return
 
             is_status_update = poll.metadata.get("status_update", False)
@@ -4429,7 +4530,7 @@ Format your response as JSON:
             if is_status_update and responded_count == 0:
                 return  # Skip status updates with no progress
 
-            await self.channel.send(embed=embed)
+            await self.health_channel.send(embed=embed)
 
         except Exception as e:
             logger.error(f"Error handling consensus state change: {e}")

@@ -11,7 +11,7 @@ import logging
 from string import Template  # Use Python's built-in Template instead of langchain_core
 
 # Setup logging for traceability (output to console/file for audits)
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+# Logging configured centrally in logging_config.py
 logger = logging.getLogger(__name__)
 
 def load_yaml(file_path: str) -> dict:

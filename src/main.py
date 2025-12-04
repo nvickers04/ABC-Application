@@ -29,9 +29,9 @@ from src.agents.learning import LearningAgent
 from src.agents.macro import MacroAgent
 from src.agents.live_workflow_orchestrator import LiveWorkflowOrchestrator
 
-# Setup logging for traceability (full-cycle audits)
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+# Setup centralized logging for traceability (full-cycle audits)
+from src.utils.logging_config import get_logger
+logger = get_logger(__name__)
 
 async def main_continuous_workflow() -> None:
     """

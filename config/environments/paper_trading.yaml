@@ -1,0 +1,36 @@
+# Paper Trading environment settings
+environment: "paper_trading"
+debug: false
+log_level: "INFO"
+
+# Balanced resource usage for paper trading
+system:
+  max_workers: 16
+  thread_pool_size: 32
+
+# Paper trading data sources
+data:
+  use_mock_data: false
+  primary_provider: "ibkr_paper"
+  backup_providers: ["yfinance"]
+
+# Paper trading risk limits
+risk_management:
+  portfolio_limits:
+    max_var_95: 0.15
+    max_daily_loss: 0.05
+    max_position_size: 0.10
+
+# IBKR Paper Trading Configuration
+ibkr:
+  paper_trading: true
+  host: "127.0.0.1"
+  port: 7497
+  client_id: 1
+
+# Paper trading safeguards
+safeguards:
+  enable_circuit_breaker: true
+  circuit_breaker_threshold: 0.03
+  max_consecutive_losses: 5
+  enable_kill_switch: true

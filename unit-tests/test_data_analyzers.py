@@ -298,6 +298,7 @@ class TestInstitutionalDataAnalyzer:
             sub = InstitutionalDataAnalyzer()
             sub.role = "institutional_data"
             sub.memory_manager = Mock()
+            sub.llm = None  # Mock LLM as None for testing
             return sub
 
     def test_initialization(self, institutional_sub):
@@ -317,7 +318,10 @@ class TestInstitutionalDataAnalyzer:
             result = await institutional_sub.process_input(test_input)
 
             assert isinstance(result, dict)
-            assert "institutional_ownership" in result
+            # Check that the result has the enhanced structure
+            assert "consolidated_data" in result
+            assert "enhanced" in result
+            assert result["enhanced"] is True
 
     def test_institutional_holdings(self, institutional_sub):
         """Test institutional holdings fetching."""
@@ -388,6 +392,7 @@ class TestKalshiDataAnalyzer:
             sub = KalshiDataAnalyzer()
             sub.role = "kalshi_data"
             sub.memory_manager = Mock()
+            sub.llm = None  # Mock LLM as None for testing
             return sub
 
     def test_initialization(self, kalshi_sub):
@@ -409,7 +414,10 @@ class TestKalshiDataAnalyzer:
         result = await kalshi_sub.process_input(test_input)
 
         assert isinstance(result, dict)
-        assert "market_sentiment" in result
+        # Check that the result has the enhanced structure
+        assert "consolidated_data" in result
+        assert "enhanced" in result
+        assert result["enhanced"] is True
 
     def test_kalshi_data_fetching(self, kalshi_sub):
         """Test Kalshi data fetching functionality."""

@@ -23,8 +23,7 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
+# Logging configured centrally in logging_config.py
 logger = logging.getLogger(__name__)
 
 class APIStatus(Enum):
