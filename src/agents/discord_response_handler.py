@@ -24,7 +24,7 @@ class DiscordResponseHandler:
     def __init__(self):
         # Discord client and channels
         self.client = None
-        self.channel = None  # General channel for summaries
+        self.health_channel = None  # Health monitoring channel for system status, API health, memory usage
         self.alerts_channel = None  # Dedicated channel for trade alerts
         self.ranked_trades_channel = None  # Dedicated channel for ranked trade proposals
         self.commands_channel = None  # Dedicated channel for command documentation
@@ -51,15 +51,15 @@ class DiscordResponseHandler:
             logger.warning(f"Could not find guild with ID {guild_id}")
             return
 
-        # Set up general channel
-        general_channel_id = os.getenv('DISCORD_GENERAL_CHANNEL_ID')
-        if general_channel_id:
+        # Set up health monitoring channel (for system status, API health, memory usage)
+        health_channel_id = os.getenv('DISCORD_HEALTH_CHANNEL_ID')
+        if health_channel_id:
             try:
-                self.channel = guild.get_channel(int(general_channel_id))
-                if self.channel:
-                    logger.info(f"General channel configured: #{self.channel.name}")
+                self.health_channel = guild.get_channel(int(health_channel_id))
+                if self.health_channel:
+                    logger.info(f"Health monitoring channel configured: #{self.health_channel.name}")
             except ValueError:
-                logger.warning(f"Invalid general channel ID: {general_channel_id}")
+                logger.warning(f"Invalid health channel ID: {health_channel_id}")
 
         # Set up alerts channel
         alerts_channel_id = os.getenv('DISCORD_ALERTS_CHANNEL_ID')
@@ -89,27 +89,27 @@ class DiscordResponseHandler:
             responses: List of agent response dictionaries
             phase_key: The phase identifier for the responses
         """
-        if not self.discord_ready.is_set() or not self.channel:
-            logger.warning("Discord not ready or channel not configured - skipping response send")
+        if not self.discord_ready.is_set() or not self.health_channel:
+            logger.warning("Discord not ready or health channel not configured - skipping response send")
             return
 
         try:
-            await self._present_agent_responses_enhanced(self.channel, responses, phase_key)
+            await self._present_agent_responses_enhanced(self.health_channel, responses, phase_key)
         except Exception as e:
             logger.error(f"Failed to send agent responses to Discord: {e}")
 
     async def send_workflow_status(self, message: str):
         """
-        Send workflow status updates to Discord.
+        Send workflow status updates to Discord health channel.
 
         Args:
             message: Status message to send
         """
-        if not self.discord_ready.is_set() or not self.channel:
+        if not self.discord_ready.is_set() or not self.health_channel:
             return
 
         try:
-            await self.channel.send(message)
+            await self.health_channel.send(message)
         except Exception as e:
             logger.error(f"Failed to send workflow status: {e}")
 
@@ -124,7 +124,7 @@ class DiscordResponseHandler:
         if not self.discord_ready.is_set():
             return
 
-        target_channel = self.alerts_channel if self.alerts_channel else self.channel
+        target_channel = self.alerts_channel if self.alerts_channel else self.health_channel
         if not target_channel:
             return
 
@@ -145,7 +145,7 @@ class DiscordResponseHandler:
         if not self.discord_ready.is_set():
             return
 
-        target_channel = self.ranked_trades_channel if self.ranked_trades_channel else self.channel
+        target_channel = self.ranked_trades_channel if self.ranked_trades_channel else self.health_channel
         if not target_channel:
             return
 
@@ -154,6 +154,44 @@ class DiscordResponseHandler:
             await target_channel.send(formatted_trade)
         except Exception as e:
             logger.error(f"Failed to send ranked trade info: {e}")
+
+    async def send_health_update(self, health_data: Dict[str, Any], update_type: str = "status"):
+        """
+        Send system health updates to the health monitoring channel.
+
+        Args:
+            health_data: Dictionary containing health metrics (api_status, memory_usage, component_health)
+            update_type: Type of health update (status, alert, component_check)
+        """
+        if not self.discord_ready.is_set() or not self.health_channel:
+            return
+
+        try:
+            # Format health update based on type
+            if update_type == "api_status":
+                message = "🔍 **API Health Status**\n"
+                for api_name, status in health_data.items():
+                    status_emoji = "✅" if status.get('healthy', False) else "❌"
+                    message += f"{status_emoji} **{api_name}**: {status.get('status', 'unknown')}\n"
+            elif update_type == "memory":
+                message = "💾 **Memory Usage Update**\n"
+                message += f"• Used: {health_data.get('used_mb', 0):.1f} MB\n"
+                message += f"• Available: {health_data.get('available_mb', 0):.1f} MB\n"
+                message += f"• Percentage: {health_data.get('percent', 0):.1f}%\n"
+            elif update_type == "component":
+                message = "🔧 **Component Health Check**\n"
+                for component, status in health_data.items():
+                    status_emoji = "✅" if status.get('healthy', False) else "⚠️" if status.get('degraded', False) else "❌"
+                    message += f"{status_emoji} **{component}**: {status.get('message', 'unknown')}\n"
+            else:
+                # Default status format
+                message = f"📊 **System Health Update** ({update_type})\n"
+                for key, value in health_data.items():
+                    message += f"• **{key.replace('_', ' ').title()}**: {value}\n"
+
+            await self.health_channel.send(message)
+        except Exception as e:
+            logger.error(f"Failed to send health update: {e}")
 
     async def _present_agent_responses_enhanced(self, channel: discord.TextChannel, responses: List[Dict[str, Any]], phase_key: str):
         """Present agent responses in a professional format with logical segmentation"""

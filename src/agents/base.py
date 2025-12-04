@@ -1,10 +1,14 @@
 # src/agents/base.py
+# [LABEL:COMPONENT:base_agent] [LABEL:FRAMEWORK:langchain] [LABEL:FRAMEWORK:langfuse]
+# [LABEL:AUTHOR:system] [LABEL:UPDATED:2025-12-04] [LABEL:REVIEWED:pending]
+#
 # Purpose: Base class for all agents in the AI Portfolio Manager, providing common structure (e.g., YAML/prompt loading, logging).
 # This is abstract—subclasses like RiskAgent implement process_input.
 # Structural Reasoning: Ensures consistency across agents (e.g., fresh YAML loads for constraints); backs funding with traceable logs (e.g., every decision audited).
 # Ties to code-skeleton.md: Implements BaseAgent with init/tools/memory stubs; async for scalability in loops/pings.
 # For legacy wealth: Robust error-handling preserves capital (e.g., defaults on failures, enforcing <5% drawdown).
 # Update: Dynamic sys.path insert to fix 'No module named src' on direct runs (prepends project root for absolute imports).
+# Update: Langfuse integration for comprehensive agent tracing, monitoring, and analytics.
 
 import abc
 import logging
@@ -27,6 +31,16 @@ sys.path.insert(0, str(project_root))
 from src.utils.utils import load_yaml, load_prompt_template  # Absolute from src/utils.py (now discoverable).
 from src.utils.alert_manager import get_alert_manager
 
+# Langfuse tracing integration
+try:
+    from src.utils.langfuse_client import get_langfuse_client, trace_agent_operation, trace_llm_call
+    LANGFUSE_AVAILABLE = True
+except ImportError:
+    LANGFUSE_AVAILABLE = False
+    get_langfuse_client = None
+    trace_agent_operation = None
+    trace_llm_call = None
+
 # Try to import BaseTool for type hints, fallback to Any if not available
 try:
     from langchain_core.tools import BaseTool
@@ -44,6 +58,19 @@ _api_health_monitor = None
 _memory_persistence = None
 _advanced_memory_manager = None
 _multi_agent_coordinator = None
+_langfuse_client = None
+
+
+def _get_langfuse_client():
+    """Get Langfuse client lazily to avoid circular imports."""
+    global _langfuse_client
+    if _langfuse_client is None and LANGFUSE_AVAILABLE and get_langfuse_client is not None:
+        try:
+            _langfuse_client = get_langfuse_client()
+        except Exception as e:
+            logger.warning(f"Failed to initialize Langfuse client: {e}")
+            _langfuse_client = None
+    return _langfuse_client
 
 def _get_langchain_core_tools():
     global _langchain_core_tools
@@ -592,6 +619,13 @@ class BaseAgent(abc.ABC):
             except Exception as e:
                 logger.warning(f"Failed to register with shared memory coordinator: {e}")
 
+        # Initialize Langfuse tracing client
+        self.langfuse_client = _get_langfuse_client()
+        if self.langfuse_client and self.langfuse_client.is_enabled:
+            logger.info(f"Langfuse tracing enabled for {self.role} agent")
+        else:
+            logger.debug(f"Langfuse tracing not available for {self.role} agent")
+
         logger.info(f"Initialized {self.role} Agent with configs: {list(self.configs.keys())}, tools: {[t.name for t in self.tools]}")
 
     @property
@@ -802,6 +836,7 @@ class BaseAgent(abc.ABC):
         """
         Use LLM for reasoning on complex decisions while leveraging hardcoded foundation logic.
         This implements the hybrid approach: foundation code + LLM reasoning.
+        Includes Langfuse tracing for LLM call monitoring and analytics.
 
         Args:
             context: Background information and foundation analysis
@@ -811,6 +846,9 @@ class BaseAgent(abc.ABC):
         Returns:
             LLM reasoning response
         """
+        import time
+        start_time = time.time()
+        
         # Check system health before proceeding with LLM operations
         if not self._check_system_health_for_operation('llm_reasoning'):
             logger.error("System health check failed - deferring LLM reasoning operation")
@@ -825,6 +863,28 @@ class BaseAgent(abc.ABC):
             else:
                 logger.error(f"CRITICAL FAILURE: No LLM available for {self.role} agent - cannot perform AI reasoning")
                 raise Exception(f"LLM required for {self.role} agent reasoning - no foundation-only fallback allowed")
+
+        # Create Langfuse trace for LLM reasoning
+        trace_id = None
+        if self.langfuse_client and self.langfuse_client.is_enabled:
+            try:
+                trace_id = self.langfuse_client.create_trace(
+                    name=f"llm_reasoning_{self.role}",
+                    user_id=self.role,
+                    input_data={
+                        'context_preview': context[:200] if context else None,
+                        'question_preview': question[:200] if question else None
+                    },
+                    metadata={
+                        'agent_role': self.role,
+                        'context_length': len(context) if context else 0,
+                        'question_length': len(question) if question else 0,
+                        'has_options': options is not None
+                    },
+                    tags=['llm_call', 'reasoning', self.role]
+                )
+            except Exception as e:
+                logger.debug(f"Langfuse trace creation failed: {e}")
 
         try:
             # Sanitize inputs to prevent prompt injection
@@ -857,11 +917,53 @@ Consider market conditions, risk factors, and alignment with our goals (10-20% m
 
             # Use LLM for reasoning
             response = await self.llm.ainvoke(full_prompt)
+            
+            response_content = response.content if hasattr(response, 'content') else str(response)
+            processing_time = time.time() - start_time
 
-            logger.info(f"LLM reasoning completed for {self.role} agent")
-            return response.content if hasattr(response, 'content') else str(response)
+            # Log LLM generation in Langfuse
+            if trace_id and self.langfuse_client:
+                try:
+                    # Get model name from LLM config
+                    llm_config = self._get_agent_llm_config()
+                    model_name = llm_config.get('primary_model', 'unknown')
+                    
+                    self.langfuse_client.log_generation(
+                        trace_id=trace_id,
+                        name=f"llm_reasoning_{self.role}",
+                        model=model_name,
+                        input_messages=full_prompt[:2000],
+                        output=response_content[:2000],
+                        metadata={
+                            'duration_seconds': processing_time,
+                            'agent_role': self.role
+                        }
+                    )
+                    
+                    self.langfuse_client.end_trace(
+                        trace_id,
+                        output_data=response_content[:500],
+                        level="DEFAULT",
+                        status_message=f"LLM reasoning completed in {processing_time:.2f}s"
+                    )
+                except Exception as e:
+                    logger.debug(f"Langfuse generation logging failed: {e}")
+
+            logger.info(f"LLM reasoning completed for {self.role} agent in {processing_time:.2f}s")
+            return response_content
 
         except Exception as e:
+            # End trace with error
+            if trace_id and self.langfuse_client:
+                try:
+                    self.langfuse_client.end_trace(
+                        trace_id,
+                        level="ERROR",
+                        status_message=str(e)
+                    )
+                except Exception as trace_e:
+                    logger.debug(f"Langfuse error trace failed: {trace_e}")
+            
             logger.error(f"LLM reasoning failed for {self.role}: {e}")
             return f"LLM_ERROR: {str(e)}"
 
@@ -1063,15 +1165,67 @@ Now go execute it.
 
     async def process_input(self, input_data: Any) -> Dict[str, Any]:
         """
-        Process input with motivational reminder display.
+        Process input with motivational reminder display and Langfuse tracing.
         Displays reminder at the start of every workflow for motivation and context.
-        Then delegates to subclass-specific processing logic.
+        Then delegates to subclass-specific processing logic with tracing.
         """
+        import time
+        start_time = time.time()
+        
         # Display motivational reminder at the start of every workflow
         self._display_motivational_reminder()
+        
+        # Create Langfuse trace for the entire process_input operation
+        trace_id = None
+        if self.langfuse_client and self.langfuse_client.is_enabled:
+            try:
+                input_str = str(input_data)[:500] if input_data else None
+                trace_id = self.langfuse_client.create_trace(
+                    name=f"process_input_{self.role}",
+                    user_id=self.role,
+                    input_data=input_str,
+                    metadata={
+                        'agent_role': self.role,
+                        'input_type': type(input_data).__name__,
+                        'input_size': len(str(input_data)) if input_data else 0
+                    },
+                    tags=['agent_operation', 'process_input', self.role]
+                )
+            except Exception as e:
+                logger.debug(f"Langfuse trace creation failed: {e}")
 
-        # Delegate to subclass implementation
-        return await self._process_input(input_data)
+        try:
+            # Delegate to subclass implementation
+            result = await self._process_input(input_data)
+            
+            # End trace with success
+            if trace_id and self.langfuse_client:
+                try:
+                    processing_time = time.time() - start_time
+                    output_str = str(result)[:500] if result else None
+                    self.langfuse_client.end_trace(
+                        trace_id,
+                        output_data=output_str,
+                        level="DEFAULT",
+                        status_message=f"Completed in {processing_time:.2f}s"
+                    )
+                except Exception as e:
+                    logger.debug(f"Langfuse trace end failed: {e}")
+            
+            return result
+            
+        except Exception as e:
+            # End trace with error
+            if trace_id and self.langfuse_client:
+                try:
+                    self.langfuse_client.end_trace(
+                        trace_id,
+                        level="ERROR",
+                        status_message=str(e)
+                    )
+                except Exception as trace_e:
+                    logger.debug(f"Langfuse error trace failed: {trace_e}")
+            raise
 
     async def apply_directive(self, directive: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -1765,7 +1919,7 @@ Now go execute it.
 
     async def analyze(self, data: Any) -> Dict[str, Any]:
         """
-        Perform analysis on provided data.
+        Perform analysis on provided data with Langfuse tracing.
         This is a base implementation that can be overridden by subclasses for specific analysis types.
         
         Args:
@@ -1774,6 +1928,27 @@ Now go execute it.
         Returns:
             Dict: Analysis results
         """
+        import time
+        start_time = time.time()
+        
+        # Create Langfuse trace for analysis operation
+        trace_id = None
+        if self.langfuse_client and self.langfuse_client.is_enabled:
+            try:
+                input_preview = str(data)[:300] if data else None
+                trace_id = self.langfuse_client.create_trace(
+                    name=f"analyze_{self.role}",
+                    user_id=self.role,
+                    input_data=input_preview,
+                    metadata={
+                        'agent_role': self.role,
+                        'data_type': type(data).__name__
+                    },
+                    tags=['agent_operation', 'analyze', self.role]
+                )
+            except Exception as e:
+                logger.debug(f"Langfuse trace creation failed: {e}")
+        
         try:
             # Handle string queries (from Discord commands)
             if isinstance(data, str):
@@ -1822,10 +1997,34 @@ Please provide analysis based on your role and expertise.
                 'result': analysis_result
             })
             
+            # End Langfuse trace with success
+            if trace_id and self.langfuse_client:
+                try:
+                    processing_time = time.time() - start_time
+                    self.langfuse_client.end_trace(
+                        trace_id,
+                        output_data=str(analysis_result)[:500],
+                        level="DEFAULT",
+                        status_message=f"Analysis completed in {processing_time:.2f}s"
+                    )
+                except Exception as e:
+                    logger.debug(f"Langfuse trace end failed: {e}")
+            
             logger.info(f"Analysis completed by {self.role} agent for {analysis_type}")
             return analysis_result
             
         except Exception as e:
+            # End trace with error
+            if trace_id and self.langfuse_client:
+                try:
+                    self.langfuse_client.end_trace(
+                        trace_id,
+                        level="ERROR",
+                        status_message=str(e)
+                    )
+                except Exception as trace_e:
+                    logger.debug(f"Langfuse error trace failed: {trace_e}")
+            
             logger.error(f"Error in analysis for {self.role}: {e}")
             return {
                 'agent_role': self.role,
