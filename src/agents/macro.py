@@ -422,12 +422,16 @@ class MacroAgent(BaseAgent):
                 'request': f'Analyze these sector rankings from a {agent_name} perspective and provide feedback on which sectors should be prioritized for investment.'
             }
 
-            # Send message via A2A protocol
-            response = await self.a2a.send_message('macro', agent_name, debate_input)
+            # Send debate request via A2A protocol using proper request/response pattern
+            response = await self.request_a2a_data(
+                target_agent=agent_name,
+                data_type='sector_analysis_debate',
+                parameters=debate_input
+            )
 
             # Extract feedback from response
-            if response and 'result' in response:
-                feedback = response['result']
+            if response:
+                feedback = response
                 # Store agent's perspective in memory
                 await self.store_advanced_memory(f'{agent_name}_sector_perspective', {
                     'timestamp': datetime.now().isoformat(),

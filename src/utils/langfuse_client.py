@@ -46,14 +46,15 @@ except ImportError:
 try:
     from langfuse import Langfuse
     from langfuse.decorators import langfuse_context, observe
-    from langfuse.callback import CallbackHandler
     LANGFUSE_AVAILABLE = True
 except ImportError:
     LANGFUSE_AVAILABLE = False
     Langfuse = None
     langfuse_context = None
     observe = None
-    CallbackHandler = None
+
+# CallbackHandler is not compatible with LangChain 1.x, so we don't import it
+CallbackHandler = None
 
 # Try to import yaml for config loading
 try:
@@ -62,6 +63,7 @@ try:
 except ImportError:
     YAML_AVAILABLE = False
 
+# Set up logger early for import-time logging
 logger = logging.getLogger(__name__)
 
 

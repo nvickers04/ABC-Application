@@ -32,7 +32,7 @@ from src.agents.macro import MacroAgent
 # Import utilities
 from src.utils.a2a_protocol import A2AProtocol
 from src.utils.logging_config import get_logger
-from src.utils.redis_cache import RedisCache
+from src.utils.redis_cache import RedisCacheManager
 from src.utils.alert_manager import get_alert_manager
 
 # Setup logging
@@ -57,7 +57,7 @@ class UnifiedWorkflowOrchestrator:
                  mode: WorkflowMode = WorkflowMode.HYBRID,
                  enable_discord: bool = True,
                  enable_health_monitoring: bool = True,
-                 symbols: List[str] = None):
+                 symbols: Optional[List[str]] = None):
         """
         Initialize the unified workflow orchestrator.
 
@@ -95,10 +95,8 @@ class UnifiedWorkflowOrchestrator:
             logger.info("🚀 Initializing Unified Workflow Orchestrator...")
 
             # Initialize Redis cache (no fallbacks)
-            self.redis_cache = RedisCache()
-            if not await self.redis_cache.initialize():
-                logger.error("❌ Redis cache initialization failed")
-                return False
+            self.redis_cache = RedisCacheManager()
+            # RedisCacheManager initializes automatically in __init__
             logger.info("✅ Redis cache initialized")
 
             # Initialize alert manager
@@ -189,42 +187,19 @@ class UnifiedWorkflowOrchestrator:
             self.running = False
 
     async def _run_hybrid_workflow(self):
-        """Run hybrid analysis + execution workflow."""
+        """Run hybrid analysis + execution workflow using A2A orchestration."""
         logger.info("🔄 Starting hybrid workflow (analysis + execution)")
+
+        assert self.a2a_protocol is not None, "A2A protocol not initialized"
 
         while self.running:
             try:
-                # Phase 1: Market Analysis
-                logger.info("📊 Phase 1: Market Analysis")
-                analysis_result = await self._run_market_analysis()
-                if not analysis_result:
-                    logger.warning("⚠️ Market analysis failed, waiting...")
-                    await asyncio.sleep(300)  # Wait 5 minutes
-                    continue
+                # Use A2A protocol's built-in orchestration
+                logger.info("🚀 Running complete A2A orchestration workflow")
+                initial_data = {'symbols': self.symbols, 'mode': 'hybrid'}
+                result = await self.a2a_protocol.run_orchestration(initial_data)
 
-                # Phase 2: Strategy Development
-                logger.info("🎯 Phase 2: Strategy Development")
-                strategy_result = await self._run_strategy_development(analysis_result)
-                if not strategy_result:
-                    logger.warning("⚠️ Strategy development failed, waiting...")
-                    await asyncio.sleep(300)
-                    continue
-
-                # Phase 3: Risk Assessment
-                logger.info("⚖️ Phase 3: Risk Assessment")
-                risk_result = await self._run_risk_assessment(strategy_result)
-                if not risk_result:
-                    logger.warning("⚠️ Risk assessment failed, waiting...")
-                    await asyncio.sleep(300)
-                    continue
-
-                # Phase 4: Execution (if approved)
-                logger.info("💰 Phase 4: Trade Execution")
-                execution_result = await self._run_trade_execution(risk_result)
-
-                # Phase 5: Reflection and Learning
-                logger.info("🧠 Phase 5: Reflection and Learning")
-                await self._run_reflection_and_learning(execution_result)
+                logger.info(f"✅ Orchestration completed: {result}")
 
                 # Wait before next cycle
                 logger.info("⏱️ Waiting 15 minutes before next cycle...")
@@ -234,121 +209,45 @@ class UnifiedWorkflowOrchestrator:
                 logger.error(f"❌ Hybrid workflow cycle failed: {e}")
                 await asyncio.sleep(300)  # Wait 5 minutes on error
 
-    async def _run_market_analysis(self) -> Optional[Dict[str, Any]]:
-        """Run market analysis phase."""
-        try:
-            # Macro analysis first
-            macro_result = await self.a2a_protocol.send_message(
-                'macro', 'analyze_market', {'symbols': self.symbols}
-            )
 
-            # Data collection and analysis
-            data_result = await self.a2a_protocol.send_message(
-                'data', 'collect_market_data', {'symbols': self.symbols}
-            )
-
-            return {
-                'macro': macro_result,
-                'data': data_result,
-                'timestamp': datetime.now().isoformat()
-            }
-        except Exception as e:
-            logger.error(f"Market analysis failed: {e}")
-            return None
-
-    async def _run_strategy_development(self, analysis_result: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Run strategy development phase."""
-        try:
-            strategy_result = await self.a2a_protocol.send_message(
-                'strategy', 'develop_strategies',
-                {'analysis': analysis_result, 'symbols': self.symbols}
-            )
-            return strategy_result
-        except Exception as e:
-            logger.error(f"Strategy development failed: {e}")
-            return None
-
-    async def _run_risk_assessment(self, strategy_result: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Run risk assessment phase."""
-        try:
-            risk_result = await self.a2a_protocol.send_message(
-                'risk', 'assess_risks',
-                {'strategies': strategy_result, 'symbols': self.symbols}
-            )
-            return risk_result
-        except Exception as e:
-            logger.error(f"Risk assessment failed: {e}")
-            return None
-
-    async def _run_trade_execution(self, risk_result: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Run trade execution phase."""
-        try:
-            # Only execute if risk assessment approves
-            if risk_result.get('approved', False):
-                execution_result = await self.a2a_protocol.send_message(
-                    'execution', 'execute_trades',
-                    {'approved_trades': risk_result.get('approved_trades', [])}
-                )
-                return execution_result
-            else:
-                logger.info("⚠️ No trades approved by risk assessment")
-                return {'executed': False, 'reason': 'risk_denied'}
-        except Exception as e:
-            logger.error(f"Trade execution failed: {e}")
-            return None
-
-    async def _run_reflection_and_learning(self, execution_result: Dict[str, Any]):
-        """Run reflection and learning phase."""
-        try:
-            # Reflection on execution results
-            reflection_result = await self.a2a_protocol.send_message(
-                'reflection', 'reflect_on_execution',
-                {'execution_result': execution_result}
-            )
-
-            # Learning from experience
-            await self.a2a_protocol.send_message(
-                'learning', 'learn_from_experience',
-                {'reflection': reflection_result, 'execution': execution_result}
-            )
-
-        except Exception as e:
-            logger.error(f"Reflection and learning failed: {e}")
 
     async def _run_analysis_workflow(self):
         """Run analysis-only workflow."""
         logger.info("🔍 Running analysis-only workflow")
-        # Similar to hybrid but without execution
+        assert self.a2a_protocol is not None, "A2A protocol not initialized"
         while self.running:
-            analysis_result = await self._run_market_analysis()
-            if analysis_result:
-                await self._run_strategy_development(analysis_result)
-                await self._run_risk_assessment(await self._run_strategy_development(analysis_result))
-            await asyncio.sleep(900)  # 15 minutes
+            try:
+                initial_data = {'symbols': self.symbols, 'mode': 'analysis'}
+                result = await self.a2a_protocol.run_orchestration(initial_data)
+                logger.info(f"✅ Analysis orchestration completed: {result}")
+                await asyncio.sleep(900)  # 15 minutes
+            except Exception as e:
+                logger.error(f"❌ Analysis workflow failed: {e}")
+                await asyncio.sleep(300)
 
     async def _run_execution_workflow(self):
         """Run execution-only workflow."""
         logger.info("💰 Running execution-only workflow")
-        # Focus on monitoring and executing approved trades
+        assert self.a2a_protocol is not None, "A2A protocol not initialized"
         while self.running:
-            # Check for pending executions
-            await asyncio.sleep(300)  # 5 minutes
+            try:
+                initial_data = {'symbols': self.symbols, 'mode': 'execution'}
+                result = await self.a2a_protocol.run_orchestration(initial_data)
+                logger.info(f"✅ Execution orchestration completed: {result}")
+                await asyncio.sleep(300)  # 5 minutes
+            except Exception as e:
+                logger.error(f"❌ Execution workflow failed: {e}")
+                await asyncio.sleep(300)
 
     async def _run_backtest_workflow(self):
         """Run backtesting workflow."""
         logger.info("📈 Running backtesting workflow")
-        # Historical simulation mode
         logger.info("Backtesting mode not yet implemented")
 
     async def stop(self):
         """Stop the orchestrator."""
         logger.info("🛑 Stopping Unified Workflow Orchestrator...")
         self.running = False
-
-        # Cleanup
-        if self.redis_cache:
-            await self.redis_cache.close()
-
         logger.info("✅ Orchestrator stopped")
 
 def main():

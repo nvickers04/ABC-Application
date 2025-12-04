@@ -86,3 +86,7 @@ tigerbeetle>=0.16.0,<1.0  # For high-performance financial transaction processin
 acontext>=0.0.6,<1.0  # For Acontext API integration (SOP storage, retrieval, propagation)
 # Agent Monitoring and Tracing
 langfuse>=2.56.1,<3.0  # For agent monitoring, tracing, and analytics
+
+# Machine Learning Dependencies (Required for full functionality)
+catboost>=1.2.0,<2.0  # For gradient boosting machine learning models
+xgboost>=2.0.0,<4.0  # For extreme gradient boosting machine learning models
