@@ -74,14 +74,15 @@ except ImportError as e:
     STABLE_BASELINES_AVAILABLE = False
     sb3 = None
 
-# Try to import LangChain memory components
+# Try to import LangChain 1.x memory components
 try:
-    from langchain_classic.memory import ConversationBufferMemory
-    from langchain.chains import ConversationChain
+    from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
+    from langchain_core.runnables.history import RunnableWithMessageHistory
+    from collections import deque
     LANGCHAIN_MEMORY_AVAILABLE = True
-    logger.info("LangChain memory available for agent conversations")
+    logger.info("LangChain 1.x memory available for agent conversations")
 except ImportError as e:
-    logger.warning(f"LangChain memory not available: {e}. Agent conversations will not persist.")
+    logger.warning(f"LangChain 1.x memory not available: {e}. Agent conversations will not persist.")
     LANGCHAIN_MEMORY_AVAILABLE = False
 
 # FinRL removed - using Stable-Baselines3 directly for RL
@@ -191,15 +192,13 @@ class LearningAgent(BaseAgent):
 
             logger.info("ML components initialized for strategy optimization")
 
-            # Initialize LangChain memory for agent conversations
+            # Initialize LangChain 1.x memory for agent conversations
             if LANGCHAIN_MEMORY_AVAILABLE:
                 try:
-                    self.conversation_memory = ConversationBufferMemory(
-                        memory_key="chat_history",
-                        return_messages=True
-                    )
+                    # Use deque to store conversation messages (LangChain 1.x style)
+                    self.conversation_memory = deque(maxlen=100)  # Keep last 100 messages
                     self.memory_initialized = True
-                    logger.info("LangChain conversation memory initialized")
+                    logger.info("LangChain 1.x conversation memory initialized")
                 except Exception as e:
                     logger.warning(f"Failed to initialize conversation memory: {e}")
                     self.conversation_memory = None
@@ -207,7 +206,7 @@ class LearningAgent(BaseAgent):
             else:
                 self.conversation_memory = None
                 self.memory_initialized = False
-                logger.info("LangChain memory not available - conversations will not persist")
+                logger.info("LangChain 1.x memory not available - conversations will not persist")
             
         except Exception as e:
             logger.warning(f"Failed to initialize ML components: {e}")
@@ -415,7 +414,7 @@ class LearningAgent(BaseAgent):
 
     def add_to_conversation_memory(self, user_input: str, agent_response: str):
         """
-        Add a conversation turn to the LangChain memory for context preservation.
+        Add a conversation turn to the LangChain 1.x memory for context preservation.
 
         Args:
             user_input: The input/query from the user or system
@@ -423,12 +422,10 @@ class LearningAgent(BaseAgent):
         """
         if self.memory_initialized and self.conversation_memory:
             try:
-                # Add the conversation to memory
-                self.conversation_memory.save_context(
-                    {"input": user_input},
-                    {"output": agent_response}
-                )
-                logger.debug("Added conversation to LangChain memory")
+                # Add messages to memory using LangChain 1.x message format
+                self.conversation_memory.append(HumanMessage(content=user_input))
+                self.conversation_memory.append(AIMessage(content=agent_response))
+                logger.debug("Added conversation to LangChain 1.x memory")
             except Exception as e:
                 logger.warning(f"Failed to add to conversation memory: {e}")
 
