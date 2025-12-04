@@ -74,15 +74,18 @@ except ImportError as e:
     STABLE_BASELINES_AVAILABLE = False
     sb3 = None
 
-# Try to import LangChain memory components
+# Try to import LangChain 1.x memory components
 try:
-    # In LangChain 1.x, memory has been restructured. For now, we'll disable memory.
-    # TODO: Update to use new LangChain 1.x memory patterns when available
-    LANGCHAIN_MEMORY_AVAILABLE = False
-    logger.info("LangChain memory temporarily disabled for LangChain 1.x compatibility")
+    from langchain_core.chat_history import InMemoryChatMessageHistory
+    from langchain_core.messages import HumanMessage, AIMessage
+    LANGCHAIN_MEMORY_AVAILABLE = True
+    logger.info("LangChain 1.x memory components available for conversation history")
 except ImportError as e:
-    logger.warning(f"LangChain memory not available: {e}. Agent conversations will not persist.")
+    logger.warning(f"LangChain 1.x memory not available: {e}. Agent conversations will not persist.")
     LANGCHAIN_MEMORY_AVAILABLE = False
+    InMemoryChatMessageHistory = None
+    HumanMessage = None
+    AIMessage = None
 
 # FinRL removed - using Stable-Baselines3 directly for RL
 
@@ -191,15 +194,12 @@ class LearningAgent(BaseAgent):
 
             logger.info("ML components initialized for strategy optimization")
 
-            # Initialize LangChain memory for agent conversations
+            # Initialize LangChain 1.x memory for agent conversations
             if LANGCHAIN_MEMORY_AVAILABLE:
                 try:
-                    self.conversation_memory = ConversationBufferMemory(
-                        memory_key="chat_history",
-                        return_messages=True
-                    )
+                    self.conversation_memory = InMemoryChatMessageHistory()
                     self.memory_initialized = True
-                    logger.info("LangChain conversation memory initialized")
+                    logger.info("LangChain 1.x conversation memory initialized")
                 except Exception as e:
                     logger.warning(f"Failed to initialize conversation memory: {e}")
                     self.conversation_memory = None
@@ -415,7 +415,7 @@ class LearningAgent(BaseAgent):
 
     def add_to_conversation_memory(self, user_input: str, agent_response: str):
         """
-        Add a conversation turn to the LangChain memory for context preservation.
+        Add a conversation turn to the LangChain 1.x memory for context preservation.
 
         Args:
             user_input: The input/query from the user or system
@@ -423,35 +423,31 @@ class LearningAgent(BaseAgent):
         """
         if self.memory_initialized and self.conversation_memory:
             try:
-                # Add the conversation to memory
-                self.conversation_memory.save_context(
-                    {"input": user_input},
-                    {"output": agent_response}
-                )
-                logger.debug("Added conversation to LangChain memory")
+                # Add the conversation to memory using LangChain 1.x API
+                self.conversation_memory.add_user_message(user_input)
+                self.conversation_memory.add_ai_message(agent_response)
+                logger.debug("Added conversation to LangChain 1.x memory")
             except Exception as e:
                 logger.warning(f"Failed to add to conversation memory: {e}")
 
     def get_conversation_history(self) -> str:
         """
-        Retrieve the conversation history from LangChain memory.
+        Retrieve the conversation history from LangChain 1.x memory.
 
         Returns:
             Formatted string of conversation history
         """
         if self.memory_initialized and self.conversation_memory:
             try:
-                history = self.conversation_memory.load_memory_variables({})
-                messages = history.get("chat_history", [])
+                messages = self.conversation_memory.messages
                 if messages:
                     # Format messages into readable history
                     history_text = ""
                     for msg in messages[-10:]:  # Last 10 messages
-                        if hasattr(msg, 'type'):
-                            if msg.type == 'human':
-                                history_text += f"Human: {msg.content}\n"
-                            elif msg.type == 'ai':
-                                history_text += f"Agent: {msg.content}\n"
+                        if isinstance(msg, HumanMessage):
+                            history_text += f"Human: {msg.content}\n"
+                        elif isinstance(msg, AIMessage):
+                            history_text += f"Agent: {msg.content}\n"
                     return history_text.strip()
                 return "No conversation history available"
             except Exception as e:
@@ -459,6 +455,17 @@ class LearningAgent(BaseAgent):
                 return "Error retrieving conversation history"
         else:
             return "Conversation memory not available"
+
+    def clear_conversation_memory(self):
+        """
+        Clear the conversation history from LangChain 1.x memory.
+        """
+        if self.memory_initialized and self.conversation_memory:
+            try:
+                self.conversation_memory.clear()
+                logger.debug("Cleared LangChain 1.x conversation memory")
+            except Exception as e:
+                logger.warning(f"Failed to clear conversation memory: {e}")
 
     def _calculate_convergence_metrics(self) -> Dict[str, Any]:
         """
