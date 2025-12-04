@@ -1227,6 +1227,209 @@ Now go execute it.
                     logger.debug(f"Langfuse error trace failed: {trace_e}")
             raise
 
+    async def apply_directive(self, directive: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Apply a trading directive received from another agent (cross-agent propagation).
+        This method can be overridden by specific agents to handle directives appropriately.
+        
+        Args:
+            directive: Trading directive with structure:
+                - directive_id: Unique identifier
+                - sop_id: Acontext SOP ID (if stored)
+                - category: Directive category (e.g., 'learning_insight', 'risk_constraint')
+                - content: Directive content/payload
+                - priority: Priority level (critical, high, medium, low, background)
+                - source: Source agent that created the directive
+                - applies_to: List of target agents
+                
+        Returns:
+            Dict with application result:
+                - applied: Boolean indicating if directive was applied
+                - adjustments: Any adjustments made based on directive
+                - reason: Reason for application/rejection
+        """
+        try:
+            directive_id = directive.get('directive_id', 'unknown')
+            source = directive.get('source', 'unknown')
+            priority = directive.get('priority', 'medium')
+            category = directive.get('category', 'unknown')
+            
+            logger.info(f"{self.role} agent received directive {directive_id} from {source} (priority: {priority})")
+            
+            # Check if this directive applies to this agent
+            applies_to = directive.get('applies_to', [])
+            if applies_to and self.role not in applies_to:
+                logger.debug(f"Directive {directive_id} does not apply to {self.role}")
+                return {
+                    'applied': False,
+                    'reason': f'Directive does not apply to {self.role}',
+                    'directive_id': directive_id,
+                }
+            
+            # Extract content
+            content = directive.get('content', {})
+            if isinstance(content, str):
+                try:
+                    import json
+                    content = json.loads(content)
+                except:
+                    pass
+            
+            # Apply directive based on category
+            result = await self._apply_directive_by_category(directive_id, category, content, priority)
+            
+            # Log application
+            if result.get('applied', False):
+                logger.info(f"{self.role} agent applied directive {directive_id}: {result.get('adjustments', {})}")
+            else:
+                logger.info(f"{self.role} agent did not apply directive {directive_id}: {result.get('reason', 'unknown')}")
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error applying directive in {self.role} agent: {e}")
+            return {
+                'applied': False,
+                'reason': f'Error: {str(e)}',
+                'directive_id': directive.get('directive_id', 'unknown'),
+            }
+
+    async def _apply_directive_by_category(self, directive_id: str, category: str, 
+                                           content: Dict[str, Any], priority: str) -> Dict[str, Any]:
+        """
+        Apply directive based on its category. Override in subclasses for specific handling.
+        
+        Args:
+            directive_id: Unique directive identifier
+            category: Directive category
+            content: Directive content
+            priority: Priority level
+            
+        Returns:
+            Application result dict
+        """
+        # Default implementation - subclasses can override for specific handling
+        adjustments = {}
+        
+        # Process learning insights
+        if category == 'learning_insight':
+            # Extract and apply directives from content
+            directives_list = content.get('directives', [])
+            for directive_item in directives_list:
+                refinement = directive_item.get('refinement', '')
+                value = directive_item.get('value', 1.0)
+                
+                # Store in memory for consideration
+                if 'received_directives' not in self.memory:
+                    self.memory['received_directives'] = []
+                
+                self.memory['received_directives'].append({
+                    'directive_id': directive_id,
+                    'refinement': refinement,
+                    'value': value,
+                    'priority': priority,
+                    'timestamp': pd.Timestamp.now().isoformat(),
+                })
+                adjustments[refinement] = value
+            
+            # Keep only recent directives
+            if len(self.memory.get('received_directives', [])) > 100:
+                self.memory['received_directives'] = self.memory['received_directives'][-100:]
+            
+            return {
+                'applied': True,
+                'adjustments': adjustments,
+                'directive_id': directive_id,
+                'reason': f'Applied {len(directives_list)} learning insight directives',
+            }
+        
+        # Process risk constraints
+        elif category == 'risk_constraint':
+            # Store for risk consideration
+            if 'risk_constraints_from_directives' not in self.memory:
+                self.memory['risk_constraints_from_directives'] = []
+            
+            self.memory['risk_constraints_from_directives'].append({
+                'directive_id': directive_id,
+                'content': content,
+                'priority': priority,
+                'timestamp': pd.Timestamp.now().isoformat(),
+            })
+            
+            return {
+                'applied': True,
+                'adjustments': {'risk_constraint_added': True},
+                'directive_id': directive_id,
+                'reason': 'Applied risk constraint directive',
+            }
+        
+        # Process strategy directives
+        elif category == 'strategy_directive':
+            if 'strategy_directives' not in self.memory:
+                self.memory['strategy_directives'] = []
+            
+            self.memory['strategy_directives'].append({
+                'directive_id': directive_id,
+                'content': content,
+                'priority': priority,
+                'timestamp': pd.Timestamp.now().isoformat(),
+            })
+            
+            return {
+                'applied': True,
+                'adjustments': {'strategy_directive_added': True},
+                'directive_id': directive_id,
+                'reason': 'Applied strategy directive',
+            }
+        
+        # Unknown category - store for reference
+        else:
+            if 'unprocessed_directives' not in self.memory:
+                self.memory['unprocessed_directives'] = []
+            
+            self.memory['unprocessed_directives'].append({
+                'directive_id': directive_id,
+                'category': category,
+                'content': content,
+                'priority': priority,
+                'timestamp': pd.Timestamp.now().isoformat(),
+            })
+            
+            return {
+                'applied': False,
+                'reason': f'Unknown directive category: {category}',
+                'directive_id': directive_id,
+            }
+
+    def get_received_directives(self, category: Optional[str] = None, 
+                                limit: int = 20) -> List[Dict[str, Any]]:
+        """
+        Get received directives from cross-agent propagation.
+        
+        Args:
+            category: Filter by category (optional)
+            limit: Maximum number of results
+            
+        Returns:
+            List of received directives
+        """
+        all_directives = []
+        
+        # Collect from all directive storage
+        all_directives.extend(self.memory.get('received_directives', []))
+        all_directives.extend(self.memory.get('risk_constraints_from_directives', []))
+        all_directives.extend(self.memory.get('strategy_directives', []))
+        all_directives.extend(self.memory.get('unprocessed_directives', []))
+        
+        # Filter by category if specified
+        if category:
+            all_directives = [d for d in all_directives if d.get('category') == category]
+        
+        # Sort by timestamp (most recent first)
+        all_directives.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
+        
+        return all_directives[:limit]
+
     @abc.abstractmethod
     async def _process_input(self, input_data: Any) -> Dict[str, Any]:
         """
