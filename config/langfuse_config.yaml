@@ -1,0 +1,138 @@
+# Langfuse Configuration for ABC-Application Agent Monitoring
+# [LABEL:CONFIG:langfuse] [LABEL:CONFIG:monitoring] [LABEL:FRAMEWORK:yaml]
+# [LABEL:AUTHOR:system] [LABEL:UPDATED:2025-12-04] [LABEL:REVIEWED:pending]
+#
+# Purpose: Configuration for Langfuse agent monitoring, tracing, and analytics
+# Dependencies: langfuse
+# Related: src/utils/langfuse_client.py, src/agents/base.py
+#
+# NOTE: API keys should be set via environment variables:
+#   - LANGFUSE_PUBLIC_KEY
+#   - LANGFUSE_SECRET_KEY
+#   - LANGFUSE_HOST (optional, defaults to cloud)
+
+# Connection settings
+connection:
+  # Host URL - use default cloud endpoint or self-hosted instance
+  # For self-hosted: host: "https://your-langfuse-instance.com"
+  host: "${LANGFUSE_HOST:-https://cloud.langfuse.com}"
+  # Timeout for API calls in seconds
+  timeout: 30
+  # Enable/disable Langfuse integration globally
+  enabled: "${LANGFUSE_ENABLED:-true}"
+
+# Tracing configuration
+tracing:
+  # Enable tracing for agent operations
+  enabled: true
+  # Sample rate for traces (1.0 = 100%, 0.5 = 50%)
+  sample_rate: 1.0
+  # Trace all LLM calls
+  trace_llm_calls: true
+  # Trace memory operations
+  trace_memory_operations: true
+  # Trace A2A protocol messages
+  trace_a2a_messages: true
+  # Trace workflow orchestration
+  trace_workflows: true
+  # Trace consensus polling
+  trace_consensus: true
+  # Maximum trace depth for nested operations
+  max_trace_depth: 10
+
+# Metadata configuration
+metadata:
+  # Application identifier
+  app_name: "ABC-Application"
+  # Environment (production, staging, development)
+  environment: "${LANGFUSE_ENVIRONMENT:-development}"
+  # Version tag for tracking changes
+  version: "${APP_VERSION:-1.0.0}"
+  # Include system metrics in traces
+  include_system_metrics: true
+  # Include agent health status
+  include_health_status: true
+
+# Performance settings
+performance:
+  # Flush interval for batch sending traces (in seconds)
+  flush_interval: 5
+  # Maximum batch size before forced flush
+  max_batch_size: 100
+  # Enable async flush for minimal overhead
+  async_flush: true
+  # Maximum number of retries for failed flushes
+  max_retries: 3
+  # Retry delay in seconds
+  retry_delay: 1
+
+# Agent-specific tracing configuration
+agents:
+  # Default settings for all agents
+  default:
+    trace_input: true
+    trace_output: true
+    trace_processing_time: true
+    trace_memory_usage: true
+    log_level: "info"
+  
+  # Override settings per agent type
+  macro:
+    log_level: "debug"
+  
+  data:
+    trace_data_quality: true
+  
+  strategy:
+    trace_proposals: true
+  
+  risk:
+    trace_assessments: true
+    log_level: "debug"
+  
+  execution:
+    trace_orders: true
+    log_level: "debug"
+  
+  reflection:
+    trace_insights: true
+  
+  learning:
+    trace_improvements: true
+
+# Metrics configuration
+metrics:
+  # Enable custom metrics collection
+  enabled: true
+  # Report agent response times
+  report_response_times: true
+  # Report LLM token usage
+  report_token_usage: true
+  # Report memory operations
+  report_memory_ops: true
+  # Report A2A message volume
+  report_a2a_volume: true
+  # Report workflow completion rates
+  report_workflow_stats: true
+
+# Alert integration
+alerts:
+  # Link traces to AlertManager alerts
+  link_to_alerts: true
+  # Include trace IDs in alert context
+  include_trace_id: true
+  # Alert on trace errors
+  alert_on_trace_errors: true
+  # Alert threshold for slow traces (in seconds)
+  slow_trace_threshold: 30
+
+# Discord integration
+discord:
+  # Send Langfuse summaries to Discord health channel
+  send_health_summaries: true
+  # Summary interval in minutes
+  summary_interval: 60
+  # Include trace statistics in summaries
+  include_trace_stats: true
+  # Include error summaries
+  include_error_summaries: true
