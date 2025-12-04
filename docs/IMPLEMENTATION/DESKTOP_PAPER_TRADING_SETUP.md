@@ -127,7 +127,7 @@ asyncio.run(test_connection())
 ### 1. Start Health Monitoring (Optional)
 ```bash
 # In one terminal
-python health_server.py --host 127.0.0.1 --port 8080
+python tools/health_server.py --host 127.0.0.1 --port 8080
 ```
 
 ### 2. Start ABC Application

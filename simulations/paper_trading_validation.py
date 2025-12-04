@@ -318,6 +318,4 @@ async def main():
     await validator.run_validation()
 
 if __name__ == "__main__":
-    asyncio.run(main())</content>
-</xai:function_call">The following files were successfully edited:
-c:\Users\nvick\ABC-Application\simulations\paper_trading_validation.py
+    asyncio.run(main())

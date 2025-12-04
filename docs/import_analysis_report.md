@@ -1,0 +1,285 @@
+# Import Dependencies Analysis Report
+==================================================
+
+## Summary
+- Total Python files analyzed: 232
+- Total unique imports: 535
+- Third-party packages: 111
+- Local modules: 2
+
+## Third-Party Dependencies
+- IBKRIntegration: 1 imports
+- a2a_protocol: 2 imports
+- absl: 1 imports
+- acontext: 2 imports
+- acontext_integration: 4 imports
+- agents: 17 imports
+- ai_strategy_analyzer: 1 imports
+- aiohttp: 2 imports
+- alert_manager: 3 imports
+- api_health_monitor: 4 imports
+- apscheduler: 3 imports
+- backtrader: 10 imports
+- base: 1 imports
+- bs4: 1 imports
+- chromadb: 2 imports
+- component_health_monitor: 2 imports
+- config: 4 imports
+- cryptography: 8 imports
+- data_analyzers: 1 imports
+- dataclasses: 31 imports
+- decimal: 5 imports
+- discord: 13 imports
+- dotenv: 12 imports
+- economic_data_analyzer: 1 imports
+- exchange_calendars: 5 imports
+- faiss: 1 imports
+- fastapi: 4 imports
+- financedatabase: 1 imports
+- fixtures: 3 imports
+- flow_strategy_analyzer: 1 imports
+- fredapi: 1 imports
+- fundamental_data_analyzer: 1 imports
+- gymnasium: 2 imports
+- health_server: 1 imports
+- hvac: 2 imports
+- ib_insync: 15 imports
+- ibkr_connector: 2 imports
+- institutional_data_analyzer: 1 imports
+- joblib: 1 imports
+- kalshi_data_analyzer: 1 imports
+- langchain: 3 imports
+- langchain_anthropic: 1 imports
+- langchain_classic: 1 imports
+- langchain_core: 14 imports
+- langchain_google_genai: 1 imports
+- langchain_openai: 1 imports
+- langchain_xai: 2 imports
+- langfuse: 3 imports
+- langgraph: 4 imports
+- live_trading_safeguards: 6 imports
+- locust: 6 imports
+- market_data: 5 imports
+- marketdataapp_data_analyzer: 1 imports
+- matplotlib: 3 imports
+- mem0: 1 imports
+- microstructure_data_analyzer: 1 imports
+- mock_agents: 5 imports
+- multi_instrument_strategy_analyzer: 1 imports
+- nautilus_trader: 26 imports
+- news_data_analyzer: 1 imports
+- nltk: 1 imports
+- numpy: 52 imports
+- optimizations: 3 imports
+- options_data_analyzer: 1 imports
+- options_strategy_analyzer: 1 imports
+- pandas: 67 imports
+- pip: 2 imports
+- psutil: 12 imports
+- py_vollib: 6 imports
+- pydantic: 9 imports
+- pypfopt: 3 imports
+- pyramiding: 1 imports
+- pytest: 47 imports
+- pytest_asyncio: 7 imports
+- pytz: 1 imports
+- redis: 3 imports
+- requests: 9 imports
+- schedule: 4 imports
+- scipy: 10 imports
+- seaborn: 1 imports
+- secrets: 1 imports
+- sentence_transformers: 2 imports
+- sentiment_data_analyzer: 1 imports
+- signal: 1 imports
+- simulations: 1 imports
+- sklearn: 16 imports
+- stable_baselines3: 12 imports
+- stat: 2 imports
+- statistics: 2 imports
+- statsmodels: 1 imports
+- strategy_analyzers: 1 imports
+- tensorflow: 6 imports
+- tensorflow_probability: 3 imports
+- textblob: 5 imports
+- tigerbeetle: 1 imports
+- torch: 1 imports
+- traceback: 27 imports
+- tracemalloc: 1 imports
+- trading_config: 5 imports
+- transformers: 1 imports
+- tweepy: 3 imports
+- unittest: 120 imports
+- utils: 3 imports
+- uvicorn: 1 imports
+- validation: 13 imports
+- vault_client: 1 imports
+- websockets: 1 imports
+- yaml: 7 imports
+- yfinance: 34 imports
+- yfinance_data_analyzer: 1 imports
+- zipline: 4 imports
+
+## Local Module Imports
+- src: 589 imports
+- tools: 7 imports
+
+## Import Consistency Issues
+### Import Order
+- examples\grok_simulator.py
+- examples\historical_simulation_demo.py
+- examples\trading_simulator.py
+- optimizations\compare_data_sources.py
+- optimizations\performance_analysis.py
+- optimizations\performance_optimizations.py
+- optimizations\performance_optimizer.py
+- scripts\quick_workflow_test.py
+- setup\setup_live_trading.py
+- simulations\historical_agent_backtesting.py
+- simulations\idle_training_workflow.py
+- src\main.py
+- src\agents\base.py
+- src\agents\data.py
+- src\agents\execution_tools.py
+- src\agents\learning.py
+- src\agents\macro.py
+- src\agents\memory.py
+- src\agents\reflection.py
+- src\agents\risk.py
+- src\agents\strategy.py
+- src\agents\unified_workflow_orchestrator.py
+- src\agents\data_analyzers\economic_data_analyzer.py
+- src\agents\data_analyzers\fundamental_data_analyzer.py
+- src\agents\data_analyzers\ibkr_data_analyzer.py
+- src\agents\data_analyzers\institutional_data_analyzer.py
+- src\agents\data_analyzers\kalshi_data_analyzer.py
+- src\agents\data_analyzers\marketdataapp_data_analyzer.py
+- src\agents\data_analyzers\microstructure_data_analyzer.py
+- src\agents\data_analyzers\news_data_analyzer.py
+- src\agents\data_analyzers\options_data_analyzer.py
+- src\agents\data_analyzers\sentiment_data_analyzer.py
+- src\agents\data_analyzers\yfinance_data_analyzer.py
+- src\agents\strategy_analyzers\ai_strategy_analyzer.py
+- src\agents\strategy_analyzers\flow_strategy_analyzer.py
+- src\agents\strategy_analyzers\multi_instrument_strategy_analyzer.py
+- src\agents\strategy_analyzers\options_strategy_analyzer.py
+- src\integrations\acontext_integration.py
+- src\integrations\ibkr_connector.py
+- src\integrations\ibkr_historical_data.py
+- src\integrations\live_trading_safeguards.py
+- src\integrations\nautilus_ibkr_bridge.py
+- src\utils\a2a_protocol.py
+- src\utils\adaptive_scheduler.py
+- src\utils\advanced_memory.py
+- src\utils\alert_manager.py
+- src\utils\api_health_monitor.py
+- src\utils\api_health_tool.py
+- src\utils\backtesting_tools.py
+- src\utils\backtrader_integration.py
+- src\utils\component_health_monitor.py
+- src\utils\config.py
+- src\utils\embeddings.py
+- src\utils\financial_tools.py
+- src\utils\historical_simulation_engine.py
+- src\utils\learning_tools.py
+- src\utils\memory_manager.py
+- src\utils\memory_security.py
+- src\utils\optimized_pipeline.py
+- src\utils\realtime_pyramiding.py
+- src\utils\risk_analytics_framework.py
+- src\utils\utils.py
+- src\utils\validation.py
+- src\utils\vault_client.py
+- src\utils\volatility_calculator.py
+- src\workflows\consensus_poller.py
+- src\workflows\iterative_reasoning_workflow.py
+- test-data\fixtures\trading_fixtures.py
+- tests\conftest.py
+- tests\fixtures\market_data.py
+- tests\integration\conftest.py
+- tests\integration\optimization_proposal_validation.py
+- tests\integration\system_integration_test.py
+- tests\integration\test_alert_integration.py
+- tests\integration\test_bridge_vs_connector_comparison.py
+- tests\integration\test_client_id_1.py
+- tests\integration\test_component_health_checks.py
+- tests\integration\test_component_health_monitor.py
+- tests\integration\test_consensus_integration.py
+- tests\integration\test_critical_trading_path.py
+- tests\integration\test_discord_guild.py
+- tests\integration\test_discord_token.py
+- tests\integration\test_e2e_trading_workflow.py
+- tests\integration\test_edge_cases.py
+- tests\integration\test_end_to_end_trading.py
+- tests\integration\test_execution_tigerbeetle_integration.py
+- tests\integration\test_failover_recovery.py
+- tests\integration\test_ibkr_paper_trading.py
+- tests\integration\test_ibkr_simple.py
+- tests\integration\test_master_client.py
+- tests\integration\test_memory.py
+- tests\integration\test_optimization_regression.py
+- tests\integration\test_paper_trade.py
+- tests\integration\test_paper_trading.py
+- tests\integration\test_server_access.py
+- tests\integration\test_startup.py
+- tests\integration\test_trading_permissions.py
+- tests\integration\test_unified_workflow_setup.py
+- tests\performance\locustfile.py
+- tests\performance\test_performance.py
+- tests\security\run_security_scan.py
+- tests\security\test_encryption_security.py
+- tests\security\test_injection_auth.py
+- tests\system\test_full_system_deployment.py
+- tests\system\test_paper_trading_validation.py
+- tests\unit\agent_memory_test.py
+- tests\unit\conftest.py
+- tests\unit\test_a2a_protocol.py
+- tests\unit\test_acontext_integration.py
+- tests\unit\test_agents_core.py
+- tests\unit\test_ai_strategy_analyzer.py
+- tests\unit\test_alert_manager.py
+- tests\unit\test_backtesting.py
+- tests\unit\test_collaborative_sessions.py
+- tests\unit\test_config.py
+- tests\unit\test_consensus_poller.py
+- tests\unit\test_data_analyzers.py
+- tests\unit\test_discord_human_input.py
+- tests\unit\test_enhanced_analyzers.py
+- tests\unit\test_health_check.py
+- tests\unit\test_ibkr_basic.py
+- tests\unit\test_ibkr_direct.py
+- tests\unit\test_integrations.py
+- tests\unit\test_langfuse_integration.py
+- tests\unit\test_memory_agent.py
+- tests\unit\test_memory_system.py
+- tests\unit\test_multi_instrument.py
+- tests\unit\test_persistence.py
+- tests\unit\test_risk_agent.py
+- tests\unit\test_risk_analytics_framework.py
+- tests\unit\test_strategy_backtrader.py
+- tests\unit\test_tools.py
+- tests\unit\test_trade_alerts_and_ranking.py
+- tests\unit\test_yfinance_data_analyzer.py
+- tools\continuous_monitor.py
+- tools\health_server.py
+- tools\import_env_to_vault.py
+- tools\memory_leak_detector.py
+- tools\memory_profile.py
+- tools\peak_operations_monitor.py
+- tools\test_24_6_setup.py
+- tools\test_unified_workflow_setup.py
+- tools\discord\debug_channels.py
+- tools\discord\setup_discord.py
+- tools\monitoring\check_bot_status.py
+
+## Files with Most Imports
+- src\integrations\nautilus_ibkr_bridge.py: 50 imports
+- src\agents\learning.py: 44 imports
+- src\agents\base.py: 42 imports
+- src\agents\strategy.py: 40 imports
+- src\agents\strategy_analyzers\ai_strategy_analyzer.py: 40 imports
+- src\integrations\ibkr_connector.py: 38 imports
+- src\agents\unified_workflow_orchestrator.py: 37 imports
+- src\agents\data.py: 35 imports
+- tests\unit\test_tools.py: 34 imports
+- src\agents\risk.py: 33 imports

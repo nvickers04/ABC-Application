@@ -1,0 +1,68 @@
+# Test Environment Configuration
+# Mirrors production setup for integration testing
+
+environment: test
+
+# Redis Configuration
+redis:
+  host: redis
+  port: 6379
+  db: 0
+  password: ""
+  ssl: false
+
+# PostgreSQL Configuration
+database:
+  host: postgres
+  port: 5432
+  name: abc_test
+  user: abc_user
+  password: test_password
+  ssl: false
+
+# IBKR Configuration
+ibkr:
+  host: mock_ibkr
+  port: 7497
+  client_id: 1
+  account: TEST123
+  paper_trading: true
+
+# Health Monitoring
+health:
+  host: health_monitor
+  port: 8080
+  check_interval: 30
+
+# Logging
+logging:
+  level: INFO
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "logs/test.log"
+
+# Alert Configuration
+alerts:
+  enabled: true
+  discord_webhook: ""  # Disabled in test
+  email_enabled: false
+
+# API Keys (test/mock values)
+api_keys:
+  alpha_vantage: "test_key"
+  news_api: "test_key"
+  twitter_bearer: "test_token"
+
+# Risk Management
+risk:
+  max_position_size: 0.1
+  max_portfolio_risk: 0.05
+  stop_loss_threshold: 0.02
+
+# Performance Monitoring
+monitoring:
+  enabled: true
+  metrics_interval: 60
+  alert_thresholds:
+    cpu_percent: 80
+    memory_percent: 85
+    disk_percent: 90

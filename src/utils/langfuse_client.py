@@ -44,16 +44,18 @@ except ImportError:
 
 # Try to import langfuse
 try:
-    from langfuse import Langfuse
-    from langfuse.decorators import langfuse_context, observe
-    from langfuse.callback import CallbackHandler
+    from langfuse import Langfuse, observe, propagate_attributes
     LANGFUSE_AVAILABLE = True
+    # Set unavailable imports to None for compatibility
+    langfuse_context = None
+    CallbackHandler = None
 except ImportError:
     LANGFUSE_AVAILABLE = False
     Langfuse = None
     langfuse_context = None
     observe = None
     CallbackHandler = None
+    propagate_attributes = None
 
 # Try to import yaml for config loading
 try:

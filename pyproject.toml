@@ -11,3 +11,91 @@ filterwarnings = [
     "ignore::DeprecationWarning",
     "ignore::PendingDeprecationWarning"
 ]
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 100
+known_first_party = ["src"]
+known_third_party = [
+    "fastapi",
+    "uvicorn",
+    "pydantic",
+    "pandas",
+    "numpy",
+    "pytest",
+    "pytest_asyncio",
+    "httpx",
+    "requests",
+    "aiohttp",
+    "psutil",
+    "redis",
+    "pypfopt",
+    "scipy",
+    "sklearn",
+    "matplotlib",
+    "seaborn",
+    "yfinance",
+    "ib_insync",
+    "apscheduler",
+    "discord",
+    "python-dotenv",
+    "cryptography",
+    "hvac",
+    "langchain_core",
+    "langchain_openai",
+    "langchain_anthropic",
+    "langchain_google_genai",
+    "langfuse",
+    "backtrader",
+    "stable_baselines3",
+    "gymnasium",
+    "nautilus_trader",
+    "exchange_calendars",
+    "fredapi",
+    "textblob",
+    "nltk",
+    "tweepy",
+    "joblib",
+    "torch",
+    "pytz",
+    "websockets",
+    "mem0",
+    "statsmodels",
+    "tigerbeetle",
+    "transformers",
+    "sentence_transformers",
+    "faiss",
+    "chromadb",
+    "tensorflow",
+    "tensorflow_probability",
+    "absl",
+    "py_vollib",
+    "zipline",
+    "qlib",
+    "locust",
+    "financedatabase",
+    "schedule",
+    "acontext",
+    "acontext_integration"
+]
+
+[tool.flake8]
+max-line-length = 100
+extend-ignore = ["E203", "W503"]
+exclude = [
+    ".git",
+    "__pycache__",
+    "build",
+    "dist",
+    "*.egg-info",
+    ".venv",
+    "venv",
+    "myenv",
+    "htmlcov",
+    "docs"
+]
+per-file-ignores = [
+    "__init__.py:F401",
+    "conftest.py:F401"
+]

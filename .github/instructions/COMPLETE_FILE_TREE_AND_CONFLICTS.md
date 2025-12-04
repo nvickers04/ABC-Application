@@ -215,7 +215,7 @@ ABC-Application/
 │   │   ├── execution.py
 │   │   ├── execution_tools.py
 │   │   ├── learning.py
-│   │   ├── live_workflow_orchestrator.py
+│   │   ├── unified_workflow_orchestrator.py
 │   │   ├── macro.py
 │   │   ├── memory.py
 │   │   ├── reflection.py
@@ -273,16 +273,16 @@ ABC-Application/
 │   │   └── iterative_reasoning_workflow.py
 │   └── __init__.py
 ├── tools/
-│   ├── continuous_trading.py
+│   ├── unified_workflow_orchestrator.py
 │   ├── CONTINUOUS_TRADING_README.md
 │   ├── discord/
 │   ├── import_env_to_vault.py
 │   ├── monitoring/
 │   ├── README.md
-│   ├── start_continuous_trading.bat
-│   ├── start_live_workflow.py
+│   ├── start_unified_workflow.bat
+│   ├── start_unified_workflow.py
 │   ├── test_24_6_setup.py
-│   ├── twenty_four_six_workflow_orchestrator.py
+│   ├── unified_workflow_orchestrator.py
 │   ├── vault/
 │   └── __pycache__/
 ├── unit-tests/

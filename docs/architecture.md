@@ -20,7 +20,7 @@ ABC Application is a sophisticated multi-agent AI system for quantitative portfo
 
 ### Core Innovation: AI Reasoning Through 8-Agent Collaboration
 
-The ABC Application system's fundamental breakthrough is its **8-agent collaborative reasoning architecture**. This creates a sophisticated AI reasoning environment where specialized agents debate, deliberate, and reach consensus on investment decisions - mimicking institutional investment committees but with AI precision, speed, and scalability.
+The ABC Application system's fundamental breakthrough is its **8-agent collaborative reasoning architecture**. This creates a sophisticated AI reasoning environment where specialized agents debate and deliberate through natural collaboration - mimicking institutional investment committees but with AI precision, speed, and scalability.
 
 ### Agent-Based Design
 
@@ -35,7 +35,7 @@ The ABC Application system's fundamental breakthrough is its **8-agent collabora
   - **Reflection Agent (1)**: Decision validation and continuous improvement
   - **Macro Agent (1)**: Sector scanning and market regime analysis
 
-- **Collaborative Intelligence**: Agents debate and consensus-build through structured deliberation
+- **Collaborative Intelligence**: Agents debate and collaborate through natural A2A communication
 - **Autonomous Operation**: Agents make decisions using LLM reasoning and tool interactions
 - **Memory Integration**: Shared memory systems enable cross-agent learning and adaptation
 
@@ -132,7 +132,7 @@ The ReflectionAgent serves as the system's final arbiter with unilateral authori
 
 #### Health Monitoring System
 - **ComponentHealthMonitor**: Comprehensive component health tracking and alerting
-- **health_server.py**: FastAPI-based health check endpoints providing:
+- **tools/health_server.py**: FastAPI-based health check endpoints providing:
   - `/health`: Overall system health status
   - `/health/components`: Individual component health
   - `/health/api`: API connectivity status
@@ -158,11 +158,7 @@ The ReflectionAgent serves as the system's final arbiter with unilateral authori
 - **Channels**: Discord notifications with embed formatting
 - **Persistence**: Alert history and escalation tracking
 
-#### Consensus Polling System
-- **ConsensusPoller**: Multi-agent consensus workflow management
-- **States**: PENDING, VOTING, CONSENSUS_REACHED, TIMEOUT, FAILED
-- **Persistence**: JSON-based state management
-- **Discord Integration**: Real-time status updates and human intervention
+
 
 ### IBKR Integration Architecture
 
@@ -459,20 +455,6 @@ DataAgent → StrategyAgent → RiskAgent → ExecutionAgent
 └─────────────────┘    └─────────────────┘    └─────────────────┘
 ```
 
-### Consensus Workflow
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Workflow      │───▶│  Consensus     │───▶│   Agent         │
-│   Trigger       │    │    Poller      │    │   Voting        │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-         │                        │                     │
-         ▼                        ▼                     ▼
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   State         │    │   Discord       │    │   Decision      │
-│   Persistence   │    │   Updates       │    │   Resolution    │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-```
-
 ### Memory and Learning Architecture
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
@@ -532,7 +514,7 @@ DataAgent → StrategyAgent → RiskAgent → ExecutionAgent
 ## Agent Communication Protocol (A2A)
 
 ### Communication Patterns
-- **Debate Sessions**: Multi-agent discussions for consensus building
+- **Collaborative Sessions**: Multi-agent discussions through natural A2A communication
 - **Data Sharing**: Structured JSON/DataFrame exchanges
 - **State Coordination**: Shared memory spaces for agent synchronization
 - **Event-Driven**: Asynchronous messaging for real-time coordination
@@ -575,6 +557,51 @@ The system integrates with Discord through a single orchestrator bot that manage
 - **Educational Value**: Transparent decision processes for learning and validation
 - **Intervention Capability**: Ability to pause, question, or redirect agent activities
 - **Collaborative Intelligence**: Human-AI hybrid decision-making framework
+
+### Data-Feed Channel Integration
+
+#### Purpose
+The data-feed channel provides a dedicated Discord interface for feeding external information, articles, documents, and market data directly to agents during active workflows.
+
+#### Key Features
+- **Information Ingestion**: Articles, research reports, news links, and market data
+- **Agent Processing**: Automatic routing to appropriate agents (DataAgent, MacroAgent, etc.)
+- **Real-time Integration**: Information incorporated into ongoing analysis workflows
+- **Source Attribution**: Maintains source tracking for transparency and validation
+
+#### Usage Patterns
+- **Market Intelligence**: Breaking news, earnings reports, and economic indicators
+- **Research Integration**: Academic papers, analyst reports, and industry studies
+- **Data Updates**: Real-time market data corrections and supplemental feeds
+- **Human Expertise**: Expert insights and qualitative assessments
+
+#### Integration Benefits
+- **Enhanced Context**: Agents receive comprehensive information beyond automated feeds
+- **Human-in-the-Loop**: Subject matter experts can contribute specialized knowledge
+- **Dynamic Adaptation**: Real-time information updates during active decision processes
+- **Knowledge Enrichment**: Continuous learning from external sources and human input
+
+### Ranked Trades Channel Integration
+
+#### Purpose
+The ranked trades channel provides a dedicated Discord interface for displaying ranked trade proposals from the UnifiedWorkflowOrchestrator, enabling real-time monitoring of trade decision-making processes.
+
+#### Key Features
+- **Trade Proposal Ranking**: Confidence-based ranking with expected return tiebreakers
+- **Real-time Updates**: Live trade proposal rankings during analysis cycles
+- **Structured Display**: Formatted trade proposals with confidence scores and rankings
+- **Agent Attribution**: Clear identification of proposing agents
+
+#### Ranking Algorithm
+Trade proposals are ranked using a two-tier sorting system:
+1. **Primary Sort**: Confidence score (descending)
+2. **Tiebreaker**: Expected return (descending)
+
+#### Integration Benefits
+- **Decision Transparency**: Clear visibility into trade ranking logic
+- **Real-time Monitoring**: Live updates during active trading workflows
+- **Quality Assurance**: Human oversight of automated trade rankings
+- **Audit Trail**: Historical record of ranked trade proposals
 
 ## Memory Architecture
 
@@ -760,20 +787,6 @@ DataAgent → StrategyAgent → RiskAgent → ExecutionAgent
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │   Order         │    │   Market Data   │    │   Error         │
 │   Management    │    │   Feeds         │    │   Handling      │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-```
-
-### Consensus Workflow
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Workflow      │───▶│  Consensus     │───▶│   Agent         │
-│   Trigger       │    │    Poller      │    │   Voting        │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-         │                        │                     │
-         ▼                        ▼                     ▼
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   State         │    │   Discord       │    │   Decision      │
-│   Persistence   │    │   Updates       │    │   Resolution    │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
 ```
 

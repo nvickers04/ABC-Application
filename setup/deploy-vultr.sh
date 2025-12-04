@@ -165,7 +165,7 @@ User=$USER
 WorkingDirectory=/opt/abc-application
 Environment=PATH=/opt/abc-application/venv/bin
 Environment=PYTHONPATH=/opt/abc-application/src
-ExecStart=/opt/abc-application/venv/bin/python tools/twenty_four_six_workflow_orchestrator.py
+ExecStart=/opt/abc-application/venv/bin/python tools/start_unified_workflow.py --mode hybrid --symbols SPY,QQQ
 Restart=always
 RestartSec=10
 StandardOutput=journal

@@ -1,0 +1,104 @@
+version: '3.8'
+
+services:
+  # Redis for caching and data storage
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_test_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # PostgreSQL for relational data (if needed)
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: abc_test
+      POSTGRES_USER: abc_user
+      POSTGRES_PASSWORD: test_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U abc_user -d abc_test"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Mock IBKR TWS for testing
+  mock_ibkr:
+    build:
+      context: .
+      dockerfile: setup/Dockerfile.mock_ibkr
+    ports:
+      - "7497:7497"
+    environment:
+      - MOCK_IBKR_MODE=test
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "7497"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Health monitoring service
+  health_monitor:
+    build:
+      context: .
+      dockerfile: setup/Dockerfile.health_monitor
+    ports:
+      - "8080:8080"
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      - REDIS_HOST=redis
+      - POSTGRES_HOST=postgres
+      - ENVIRONMENT=test
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Test runner service
+  test_runner:
+    build:
+      context: .
+      dockerfile: setup/Dockerfile.test_runner
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      mock_ibkr:
+        condition: service_healthy
+      health_monitor:
+        condition: service_healthy
+    environment:
+      - REDIS_HOST=redis
+      - POSTGRES_HOST=postgres
+      - IBKR_HOST=mock_ibkr
+      - HEALTH_HOST=health_monitor
+      - ENVIRONMENT=test
+    volumes:
+      - .:/app
+      - test_results:/app/test-results
+    command: ["pytest", "integration-tests/", "-v", "--tb=short"]
+
+volumes:
+  redis_test_data:
+  postgres_test_data:
+  test_results:
+
+networks:
+  default:
+    name: abc_test_network

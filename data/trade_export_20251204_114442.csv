@@ -1,0 +1,4 @@
+timestamp,order_id,symbol,action,quantity,price,commission,realized_pnl,strategy,confidence
+2025-12-04T11:44:42.959452,PAPER_001,AAPL,BUY,100,150.25,1.0,0.0,momentum,
+2025-12-04T11:44:42.960451,PAPER_002,AAPL,SELL,100,152.1,1.0,185.0,momentum,
+2025-12-04T11:44:42.964450,PAPER_003,GOOGL,BUY,50,2800.0,0.5,0.0,momentum,

@@ -46,7 +46,7 @@ ABC-Application/
 ```
 ABC-Application/
 ├── discord_agents.py          # ❌ Should be in src/
-├── live_workflow_orchestrator.py  # ❌ Should be in src/
+├── unified_workflow_orchestrator.py  # ✅ Unified workflow orchestrator
 └── src/
 ```
 
@@ -56,7 +56,7 @@ ABC-Application/
 ├── src/
 │   ├── agents/
 │   │   ├── discord_agents.py
-│   │   └── live_workflow_orchestrator.py
+│   │   └── unified_workflow_orchestrator.py
 │   └── main.py
 └── tools/                     # For utility scripts
 ```
@@ -75,7 +75,7 @@ src/
 │   ├── execution.py          # ExecutionAgent
 │   ├── learning.py           # LearningAgent
 │   ├── discord_agents.py     # Discord integration agents
-│   └── live_workflow_orchestrator.py # Live workflow management
+│   └── unified_workflow_orchestrator.py # Unified workflow management
 ├── utils/                    # Utility modules
 │   ├── tools.py              # Main tools aggregator
 │   ├── validation.py         # Input validation
@@ -132,7 +132,7 @@ tools/
 ├── debug_channels.py         # Discord channel debugging
 ├── quick_workflow_test.py    # Workflow testing utilities
 ├── setup_discord.py          # Discord setup utilities
-├── start_live_workflow.py    # Live workflow starters
+├── start_unified_workflow.py # Unified workflow starters
 ├── test_grok.py              # Grok API testing
 ├── workflow_status_tracker.py # Workflow monitoring
 └── monitoring/               # Monitoring tools

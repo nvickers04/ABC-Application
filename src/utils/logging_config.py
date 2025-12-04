@@ -82,3 +82,61 @@ def log_error_with_context(
     context.update(extra_context)
 
     logger.error(f"Error in {operation}: {error}", extra=context)
+
+
+def log_operation_start(
+    logger: logging.Logger,
+    operation: str,
+    component: Optional[str] = None,
+    **context
+):
+    """Log the start of an operation with context."""
+    log_context = {
+        'operation': operation,
+        'component': component or logger.name.split('.')[-1],
+        'phase': 'start'
+    }
+    log_context.update(context)
+
+    logger.info(f"Starting {operation}", extra=log_context)
+
+
+def log_operation_end(
+    logger: logging.Logger,
+    operation: str,
+    component: Optional[str] = None,
+    duration_ms: Optional[float] = None,
+    **context
+):
+    """Log the end of an operation with context."""
+    log_context = {
+        'operation': operation,
+        'component': component or logger.name.split('.')[-1],
+        'phase': 'end'
+    }
+    if duration_ms is not None:
+        log_context['duration_ms'] = duration_ms
+
+    log_context.update(context)
+
+    logger.info(f"Completed {operation}", extra=log_context)
+
+
+def log_performance_metric(
+    logger: logging.Logger,
+    metric_name: str,
+    value: float,
+    unit: str = "ms",
+    component: Optional[str] = None,
+    **context
+):
+    """Log a performance metric."""
+    log_context = {
+        'metric_name': metric_name,
+        'value': value,
+        'unit': unit,
+        'component': component or logger.name.split('.')[-1]
+    }
+    log_context.update(context)
+
+    logger.info(f"Performance metric: {metric_name} = {value}{unit}", extra=log_context)

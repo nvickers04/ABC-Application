@@ -65,7 +65,7 @@ src/
 │   ├── execution.py       # ExecutionAgent
 │   ├── learning.py        # LearningAgent
 │   ├── discord_agents.py  # Discord integration agents
-│   └── live_workflow_orchestrator.py # Live workflow management
+│   └── unified_workflow_orchestrator.py # Unified workflow management
 ├── utils/                 # Utility modules
 │   ├── tools.py           # Main tools aggregator
 │   ├── validation.py      # Input validation

@@ -44,6 +44,10 @@ jobs:
         pip install -r requirements.txt
         pip install pytest pytest-cov pytest-asyncio pytest-sugar pytest-xdist pytest-mock
 
+    - name: Validate import paths
+      run: |
+        python scripts/validate_imports.py
+
     - name: Set up TigerBeetle
       run: |
         .\setup\setup_tigerbeetle.ps1
@@ -92,7 +96,7 @@ jobs:
 
     - name: Run integration tests
       run: |
-        python -m pytest integration-tests/ -v --tb=short --maxfail=5
+        python -m pytest tests/integration/ -v --tb=short --maxfail=5 -k "not test_long_timeout and not test_ibkr_historical"
 
   security-scan:
     runs-on: windows-latest

@@ -34,6 +34,9 @@ The ABC Application system employs a sophisticated multi-agent architecture with
 - **MemoryAgent**: Memory coordination, retrieval, and collaborative intelligence sharing
 - **MacroAgent**: Sector analysis, asset class selection, and market regime assessment - establishes foundational market context and prioritizes opportunities for all subsequent analysis
 
+#### Orchestration Agents
+- **UnifiedWorkflowOrchestrator**: Central coordination system consolidating Live Workflow, Continuous Trading, and 24/6 operations with trade proposal ranking and Discord integration
+
 ### Data Analyzers (10)
 
 #### Market Data Collection

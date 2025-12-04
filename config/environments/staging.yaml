@@ -1,0 +1,69 @@
+# Staging Environment Configuration
+# Pre-production environment for validation
+
+environment: staging
+
+# Redis Configuration
+redis:
+  host: localhost
+  port: 6379
+  db: 1
+  password: ""
+  ssl: false
+
+# PostgreSQL Configuration
+database:
+  host: localhost
+  port: 5432
+  name: abc_staging
+  user: abc_user
+  password: staging_password
+  ssl: false
+
+# IBKR Configuration (Paper Trading)
+ibkr:
+  host: localhost
+  port: 7497
+  client_id: 2
+  account: STAGING123
+  paper_trading: true
+
+# Health Monitoring
+health:
+  host: localhost
+  port: 8080
+  check_interval: 60
+
+# Logging
+logging:
+  level: DEBUG
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "logs/staging.log"
+
+# Alert Configuration
+alerts:
+  enabled: true
+  discord_webhook: "${DISCORD_WEBHOOK_STAGING}"
+  email_enabled: true
+  email_recipients: ["staging-alerts@abc-app.com"]
+
+# API Keys (staging values)
+api_keys:
+  alpha_vantage: "${ALPHA_VANTAGE_KEY}"
+  news_api: "${NEWS_API_KEY}"
+  twitter_bearer: "${TWITTER_BEARER_TOKEN}"
+
+# Risk Management (more conservative than prod)
+risk:
+  max_position_size: 0.05
+  max_portfolio_risk: 0.02
+  stop_loss_threshold: 0.01
+
+# Performance Monitoring
+monitoring:
+  enabled: true
+  metrics_interval: 30
+  alert_thresholds:
+    cpu_percent: 70
+    memory_percent: 75
+    disk_percent: 80

@@ -396,8 +396,8 @@ Apply to:
 - `docs/IMPLEMENTATION/setup.md` - [LABEL:DOC:implementation] [LABEL:DOC:topic:deployment] [LABEL:DOC:audience:administrator]
 
 **Tool Scripts Labeled:**
-- `tools/continuous_trading.py` - [LABEL:TOOL:trading] [LABEL:TOOL:continuous] [LABEL:FRAMEWORK:asyncio]
-- `tools/start_live_workflow.py` - [LABEL:TOOL:workflow] [LABEL:TOOL:launcher] [LABEL:FRAMEWORK:discord]
+- `src/agents/unified_workflow_orchestrator.py` - [LABEL:TOOL:trading] [LABEL:TOOL:orchestrator] [LABEL:FRAMEWORK:asyncio]
+- `tools/start_unified_workflow.py` - [LABEL:TOOL:workflow] [LABEL:TOOL:launcher] [LABEL:FRAMEWORK:discord]
 
 ### Search Enhancement Examples
 

@@ -76,10 +76,10 @@ except ImportError as e:
 
 # Try to import LangChain memory components
 try:
-    from langchain_classic.memory import ConversationBufferMemory
-    from langchain.chains import ConversationChain
-    LANGCHAIN_MEMORY_AVAILABLE = True
-    logger.info("LangChain memory available for agent conversations")
+    # In LangChain 1.x, memory has been restructured. For now, we'll disable memory.
+    # TODO: Update to use new LangChain 1.x memory patterns when available
+    LANGCHAIN_MEMORY_AVAILABLE = False
+    logger.info("LangChain memory temporarily disabled for LangChain 1.x compatibility")
 except ImportError as e:
     logger.warning(f"LangChain memory not available: {e}. Agent conversations will not persist.")
     LANGCHAIN_MEMORY_AVAILABLE = False

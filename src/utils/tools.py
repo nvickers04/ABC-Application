@@ -25,10 +25,11 @@ try:
     from langchain_community.vectorstores import FAISS
     from langchain_openai import OpenAIEmbeddings
     from langchain_core.documents import Document
-    from langchain.chains import LLMChain, SequentialChain
-    from langchain.prompts import PromptTemplate
+    from langchain_core.prompts import PromptTemplate
+    # Note: LLMChain and SequentialChain are deprecated in LangChain 1.x
+    # They are replaced by LCEL (LangChain Expression Language) using runnables
     LANGCHAIN_RAG_AVAILABLE = True
-    LANGCHAIN_CHAINS_AVAILABLE = True
+    LANGCHAIN_CHAINS_AVAILABLE = False  # Chains are deprecated, using LCEL instead
 except ImportError:
     LANGCHAIN_RAG_AVAILABLE = False
     LANGCHAIN_CHAINS_AVAILABLE = False

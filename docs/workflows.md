@@ -4,7 +4,7 @@
 
 The AI Portfolio Manager system uses structured workflows to orchestrate collaborative reasoning among multiple AI agents. These workflows ensure systematic analysis, decision-making, and learning in trading scenarios. The core of the system is built around LangGraph's StateGraph, which manages the flow between agents while maintaining a shared state.
 
-All workflows are managed through the A2AProtocol class in `src/utils/a2a_protocol.py`, which handles agent registration, message passing, and Discord integration for monitoring and control. The `live_workflow_orchestrator.py` handles scheduling and continuous operation.
+All workflows are managed through the A2AProtocol class in `src/utils/a2a_protocol.py`, which handles agent registration, message passing, and Discord integration for monitoring and control. The `unified_workflow_orchestrator.py` handles scheduling and continuous operation.
 
 ## Main Workflow: AI Trading Workflow
 
@@ -38,7 +38,7 @@ This is the primary workflow that runs the complete 8-step collaborative reasoni
 
 ## Scheduled Workflows
 
-The system supports 24/6 continuous operation with market-aware scheduling, aligned with NYSE trading hours (Eastern Time - ET). Schedules are managed by APScheduler in `live_workflow_orchestrator.py` and use the NYSE calendar for trading day validation. Workflows only run on valid trading days (excluding weekends and holidays).
+The system supports 24/6 continuous operation with market-aware scheduling, aligned with NYSE trading hours (Eastern Time - ET). Schedules are managed by APScheduler in `unified_workflow_orchestrator.py` and use the NYSE calendar for trading day validation. Workflows only run on valid trading days (excluding weekends and holidays).
 
 ### Trading Day Schedule (Mon-Fri, ET)
 - **5:30 AM ET**: Early Monday Prep - Extra early Monday market regime assessment (only on Mondays).
@@ -93,7 +93,7 @@ These scheduled workflows leverage the main AI Trading Workflow phases but can b
 - **LangChain Integration**: Agents can wrap LangChain executors for enhanced capabilities.
 - **Error Handling**: Built-in retries and conditional routing for resilience.
 
-For implementation details, see `src/utils/a2a_protocol.py` and `src/agents/live_workflow_orchestrator.py`. For Discord integration, refer to `docs/discord-agent-integration.md`. For 24/6 setup, see `docs/IMPLEMENTATION/24_6_CONTINUOUS_OPERATION.md`.
+For implementation details, see `src/utils/a2a_protocol.py` and `src/agents/unified_workflow_orchestrator.py`. For Discord integration, refer to `docs/discord-agent-integration.md`. For continuous operation setup, see `docs/IMPLEMENTATION/UNIFIED_WORKFLOW_CONTINUOUS_OPERATION.md`.
 
 ## Consensus Workflow Polling
 
@@ -133,5 +133,5 @@ See `config/consensus_config.yaml` for polling intervals, timeouts, agent permis
 
 ### Implementation
 - **Core**: `src/workflows/consensus_poller.py` - Main polling logic and state management
-- **Integration**: `src/agents/live_workflow_orchestrator.py` - Discord commands and agent requests
+- **Integration**: `src/agents/unified_workflow_orchestrator.py` - Discord commands and agent requests
 - **Tests**: `unit-tests/test_consensus_poller.py` and `integration-tests/test_consensus_integration.py`

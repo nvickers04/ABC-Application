@@ -270,7 +270,7 @@ def main():
             start_live_workflow()
         else:
             print("\nTo start later, run:")
-            print("python src/agents/live_workflow_orchestrator.py")
+            print("python tools/start_unified_workflow.py --mode hybrid --symbols SPY")
     else:
         print("\n⚠️ Some components need attention. Please fix issues and re-run.")
 

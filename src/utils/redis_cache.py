@@ -154,9 +154,12 @@ class RedisCacheManager:
 
         Returns:
             Cached value or None if not found/expired
+
+        Raises:
+            RuntimeError: If Redis is not available
         """
         if not self.redis_client:
-            return None
+            raise RuntimeError("Redis cache is not available - Redis connection failed")
 
         redis_key = self._generate_key(namespace, key)
 
@@ -187,10 +190,13 @@ class RedisCacheManager:
             ttl_seconds: Time to live in seconds (uses default if None)
 
         Returns:
-            True if successful, False otherwise
+            True if successful
+
+        Raises:
+            RuntimeError: If Redis is not available
         """
         if not self.redis_client:
-            return False
+            raise RuntimeError("Redis cache is not available - Redis connection failed")
 
         redis_key = self._generate_key(namespace, key)
         ttl = ttl_seconds or self.default_ttl_seconds

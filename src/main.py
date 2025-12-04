@@ -11,26 +11,32 @@
 
 import asyncio
 import logging
-from typing import Dict, Any
-import pandas as pd  # For DataFrames in handoffs.
 import sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))  # Dynamic root path for imports from src/.
+from typing import Dict, Any
+
+import pandas as pd  # For DataFrames in handoffs.
+
+# Dynamic root path for imports from src/.
+sys.path.insert(0, str(Path(__file__).parent.parent))
 sys.path.insert(0, str(Path(__file__).parent))  # Add src to path for utils imports.
 
-from src.utils.a2a_protocol import A2AProtocol, BaseMessage  # From src/utils/a2a_protocol.py.
-from src.utils.api_health_monitor import start_health_monitoring, get_api_health_summary
 from src.agents.data import DataAgent
-from src.agents.strategy import StrategyAgent
-from src.agents.risk import RiskAgent
 from src.agents.execution import ExecutionAgent
-from src.agents.reflection import ReflectionAgent
 from src.agents.learning import LearningAgent
 from src.agents.macro import MacroAgent
-from src.agents.live_workflow_orchestrator import LiveWorkflowOrchestrator
+from src.agents.reflection import ReflectionAgent
+from src.agents.risk import RiskAgent
+from src.agents.strategy import StrategyAgent
+from src.agents.unified_workflow_orchestrator import UnifiedWorkflowOrchestrator, WorkflowMode
+from src.utils.a2a_protocol import A2AProtocol, BaseMessage  # From src/utils/a2a_protocol.py.
+from src.utils.api_health_monitor import start_health_monitoring, get_api_health_summary
 
 # Setup centralized logging for traceability (full-cycle audits)
-from src.utils.logging_config import get_logger
+from src.utils.logging_config import setup_logging, get_logger, log_operation_start, log_operation_end
+
+# Initialize centralized logging
+setup_logging(level="INFO", enable_console=True, enable_file=True)
 logger = get_logger(__name__)
 
 async def main_continuous_workflow() -> None:
@@ -38,6 +44,7 @@ async def main_continuous_workflow() -> None:
     Runs the continuous AI Portfolio Manager workflow with Discord integration.
     This replaces the simple one-time StateGraph with a comprehensive workflow orchestrator.
     """
+    log_operation_start(logger, "continuous_workflow", component="main_orchestrator")
     logger.info("Starting continuous AI Portfolio Manager workflow with Discord integration")
 
     # Start API health monitoring
@@ -48,25 +55,24 @@ async def main_continuous_workflow() -> None:
     health_status = get_api_health_summary()
     logger.info(f"Initial API health status: {health_status['summary']}")
 
-    # Initialize the Live Workflow Orchestrator (includes A2A protocol internally)
-    logger.info("Initializing Live Workflow Orchestrator...")
-    orchestrator = LiveWorkflowOrchestrator()
+    # Initialize the Unified Workflow Orchestrator
+    logger.info("Initializing Unified Workflow Orchestrator...")
+    orchestrator = UnifiedWorkflowOrchestrator(
+        mode=WorkflowMode.HYBRID,
+        enable_discord=True,
+        symbols=['SPY']
+    )
 
-    # Initialize agents asynchronously
-    await orchestrator.initialize_agents_async()
-
-    # Start Discord client and workflow
-    logger.info("Starting Discord integration and workflow...")
+    # Initialize and start the orchestrator
+    logger.info("Starting unified workflow...")
     try:
-        await orchestrator.run_orchestrator()
+        await orchestrator.start()
     except KeyboardInterrupt:
         logger.info("Received shutdown signal, stopping orchestrator...")
-        if orchestrator.client:
-            await orchestrator.client.close()
+        await orchestrator.stop()
     except Exception as e:
         logger.error(f"Orchestrator error: {e}")
-        if orchestrator.client:
-            await orchestrator.client.close()
+        await orchestrator.stop()
     finally:
         logger.info("AI Portfolio Manager workflow completed")# Legacy function for backward compatibility (simple one-time run)
 async def main_loop() -> Dict[str, Any]:
@@ -110,6 +116,7 @@ async def main_loop() -> Dict[str, Any]:
     result = await a2a.run_orchestration(initial_data)
 
     logger.info(f"Legacy orchestration completed: {result}")
+    log_operation_end(logger, "continuous_workflow", component="main_orchestrator")
     return result
 
 # Entry point for tests (run python src/main.py)

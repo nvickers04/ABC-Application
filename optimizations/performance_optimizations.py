@@ -638,7 +638,7 @@ def profile_sync_function(func):
     print("\n🧪 Testing Recommendations:")
     print("   1. Run: python optimizations/performance_analysis.py")
     print("   2. Test: python test_discord_integration.py")
-    print("   3. Profile: python -m cProfile src/agents/live_workflow_orchestrator.py")
+    print("   3. Profile: python -m cProfile tools/start_unified_workflow.py --mode hybrid --symbols SPY")
 
     return len(optimizations_applied) > 0
 

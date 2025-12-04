@@ -1,0 +1,42 @@
+{
+  "2025-12-04": {
+    "total_trades": 3,
+    "winning_trades": 1,
+    "losing_trades": 0,
+    "win_rate": 33.33,
+    "total_pnl": 185.0,
+    "total_commission": 2.5,
+    "net_pnl": 182.5,
+    "largest_win": 185.0,
+    "largest_loss": 0.0,
+    "avg_win": 185.0,
+    "avg_loss": 0.0,
+    "sharpe_ratio": 11.22,
+    "portfolio_value_start": 100000.0,
+    "portfolio_value_end": 100182.5,
+    "top_performers": [
+      {
+        "symbol": "AAPL",
+        "pnl": 185.0,
+        "trades": 2
+      },
+      {
+        "symbol": "GOOGL",
+        "pnl": 0.0,
+        "trades": 1
+      }
+    ],
+    "worst_performers": [
+      {
+        "symbol": "GOOGL",
+        "pnl": 0.0,
+        "trades": 1
+      },
+      {
+        "symbol": "AAPL",
+        "pnl": 185.0,
+        "trades": 2
+      }
+    ]
+  }
+}

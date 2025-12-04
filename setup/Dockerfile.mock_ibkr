@@ -1,0 +1,19 @@
+# Mock IBKR TWS for testing
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+    netcat-openbsd \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Create mock IBKR server
+COPY setup/mock_ibkr_server.py /app/
+
+EXPOSE 7497
+
+CMD ["python", "mock_ibkr_server.py"]

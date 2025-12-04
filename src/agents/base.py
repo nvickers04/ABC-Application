@@ -11,15 +11,16 @@
 # Update: Langfuse integration for comprehensive agent tracing, monitoring, and analytics.
 
 import abc
-import logging
-from typing import Dict, Any, List, Optional
-import sys
-from pathlib import Path
-import os
-from dotenv import load_dotenv
-import uuid
-import pandas as pd
 import asyncio
+import logging
+import os
+import sys
+import uuid
+from pathlib import Path
+from typing import Dict, Any, List, Optional
+
+import pandas as pd
+from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
@@ -28,8 +29,8 @@ load_dotenv()
 project_root = Path(__file__).parent.parent.parent  # From src/agents/base.py -> project root
 sys.path.insert(0, str(project_root))
 
-from src.utils.utils import load_yaml, load_prompt_template  # Absolute from src/utils.py (now discoverable).
 from src.utils.alert_manager import get_alert_manager
+from src.utils.utils import load_yaml, load_prompt_template  # Absolute from src/utils.py (now discoverable).
 
 # Langfuse tracing integration
 try:
@@ -597,15 +598,15 @@ class BaseAgent(abc.ABC):
         self.memory = {}
         if self.memory_persistence:
             try:
-                loaded_memory = self.memory_persistence.load_agent_memory(role)
+                loaded_memory = self.memory_persistence.load_agent_memory(self.role)
                 if loaded_memory and isinstance(loaded_memory, dict):
                     self.memory = loaded_memory
                 logger.info("Memory persistence initialized successfully")
             except Exception as e:
                 logger.warning(f"Failed to load persistent memory: {e}, starting with empty memory")
                 self.alert_manager.warning(
-                    f"Memory load failed for agent {role}",
-                    {"role": role, "error": str(e)},
+                    f"Memory load failed for agent {self.role}",
+                    {"role": self.role, "error": str(e)},
                     "base_agent"
                 )
         else:
@@ -633,11 +634,9 @@ class BaseAgent(abc.ABC):
         """Property to provide memory_manager compatibility for data analyzers."""
         if hasattr(self, '_memory_manager') and self._memory_manager is not None:
             return self._memory_manager
-        elif hasattr(self, 'advanced_memory') and self.advanced_memory is not None:
-            return self.advanced_memory
         else:
-            # Fallback to basic memory manager
-            return _get_advanced_memory_manager()
+            # Use advanced memory - required, no fallback
+            return self.advanced_memory
 
     @memory_manager.setter
     def memory_manager(self, value):

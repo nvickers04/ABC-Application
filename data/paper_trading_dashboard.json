@@ -1,0 +1,63 @@
+{
+  "timestamp": "2025-12-04T12:06:30.832368",
+  "metrics": {
+    "total_trades": 4,
+    "winning_trades": 1,
+    "losing_trades": 1,
+    "win_rate": 25.0,
+    "total_pnl": 110.0,
+    "total_commission": 3.0,
+    "avg_win": 185.0,
+    "avg_loss": 75.0,
+    "largest_win": 185.0,
+    "largest_loss": 75.0,
+    "portfolio_value": 100107.0,
+    "sharpe_ratio": 0.0,
+    "max_drawdown": 0.0,
+    "current_drawdown": 0.0
+  },
+  "health": {
+    "ibkr_connected": true,
+    "last_ibkr_check": "2025-12-04T12:06:25.820007",
+    "alert_queue_size": 2,
+    "circuit_breaker_status": {},
+    "memory_usage": 82.3,
+    "cpu_usage": 7.9,
+    "active_positions": 0,
+    "pending_orders": 0
+  },
+  "recent_trades": [
+    {
+      "timestamp": "2025-12-04T12:06:19.802940",
+      "symbol": "AAPL",
+      "action": "BUY",
+      "quantity": 100,
+      "price": 150.25,
+      "pnl": 0.0
+    },
+    {
+      "timestamp": "2025-12-04T12:06:20.808341",
+      "symbol": "AAPL",
+      "action": "SELL",
+      "quantity": 100,
+      "price": 152.1,
+      "pnl": 185.0
+    },
+    {
+      "timestamp": "2025-12-04T12:06:21.821378",
+      "symbol": "GOOGL",
+      "action": "BUY",
+      "quantity": 50,
+      "price": 2800.0,
+      "pnl": 0.0
+    },
+    {
+      "timestamp": "2025-12-04T12:06:22.831725",
+      "symbol": "GOOGL",
+      "action": "SELL",
+      "quantity": 50,
+      "price": 2785.0,
+      "pnl": -75.0
+    }
+  ]
+}

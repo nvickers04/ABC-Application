@@ -11,8 +11,8 @@ This directory contains tools to implement the **22-agent collaborative reasonin
 
 | File | Purpose |
 |------|---------|
-| `src/agents/live_workflow_orchestrator.py` | **NEW!** Live Discord orchestrator with real-time interaction |
-| `tools/start_live_workflow.py` | **NEW!** Easy launcher for the live orchestrator |
+| `src/agents/unified_workflow_orchestrator.py` | **NEW!** Unified workflow orchestrator with multiple modes and ranked trade proposal system |
+| `tools/start_unified_workflow.py` | **NEW!** Easy launcher for the unified orchestrator |
 | `src/workflows/iterative_reasoning_workflow.py` | Background automated workflow (legacy) |
 | `manual_workflow_guide.md` | Manual workflow reference |
 | `tools/quick_workflow_test.py` | Test individual phases |
@@ -21,13 +21,20 @@ This directory contains tools to implement the **22-agent collaborative reasonin
 
 ## 🚀 Quick Start - Live Orchestration
 
-### Step 1: Start the Live Orchestrator
+### Step 1: Start the Unified Orchestrator
 ```bash
-python tools/start_live_workflow.py
+# Hybrid mode (recommended) - analysis + automated execution
+python tools/start_unified_workflow.py --mode hybrid --symbols SPY,QQQ
+
+# Analysis-only mode for research
+python tools/start_unified_workflow.py --mode analysis --symbols SPY
+
+# Execution-only mode for automated trading
+python tools/start_unified_workflow.py --mode execution --symbols SPY
 ```
 Or directly:
 ```bash
-python src/agents/live_workflow_orchestrator.py
+python src/agents/unified_workflow_orchestrator.py
 ```
 
 ### Step 2: Go to Discord and Control the Workflow

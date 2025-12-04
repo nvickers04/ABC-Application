@@ -578,22 +578,10 @@ class AlertManager:
             return
 
         try:
-            # Find alerts channel
-            alerts_channel = None
-            if hasattr(self.orchestrator, 'health_channel') and self.orchestrator.health_channel:
-                # Check if current channel is alerts
-                if hasattr(self.orchestrator.health_channel, 'name') and self.orchestrator.health_channel.name == self.discord_alerts_channel:
-                    alerts_channel = self.orchestrator.health_channel
-                else:
-                    # Try to find alerts channel in guild
-                    if hasattr(self.orchestrator, 'guild') and self.orchestrator.guild:
-                        for ch in self.orchestrator.guild.text_channels:
-                            if ch.name == self.discord_alerts_channel:
-                                alerts_channel = ch
-                                break
-
+            # Use orchestrator's alerts channel
+            alerts_channel = getattr(self.orchestrator, 'alerts_channel', None)
             if not alerts_channel:
-                logger.warning(f"Alerts channel '{self.discord_alerts_channel}' not found")
+                logger.warning("Alerts channel not configured in orchestrator")
                 return
 
             # Create embed
