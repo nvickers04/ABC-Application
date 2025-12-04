@@ -110,9 +110,14 @@ class LearningAgent(BaseAgent):
     """
     Learning Agent subclass.
     Reasoning: Aggregates/refines via sims; distributes directives for system-wide edges.
+    Includes Acontext integration for SOP storage, retrieval, and cross-agent propagation.
     """
     def __init__(self, a2a_protocol=None):
-        config_paths = {'risk': 'config/risk-constraints.yaml', 'profit': 'config/profitability-targets.yaml'}  # Relative to root.
+        config_paths = {
+            'risk': 'config/risk-constraints.yaml', 
+            'profit': 'config/profitability-targets.yaml',
+            'acontext': 'config/acontext_config.yaml'  # Acontext configuration
+        }  # Relative to root.
         prompt_paths = {'base': 'config/base_prompt.txt', 'role': 'docs/AGENTS/main-agents/learning-agent.md'}  # Relative to root.
         super().__init__(role='learning', config_paths=config_paths, prompt_paths=prompt_paths, a2a_protocol=a2a_protocol)
         
@@ -137,13 +142,18 @@ class LearningAgent(BaseAgent):
         # Initialize ML components for strategy optimization
         self._initialize_ml_components()
         
+        # Initialize Acontext integration for SOP storage and cross-agent propagation
+        self._initialize_acontext()
+        
         # Memory for batches and convergence.
         self.memory = {
             'weekly_batches': [],  # For DataFrames.
             'convergence_metrics': {},  # For loss/param tracking.
             'pyramiding_performance': [],  # For pyramiding-specific learning
             'strategy_performance_history': [],  # For ML model training
-            'ml_model_metrics': {}  # For tracking ML model performance
+            'ml_model_metrics': {},  # For tracking ML model performance
+            'stored_sops': [],  # For tracking stored SOPs in Acontext
+            'propagated_directives': []  # For tracking cross-agent directive propagation
         }
 
     def _initialize_ml_components(self):
@@ -205,15 +215,77 @@ class LearningAgent(BaseAgent):
             self.feature_scaler = None
             self.model_trained = False
 
+    def _initialize_acontext(self):
+        """
+        Initialize Acontext integration for SOP storage and cross-agent propagation.
+        """
+        try:
+            # Import Acontext integration
+            from src.integrations.acontext_integration import (
+                get_acontext_integration,
+                TradingDirective,
+                ACONTEXT_AVAILABLE
+            )
+            
+            self.acontext_integration = get_acontext_integration()
+            self.TradingDirective = TradingDirective
+            self.acontext_available = ACONTEXT_AVAILABLE
+            self.acontext_initialized = False  # Will be initialized asynchronously
+            
+            logger.info(f"Acontext integration configured (SDK available: {ACONTEXT_AVAILABLE})")
+            
+        except ImportError as e:
+            logger.warning(f"Acontext integration not available: {e}")
+            self.acontext_integration = None
+            self.TradingDirective = None
+            self.acontext_available = False
+            self.acontext_initialized = False
+        except Exception as e:
+            logger.error(f"Failed to initialize Acontext integration: {e}")
+            self.acontext_integration = None
+            self.TradingDirective = None
+            self.acontext_available = False
+            self.acontext_initialized = False
+
+    async def _ensure_acontext_initialized(self) -> bool:
+        """
+        Ensure Acontext is initialized (lazy initialization).
+        
+        Returns:
+            True if Acontext is available, False otherwise
+        """
+        if self.acontext_initialized:
+            return self.acontext_integration is not None
+        
+        if self.acontext_integration is None:
+            return False
+            
+        try:
+            result = await self.acontext_integration.initialize()
+            self.acontext_initialized = True
+            if result:
+                logger.info("Acontext integration initialized successfully")
+            else:
+                logger.info("Acontext using fallback mode")
+            return True  # Return True even in fallback mode (graceful degradation)
+        except Exception as e:
+            logger.error(f"Failed to initialize Acontext: {e}")
+            self.acontext_initialized = True  # Mark as attempted
+            return False
+
     async def _process_input(self, logs: list[Dict[str, Any]]) -> pd.DataFrame:
         """
         Processes logs: Aggregates batches, triggers directives if SD >1.0.
+        Includes Acontext session logging for capturing trading decisions.
         Args:
             logs (list[Dict]): From Reflection (e.g., [{'sharpe': 1.5, 'bonus_awarded': True}]).
         Returns: pd.DataFrame with directives (e.g., rows for refinements like 'sizing_lift': 1.2).
         Reasoning: Async for parallel sims (e.g., Zipline blend); ties to configs for thresholds (>12% variance); logs for audits.
         """
         logger.info(f"Learning Agent processing {len(logs)} logs")
+        
+        # Log session to Acontext for capturing trading decisions
+        await self._log_session_to_acontext(logs)
         
         # Separate pyramiding logs from general logs
         pyramiding_logs = [log for log in logs if 'pyramiding' in str(log).lower() or 'tiers' in log or 'efficiency_score' in log]
@@ -233,12 +305,113 @@ class LearningAgent(BaseAgent):
         # Apply fade-out mechanism for safety priors
         fade_weight = self._calculate_fade_weight()
         
-        # Generate combined directives
+        # Generate combined directives (includes SOP storage for converged strategies)
         directives = await self._generate_combined_directives(convergence, fade_weight)
         
         output = directives
         logger.info(f"Learning output shape: {output.shape}, SD variance: {self.memory.get('last_sd_variance', 0):.3f}, Converged: {convergence.get('converged', False)}")
         return output
+
+    async def _log_session_to_acontext(self, logs: list[Dict[str, Any]]) -> Optional[str]:
+        """
+        Log a trading session to Acontext for capturing decisions and context.
+        
+        Args:
+            logs: List of log entries from the trading session
+            
+        Returns:
+            Session ID if logged successfully, None otherwise
+        """
+        try:
+            # Ensure Acontext is initialized
+            if not await self._ensure_acontext_initialized():
+                logger.debug("Acontext not available for session logging")
+                return None
+            
+            # Extract session context from logs
+            session_data = {
+                'type': 'learning_session',
+                'agent': 'learning',
+                'log_count': len(logs),
+                'timestamp': datetime.now().isoformat(),
+                'session_context': {
+                    'sd_variance': self.memory.get('last_sd_variance', 0),
+                    'batch_count': len(self.memory.get('weekly_batches', [])),
+                    'pyramiding_records': len(self.memory.get('pyramiding_performance', [])),
+                    'model_trained': getattr(self, 'model_trained', False),
+                },
+                'log_summary': self._summarize_logs_for_session(logs),
+            }
+            
+            # Include market context if available
+            acontext_config = self.configs.get('acontext', {}).get('acontext', {})
+            if acontext_config.get('session', {}).get('include_market_context', True):
+                session_data['market_context'] = self._extract_market_context_from_logs(logs)
+            
+            # Log session
+            session_id = await self.acontext_integration.log_session(session_data)
+            if session_id:
+                logger.info(f"Logged learning session to Acontext: {session_id}")
+            return session_id
+            
+        except Exception as e:
+            logger.warning(f"Failed to log session to Acontext: {e}")
+            return None
+
+    def _summarize_logs_for_session(self, logs: list[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Summarize logs for session storage.
+        
+        Args:
+            logs: List of log entries
+            
+        Returns:
+            Summary dictionary
+        """
+        if not logs:
+            return {'empty': True}
+        
+        summary = {
+            'total_logs': len(logs),
+            'has_sharpe_data': any('sharpe' in str(log).lower() for log in logs),
+            'has_pyramiding_data': any('pyramiding' in str(log).lower() for log in logs),
+            'has_return_data': any('return' in str(log).lower() for log in logs),
+        }
+        
+        # Extract aggregate metrics if available
+        sharpe_values = [log.get('sharpe_ratio', log.get('sharpe', 0)) 
+                       for log in logs if 'sharpe' in str(log).lower()]
+        if sharpe_values:
+            summary['avg_sharpe'] = np.mean(sharpe_values)
+            summary['sharpe_std'] = np.std(sharpe_values)
+        
+        return summary
+
+    def _extract_market_context_from_logs(self, logs: list[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Extract market context information from logs.
+        
+        Args:
+            logs: List of log entries
+            
+        Returns:
+            Market context dictionary
+        """
+        context = {
+            'timestamp': datetime.now().isoformat(),
+        }
+        
+        # Extract any market-related data from logs
+        for log in logs:
+            if isinstance(log, dict):
+                if 'market_regime' in log:
+                    context['market_regime'] = log['market_regime']
+                if 'volatility' in log:
+                    context['volatility'] = log['volatility']
+                if 'trend_strength' in log:
+                    context['trend_strength'] = log['trend_strength']
+        
+        return context
 
     def add_to_conversation_memory(self, user_input: str, agent_response: str):
         """
@@ -997,11 +1170,491 @@ Provide specific directive recommendations with values and detailed rationale fo
             directives = general_directives.to_dict('records') if not general_directives.empty else []
             directives.extend(pyramiding_directives)
 
+        # Store converged strategies as SOPs in Acontext for cross-agent propagation
+        if convergence.get('converged', False) and directives:
+            await self._store_converged_strategy_sop(directives, convergence, sd_variance, fade_weight)
+
         # Return as DataFrame
         if directives and len(directives) > 0:
-            return pd.DataFrame(directives)
+            df_result = pd.DataFrame(directives)
+            # Add directive metadata for cross-agent propagation
+            df_result = self._add_directive_metadata(df_result, convergence)
+            return df_result
         else:
             return pd.DataFrame([{'refinement': 'baseline_optimization', 'value': 1.02, 'reason': 'Baseline optimization'}])
+
+    async def _store_converged_strategy_sop(self, directives: List[Dict[str, Any]], 
+                                            convergence: Dict[str, Any],
+                                            sd_variance: float, 
+                                            fade_weight: float) -> Optional[str]:
+        """
+        Store converged strategy directives as SOP in Acontext.
+        
+        Args:
+            directives: List of generated directives
+            convergence: Convergence metrics
+            sd_variance: Current SD variance
+            fade_weight: Current fade weight
+            
+        Returns:
+            SOP ID if stored successfully, None otherwise
+        """
+        try:
+            if not await self._ensure_acontext_initialized():
+                logger.debug("Acontext not available for SOP storage")
+                return None
+            
+            # Create trading directive for converged strategy
+            directive_content = {
+                'directives': directives,
+                'convergence_metrics': convergence,
+                'sd_variance': sd_variance,
+                'fade_weight': fade_weight,
+                'model_metrics': self.memory.get('ml_model_metrics', {}),
+                'batch_count': len(self.memory.get('weekly_batches', [])),
+            }
+            
+            # Determine which agents this directive applies to
+            applies_to = self._determine_directive_target_agents(directives)
+            
+            # Create TradingDirective
+            trading_directive = self.TradingDirective(
+                id='',  # Will be generated
+                category='learning_insight',
+                name=f"Converged Strategy - {datetime.now().strftime('%Y%m%d_%H%M%S')}",
+                description=f"Converged learning directives with avg Sharpe {convergence.get('recent_average_sharpe', 0):.3f}",
+                content=directive_content,
+                applies_to=applies_to,
+                source='learning',
+                priority='high' if convergence.get('recent_average_sharpe', 0) > 1.5 else 'medium',
+                metadata={
+                    'convergence_status': 'converged',
+                    'stability_coefficient': convergence.get('stability_coefficient', 0),
+                    'variance_reduction': convergence.get('variance_reduction', 0),
+                }
+            )
+            
+            # Store SOP
+            sop_id = await self.acontext_integration.store_sop(trading_directive)
+            if sop_id:
+                # Track stored SOP
+                self.memory['stored_sops'].append({
+                    'sop_id': sop_id,
+                    'directive_id': trading_directive.id,
+                    'timestamp': datetime.now().isoformat(),
+                    'category': 'learning_insight',
+                    'applies_to': applies_to,
+                })
+                logger.info(f"Stored converged strategy SOP: {sop_id}")
+                
+                # Queue for cross-agent propagation
+                await self._propagate_directive_to_agents(trading_directive)
+                
+            return sop_id
+            
+        except Exception as e:
+            logger.warning(f"Failed to store converged strategy SOP: {e}")
+            return None
+
+    def _determine_directive_target_agents(self, directives: List[Dict[str, Any]]) -> List[str]:
+        """
+        Determine which agents a set of directives should apply to.
+        
+        Args:
+            directives: List of directives
+            
+        Returns:
+            List of agent role names
+        """
+        target_agents = set()
+        
+        for directive in directives:
+            refinement = directive.get('refinement', '')
+            
+            # Map refinement types to target agents
+            if 'sizing' in refinement or 'position' in refinement:
+                target_agents.add('strategy')
+                target_agents.add('execution')
+            if 'risk' in refinement or 'conservative' in refinement:
+                target_agents.add('risk')
+            if 'pyramiding' in refinement:
+                target_agents.add('strategy')
+                target_agents.add('risk')
+            if 'efficiency' in refinement or 'exploration' in refinement:
+                target_agents.add('strategy')
+                target_agents.add('learning')
+        
+        # Default to all main trading agents if no specific targets
+        if not target_agents:
+            target_agents = {'strategy', 'risk', 'execution'}
+        
+        return list(target_agents)
+
+    def _add_directive_metadata(self, df: pd.DataFrame, convergence: Dict[str, Any]) -> pd.DataFrame:
+        """
+        Add directive metadata for cross-agent propagation.
+        
+        Args:
+            df: DataFrame of directives
+            convergence: Convergence metrics
+            
+        Returns:
+            DataFrame with added metadata columns
+        """
+        try:
+            import uuid
+            
+            # Add metadata columns
+            df['source'] = 'learning'
+            df['sop_id'] = None  # Will be populated when stored
+            df['priority'] = 'medium'
+            df['applies_to'] = df.apply(
+                lambda row: self._determine_directive_target_agents([row.to_dict()]),
+                axis=1
+            )
+            df['timestamp'] = datetime.now().isoformat()
+            df['convergence_status'] = 'converged' if convergence.get('converged', False) else 'not_converged'
+            
+            # Assign higher priority to efficiency-focused directives when converged
+            if convergence.get('converged', False):
+                df.loc[df['refinement'].str.contains('efficiency', case=False, na=False), 'priority'] = 'high'
+            
+            return df
+            
+        except Exception as e:
+            logger.warning(f"Failed to add directive metadata: {e}")
+            return df
+
+    async def _propagate_directive_to_agents(self, directive) -> None:
+        """
+        Propagate a trading directive to target agents.
+        
+        Args:
+            directive: TradingDirective to propagate
+        """
+        try:
+            if not self.a2a_protocol:
+                logger.debug("A2A protocol not available for directive propagation")
+                return
+            
+            # Get target agents from directive
+            applies_to = directive.applies_to if hasattr(directive, 'applies_to') else []
+            
+            for agent_role in applies_to:
+                if agent_role == 'learning':
+                    continue  # Don't propagate to self
+                
+                try:
+                    # Create propagation message
+                    message = {
+                        'type': 'trading_directive',
+                        'directive_id': directive.id,
+                        'sop_id': directive.sop_id,
+                        'category': directive.category,
+                        'content': directive.content,
+                        'priority': directive.priority,
+                        'source': 'learning',
+                        'timestamp': datetime.now().isoformat(),
+                    }
+                    
+                    # Send via A2A protocol
+                    await self.a2a_protocol.send_message(
+                        from_agent='learning',
+                        to_agent=agent_role,
+                        message=message,
+                        message_type='directive'
+                    )
+                    
+                    # Track propagation
+                    self.memory['propagated_directives'].append({
+                        'directive_id': directive.id,
+                        'target_agent': agent_role,
+                        'timestamp': datetime.now().isoformat(),
+                        'priority': directive.priority,
+                    })
+                    
+                    logger.info(f"Propagated directive {directive.id} to {agent_role}")
+                    
+                except Exception as e:
+                    logger.warning(f"Failed to propagate directive to {agent_role}: {e}")
+                    
+        except Exception as e:
+            logger.error(f"Failed to propagate directive: {e}")
+
+    async def query_relevant_sops(self, category: Optional[str] = None, 
+                                  applies_to: Optional[str] = None,
+                                  limit: int = 10) -> List[Dict[str, Any]]:
+        """
+        Query relevant SOPs from Acontext for directive enrichment.
+        
+        Args:
+            category: Filter by category (e.g., 'strategy_directive', 'risk_constraint')
+            applies_to: Filter by target agent
+            limit: Maximum number of results
+            
+        Returns:
+            List of relevant SOPs
+        """
+        try:
+            if not await self._ensure_acontext_initialized():
+                logger.debug("Acontext not available for SOP query")
+                return []
+            
+            sops = await self.acontext_integration.query_sops(
+                category=category,
+                applies_to=applies_to,
+                limit=limit
+            )
+            
+            # Convert to dicts for easier handling
+            sop_list = []
+            for sop in sops:
+                sop_dict = sop.to_dict() if hasattr(sop, 'to_dict') else dict(sop)
+                sop_list.append(sop_dict)
+            
+            logger.info(f"Retrieved {len(sop_list)} relevant SOPs from Acontext")
+            return sop_list
+            
+        except Exception as e:
+            logger.warning(f"Failed to query SOPs from Acontext: {e}")
+            return []
+
+    async def enrich_directives_with_learned_patterns(self, directives: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Enrich directives with learned patterns from stored SOPs.
+        
+        Args:
+            directives: List of directives to enrich
+            
+        Returns:
+            Enriched directives
+        """
+        try:
+            # Query relevant SOPs
+            relevant_sops = await self.query_relevant_sops(
+                category='learning_insight',
+                limit=20
+            )
+            
+            if not relevant_sops:
+                return directives
+            
+            # Extract learned patterns from SOPs
+            learned_patterns = self._extract_patterns_from_sops(relevant_sops)
+            
+            # Enrich each directive
+            enriched_directives = []
+            for directive in directives:
+                enriched = directive.copy()
+                enriched['learned_patterns'] = self._match_patterns_to_directive(directive, learned_patterns)
+                enriched['enrichment_source'] = 'acontext_sops'
+                enriched_directives.append(enriched)
+            
+            logger.info(f"Enriched {len(enriched_directives)} directives with learned patterns")
+            return enriched_directives
+            
+        except Exception as e:
+            logger.warning(f"Failed to enrich directives: {e}")
+            return directives
+
+    def _extract_patterns_from_sops(self, sops: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Extract learned patterns from SOPs.
+        
+        Args:
+            sops: List of SOP dictionaries
+            
+        Returns:
+            Dictionary of extracted patterns
+        """
+        patterns = {
+            'convergence_thresholds': [],
+            'successful_refinements': [],
+            'risk_adjustments': [],
+            'efficiency_metrics': [],
+        }
+        
+        for sop in sops:
+            content = sop.get('content', {})
+            if isinstance(content, str):
+                try:
+                    import json
+                    content = json.loads(content)
+                except:
+                    continue
+            
+            # Extract convergence patterns
+            if 'convergence_metrics' in content:
+                conv_metrics = content['convergence_metrics']
+                if conv_metrics.get('converged', False):
+                    patterns['convergence_thresholds'].append({
+                        'stability_coefficient': conv_metrics.get('stability_coefficient'),
+                        'variance_reduction': conv_metrics.get('variance_reduction'),
+                        'avg_sharpe': conv_metrics.get('recent_average_sharpe'),
+                    })
+            
+            # Extract successful refinements
+            if 'directives' in content:
+                for directive in content['directives']:
+                    patterns['successful_refinements'].append({
+                        'refinement': directive.get('refinement'),
+                        'value': directive.get('value'),
+                    })
+            
+            # Extract efficiency metrics
+            if 'sd_variance' in content:
+                patterns['efficiency_metrics'].append({
+                    'sd_variance': content.get('sd_variance'),
+                    'fade_weight': content.get('fade_weight'),
+                })
+        
+        return patterns
+
+    def _match_patterns_to_directive(self, directive: Dict[str, Any], 
+                                     patterns: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """
+        Match learned patterns to a specific directive.
+        
+        Args:
+            directive: Directive to match
+            patterns: Extracted patterns
+            
+        Returns:
+            List of matching patterns
+        """
+        matching_patterns = []
+        refinement = directive.get('refinement', '')
+        
+        # Find similar refinements from successful patterns
+        for successful in patterns.get('successful_refinements', []):
+            if successful.get('refinement') and refinement in successful.get('refinement', ''):
+                matching_patterns.append({
+                    'type': 'successful_refinement',
+                    'historical_value': successful.get('value'),
+                })
+        
+        # Add convergence context if relevant
+        if patterns.get('convergence_thresholds'):
+            avg_sharpe = np.mean([t.get('avg_sharpe', 0) for t in patterns['convergence_thresholds'] if t.get('avg_sharpe')])
+            if avg_sharpe > 0:
+                matching_patterns.append({
+                    'type': 'convergence_context',
+                    'avg_historical_sharpe': avg_sharpe,
+                })
+        
+        return matching_patterns
+
+    async def upload_ml_model_artifact(self, model_name: str, model_data: bytes, 
+                                       model_metrics: Dict[str, Any]) -> Optional[str]:
+        """
+        Upload an ML model as an artifact to Acontext.
+        
+        Args:
+            model_name: Name of the model
+            model_data: Serialized model data
+            model_metrics: Model performance metrics
+            
+        Returns:
+            Artifact ID if uploaded successfully, None otherwise
+        """
+        try:
+            if not await self._ensure_acontext_initialized():
+                logger.debug("Acontext not available for artifact upload")
+                return None
+            
+            metadata = {
+                'model_name': model_name,
+                'model_type': 'ml_model',
+                'metrics': model_metrics,
+                'agent': 'learning',
+                'model_trained': getattr(self, 'model_trained', False),
+                'training_samples': model_metrics.get('training_samples', 0),
+            }
+            
+            artifact_id = await self.acontext_integration.upload_artifact(
+                artifact_type='ml_model',
+                artifact_data=model_data,
+                metadata=metadata
+            )
+            
+            if artifact_id:
+                logger.info(f"Uploaded ML model artifact: {artifact_id}")
+            return artifact_id
+            
+        except Exception as e:
+            logger.warning(f"Failed to upload ML model artifact: {e}")
+            return None
+
+    async def upload_backtest_result_artifact(self, backtest_name: str, 
+                                              backtest_result: Dict[str, Any]) -> Optional[str]:
+        """
+        Upload backtest results as an artifact to Acontext.
+        
+        Args:
+            backtest_name: Name of the backtest
+            backtest_result: Backtest results dictionary
+            
+        Returns:
+            Artifact ID if uploaded successfully, None otherwise
+        """
+        try:
+            if not await self._ensure_acontext_initialized():
+                logger.debug("Acontext not available for artifact upload")
+                return None
+            
+            import json
+            artifact_data = json.dumps(backtest_result, default=str).encode('utf-8')
+            
+            metadata = {
+                'backtest_name': backtest_name,
+                'artifact_type': 'backtest_result',
+                'agent': 'learning',
+                'sharpe_ratio': backtest_result.get('sharpe_ratio'),
+                'total_return': backtest_result.get('total_return'),
+                'max_drawdown': backtest_result.get('max_drawdown'),
+                'win_rate': backtest_result.get('win_rate'),
+                'framework': backtest_result.get('backtesting_framework', 'unknown'),
+            }
+            
+            artifact_id = await self.acontext_integration.upload_artifact(
+                artifact_type='backtest_result',
+                artifact_data=artifact_data,
+                metadata=metadata
+            )
+            
+            if artifact_id:
+                logger.info(f"Uploaded backtest result artifact: {artifact_id}")
+            return artifact_id
+            
+        except Exception as e:
+            logger.warning(f"Failed to upload backtest result artifact: {e}")
+            return None
+
+    def get_acontext_status(self) -> Dict[str, Any]:
+        """
+        Get the current status of Acontext integration.
+        
+        Returns:
+            Status dictionary
+        """
+        try:
+            status = {
+                'available': self.acontext_available,
+                'initialized': self.acontext_initialized,
+                'stored_sops_count': len(self.memory.get('stored_sops', [])),
+                'propagated_directives_count': len(self.memory.get('propagated_directives', [])),
+            }
+            
+            if self.acontext_integration:
+                queue_status = self.acontext_integration.get_queue_status()
+                status['queue_status'] = queue_status
+                status['fallback_mode'] = queue_status.get('fallback_mode', False)
+            
+            return status
+            
+        except Exception as e:
+            logger.warning(f"Failed to get Acontext status: {e}")
+            return {'available': False, 'error': str(e)}
 
     def _generate_general_directives(self, sd_variance: float, convergence: Dict[str, Any], fade_weight: float) -> pd.DataFrame:
         """

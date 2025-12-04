@@ -1,0 +1,112 @@
+# [LABEL:CONFIG:acontext] [LABEL:CONFIG:sop_storage] [LABEL:FRAMEWORK:yaml]
+# [LABEL:AUTHOR:GitHub Copilot] [LABEL:UPDATED:2024-12-04] [LABEL:REVIEWED:pending]
+#
+# Purpose: Configuration for Acontext integration for SOP storage, retrieval, and cross-agent propagation
+# Dependencies: acontext>=0.0.6
+# Related: src/agents/learning.py, docs/FRAMEWORKS/acontext-integration.md
+#
+# Note: Set ACONTEXT_API_KEY environment variable for authentication
+
+acontext:
+  # API Configuration
+  api:
+    # Base URL for Acontext API (can be overridden by ACONTEXT_BASE_URL env var)
+    base_url: "https://api.acontext.dev"
+    # Timeout in seconds for API requests
+    timeout_seconds: 30
+    # Maximum retries for failed requests
+    max_retries: 3
+    # Retry backoff multiplier
+    retry_backoff: 2.0
+
+  # Space Configuration (for organizing SOPs and artifacts)
+  space:
+    # Default space name for trading SOPs
+    name: "abc-trading-sops"
+    # Space description
+    description: "Standard Operating Procedures for ABC Trading Application"
+
+  # SOP Storage Configuration
+  sop:
+    # Prefix for SOP identifiers
+    id_prefix: "trading_directive"
+    # Default TTL for SOPs in days (0 = no expiration)
+    default_ttl_days: 90
+    # Categories for organizing SOPs
+    categories:
+      - "strategy_directive"
+      - "risk_constraint"
+      - "execution_rule"
+      - "learning_insight"
+      - "pyramiding_config"
+    # Priority levels for SOPs (higher = more urgent)
+    priority_levels:
+      critical: 100
+      high: 75
+      medium: 50
+      low: 25
+      background: 10
+
+  # Session Configuration
+  session:
+    # Whether to log all trading sessions
+    log_all_sessions: true
+    # Session retention period in days
+    retention_days: 30
+    # Include detailed market context in sessions
+    include_market_context: true
+
+  # Artifact Storage Configuration
+  artifacts:
+    # Enable artifact uploads (ML models, backtest results)
+    enabled: true
+    # Maximum artifact size in MB
+    max_size_mb: 100
+    # Supported artifact types
+    types:
+      - "ml_model"
+      - "backtest_result"
+      - "performance_report"
+      - "risk_analysis"
+    # Compression enabled for large artifacts
+    compression_enabled: true
+
+  # Cross-Agent Propagation Configuration
+  propagation:
+    # Enable cross-agent directive propagation
+    enabled: true
+    # Target agents for directive propagation
+    target_agents:
+      - strategy
+      - risk
+      - execution
+      - learning
+      - macro
+    # Default directive priority for propagation
+    default_priority: "medium"
+    # Enable priority queuing for low-priority directives
+    priority_queuing_enabled: true
+    # Queue processing interval in seconds
+    queue_process_interval_seconds: 60
+
+  # Fallback Configuration (when Acontext is unavailable)
+  fallback:
+    # Enable graceful fallback when Acontext is unavailable
+    enabled: true
+    # Use local file storage as fallback
+    use_local_storage: true
+    # Local storage directory
+    local_storage_path: "data/acontext_fallback"
+    # Log fallback events for monitoring
+    log_fallback_events: true
+
+  # Monitoring and Logging
+  monitoring:
+    # Enable detailed logging for debugging
+    debug_logging: false
+    # Log SOP operations (store, retrieve, propagate)
+    log_operations: true
+    # Performance metrics collection
+    collect_metrics: true
+    # Alert on consecutive failures
+    alert_threshold_failures: 3

@@ -296,6 +296,103 @@ class StrategyAgent(BaseAgent):
             if not task.done():
                 task.cancel()
 
+    async def _apply_directive_by_category(self, directive_id: str, category: str,
+                                           content: Dict[str, Any], priority: str) -> Dict[str, Any]:
+        """
+        Strategy-specific directive handling for cross-agent propagation.
+        Handles strategy_directive, learning_insight, and pyramiding_config categories.
+        
+        Args:
+            directive_id: Unique directive identifier
+            category: Directive category
+            content: Directive content
+            priority: Priority level
+            
+        Returns:
+            Application result dict
+        """
+        try:
+            adjustments = {}
+            
+            # Handle strategy-specific directives
+            if category in ['strategy_directive', 'learning_insight']:
+                directives_list = content.get('directives', [])
+                
+                for directive_item in directives_list:
+                    refinement = directive_item.get('refinement', '')
+                    value = directive_item.get('value', 1.0)
+                    
+                    # Apply sizing adjustments to pyramiding engine
+                    if 'sizing' in refinement and self.pyramiding_engine:
+                        current_risk = self.pyramiding_engine.base_risk_pct
+                        self.pyramiding_engine.base_risk_pct = current_risk * value
+                        adjustments['sizing_adjusted'] = value
+                        logger.info(f"Strategy agent adjusted sizing by {value}x based on directive")
+                    
+                    # Apply efficiency optimizations
+                    if 'efficiency' in refinement:
+                        if 'batch_directives' not in self.memory:
+                            self.memory['batch_directives'] = {}
+                        self.memory['batch_directives']['efficiency_factor'] = value
+                        adjustments['efficiency_factor'] = value
+                    
+                    # Apply pyramiding tier adjustments
+                    if 'pyramiding' in refinement and self.pyramiding_engine:
+                        if 'tier_boost' in refinement:
+                            current_max = self.pyramiding_engine.max_tiers
+                            self.pyramiding_engine.max_tiers = int(current_max * value)
+                            adjustments['max_tiers_adjusted'] = self.pyramiding_engine.max_tiers
+                        elif 'conservative' in refinement:
+                            current_max = self.pyramiding_engine.max_tiers
+                            self.pyramiding_engine.max_tiers = max(2, int(current_max * value))
+                            adjustments['max_tiers_adjusted'] = self.pyramiding_engine.max_tiers
+                
+                # Store directive for reference
+                if 'applied_directives' not in self.memory:
+                    self.memory['applied_directives'] = []
+                self.memory['applied_directives'].append({
+                    'directive_id': directive_id,
+                    'category': category,
+                    'adjustments': adjustments,
+                    'timestamp': datetime.datetime.now().isoformat(),
+                })
+                
+                return {
+                    'applied': True,
+                    'adjustments': adjustments,
+                    'directive_id': directive_id,
+                    'reason': f'Applied {len(directives_list)} strategy directives',
+                }
+            
+            # Handle pyramiding configuration directives
+            elif category == 'pyramiding_config':
+                if self.pyramiding_engine:
+                    config = content.get('config', {})
+                    if 'max_tiers' in config:
+                        self.pyramiding_engine.max_tiers = config['max_tiers']
+                        adjustments['max_tiers'] = config['max_tiers']
+                    if 'base_risk_pct' in config:
+                        self.pyramiding_engine.base_risk_pct = config['base_risk_pct']
+                        adjustments['base_risk_pct'] = config['base_risk_pct']
+                    
+                    return {
+                        'applied': True,
+                        'adjustments': adjustments,
+                        'directive_id': directive_id,
+                        'reason': 'Applied pyramiding configuration',
+                    }
+            
+            # Fall back to base implementation for other categories
+            return await super()._apply_directive_by_category(directive_id, category, content, priority)
+            
+        except Exception as e:
+            logger.error(f"Error applying directive in strategy agent: {e}")
+            return {
+                'applied': False,
+                'reason': f'Error: {str(e)}',
+                'directive_id': directive_id,
+            }
+
     async def _create_background_task(self, coro):
         """
         Create and track a background task with proper cleanup.

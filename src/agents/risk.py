@@ -148,6 +148,104 @@ class RiskAgent(BaseAgent):
         if 'batch_adjustments' not in self.memory:
             self.memory['batch_adjustments'] = {}
 
+    async def _apply_directive_by_category(self, directive_id: str, category: str,
+                                           content: Dict[str, Any], priority: str) -> Dict[str, Any]:
+        """
+        Risk-specific directive handling for cross-agent propagation.
+        Handles risk_constraint and learning_insight categories with risk-specific logic.
+        
+        Args:
+            directive_id: Unique directive identifier
+            category: Directive category
+            content: Directive content
+            priority: Priority level
+            
+        Returns:
+            Application result dict
+        """
+        try:
+            adjustments = {}
+            
+            # Handle risk constraint directives with high priority
+            if category == 'risk_constraint':
+                constraint = content.get('constraint', {})
+                
+                # Apply drawdown constraints
+                if 'max_drawdown' in constraint:
+                    if 'risk' in self.configs:
+                        current_constraint = self.configs['risk'].get('constraints', {})
+                        current_constraint['max_drawdown'] = constraint['max_drawdown']
+                        adjustments['max_drawdown_updated'] = constraint['max_drawdown']
+                        logger.info(f"Risk agent updated max_drawdown to {constraint['max_drawdown']}")
+                
+                # Apply VaR constraints
+                if 'var_confidence' in constraint:
+                    if 'risk' in self.configs:
+                        current_constraint = self.configs['risk'].get('constraints', {})
+                        current_constraint['var_confidence'] = constraint['var_confidence']
+                        adjustments['var_confidence_updated'] = constraint['var_confidence']
+                
+                # Store in batch_adjustments for tracking
+                self.memory['batch_adjustments'][f'directive_{directive_id}'] = {
+                    'constraint': constraint,
+                    'priority': priority,
+                    'timestamp': datetime.now().isoformat(),
+                }
+                
+                return {
+                    'applied': True,
+                    'adjustments': adjustments,
+                    'directive_id': directive_id,
+                    'reason': 'Applied risk constraint directive',
+                }
+            
+            # Handle learning insights with risk implications
+            elif category == 'learning_insight':
+                directives_list = content.get('directives', [])
+                
+                for directive_item in directives_list:
+                    refinement = directive_item.get('refinement', '')
+                    value = directive_item.get('value', 1.0)
+                    
+                    # Apply conservative filter adjustments
+                    if 'conservative' in refinement:
+                        self.memory['batch_adjustments']['conservative_filter'] = {
+                            'value': value,
+                            'source': 'learning_directive',
+                            'timestamp': datetime.now().isoformat(),
+                        }
+                        adjustments['conservative_filter'] = value
+                        logger.info(f"Risk agent applied conservative filter: {value}")
+                    
+                    # Respond to high SD variance with tighter constraints
+                    if 'sizing_lift' in refinement and value > 1.2:
+                        # When learning agent sees high variance, risk agent tightens
+                        self.memory['batch_adjustments']['variance_response'] = {
+                            'action': 'tighten_pop_floor',
+                            'trigger_value': value,
+                            'timestamp': datetime.now().isoformat(),
+                        }
+                        adjustments['variance_response'] = 'tighten_pop_floor'
+                        logger.info(f"Risk agent tightening constraints due to high variance signal")
+                
+                return {
+                    'applied': True,
+                    'adjustments': adjustments,
+                    'directive_id': directive_id,
+                    'reason': f'Applied {len(directives_list)} learning insights to risk management',
+                }
+            
+            # Fall back to base implementation for other categories
+            return await super()._apply_directive_by_category(directive_id, category, content, priority)
+            
+        except Exception as e:
+            logger.error(f"Error applying directive in risk agent: {e}")
+            return {
+                'applied': False,
+                'reason': f'Error: {str(e)}',
+                'directive_id': directive_id,
+            }
+
     def _load_api_cost_reference(self):
         """
         Load API cost reference data for accurate cost analysis.
