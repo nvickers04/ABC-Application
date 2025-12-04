@@ -11,19 +11,15 @@
 
 ### ⚠️ Critical Items for Paper Trading Stability
 **MUST COMPLETE before paper trading:**
-- [x] **Fix Live Workflow Orchestrator Bug**: Resolve bug in live_workflow_orchestrator.py causing no agent responses to workflow in Discord
 - [ ] **IBKR Integration Validation**: Test paper trading integration with IBKR/TWS
 - [ ] **Integration Test Suite**: Set up automated integration testing for IBKR + core components
-- [x] **Paper Trading Environment**: Create test environment mirroring production
 - [ ] **Circuit Breaker Testing**: Validate automatic failure detection and recovery
 - [ ] **Alert System Validation**: Test alerts in various failure scenarios
 
 **HIGH PRIORITY:**
 - [ ] Document IBKR implementation choices and usage patterns
 - [ ] Create component interaction diagrams for troubleshooting
-- [x] Implement consistent error logging across all components
 - [ ] Add integration tests for critical paths (Data → Strategy → Risk → Execution)
-- [x] **Setup Validation Testing**: Run comprehensive validation tests for paper trading environment
 - [ ] **Start Paper Trading System**: Launch the ABC Application for live paper trading
 
 ### 📊 Current Stability Rating: **GREEN (Paper Trading Active)**
@@ -124,29 +120,17 @@
 - [ ] Deploy to production: Update deployment scripts with Langfuse config. (**Effort**: 30min; **Deps**: All phases; **Success**: Production traces active.)
 - [ ] Monitor and iterate: Weekly review traces for agent improvements; alert on anomalies. (**Effort**: Ongoing; **Success**: Continuous optimization.)
 
-### ✅ Completed Infrastructure Improvements
-- **Health Monitoring**: FastAPI health server with comprehensive endpoints (/health, /health/components, /metrics)
-- **Error Handling**: Standardized exception hierarchy with specific IBKR and trading errors
-- **Memory Management**: Confirmed normal ML memory usage (~129MB per agent), no leaks detected
-- **Testing Infrastructure**: Fixed pytest configuration, tests now run properly
-- **Component Documentation**: Updated architecture.md with component descriptions and system overview
-
-### ⚠️ Critical Items for Paper Trading Stability
-**MUST COMPLETE before paper trading:**
-- [x] **Fix Live Workflow Orchestrator Bug**: Resolve bug in live_workflow_orchestrator.py causing no agent responses to workflow in Discord
-- [ ] **IBKR Integration Validation**: Test paper trading integration with IBKR/TWS
-- [ ] **Integration Test Suite**: Set up automated integration testing for IBKR + core components
-- [x] **Paper Trading Environment**: Create test environment mirroring production
-- [ ] **Circuit Breaker Testing**: Validate automatic failure detection and recovery
-- [ ] **Alert System Validation**: Test alerts in various failure scenarios
-
-**HIGH PRIORITY :**
-- [ ] Document IBKR implementation choices and usage patterns
-- [ ] Create component interaction diagrams for troubleshooting
-- [x] Implement consistent error logging across all components
-- [ ] Add integration tests for critical paths (Data → Strategy → Risk → Execution)
-- [x] **Setup Validation Testing**: Run comprehensive validation tests for paper trading environment
-- [ ] **Start Paper Trading System**: Launch the ABC Application for live paper trading
+### Code Quality Improvements
+- [ ] Implement consistent error logging
+- [ ] Update API documentation for all components
+- [ ] Add Integration Test Suite
+- [ ] Set up automated integration testing
+- [ ] Create test environments mirroring production
+- [ ] Implement continuous integration for integration tests
+- [ ] Review Import Dependencies
+- [ ] Audit all import statements for consistency
+- [ ] Remove unused imports and update deprecated patterns
+- [ ] Implement import linting rules
 
 ### 📊 Current Stability Rating: **GREEN (Paper Trading Active)**
 **Status**: All systems operational. IBKR connection established and validated.
@@ -164,59 +148,16 @@
 
 **Paper Trading Status: ACTIVE**
 
-### Motivational Reminder Implementation
-- [x] Add motivational reminder method to BaseAgent class
-- [x] Integrate reminder display at the start of every workflow (process_input)
-- [x] Ensure reminder is shown to agents for motivation and context preservation
-- [x] Test reminder functionality across different agent types
-- [x] Update documentation to reflect motivational reminder feature
-
-### Optimizations Folder Updates
-- [x] Review existing files
-- [x] Check organization guide
-- [x] Incorporate todo.md items
-- [x] Update documentation
-- [x] Test optimizations
-- [x] Integrate with main system
-- [x] Review other instructions
 
 ### Consensus Workflow Polling Implementation (High Priority)
 **Goal:** Implement polling for consensus workflow with Discord visibility.
 
-#### Core Polling
-- [x] Analyze consensus code (`src/workflows/`, `src/agents/`, `src/a2a/`) ✅ ConsensusPoller already exists and is advanced
-- [x] Design states: pending, voting, consensus_reached, timeout ✅ Implemented (PENDING, VOTING, CONSENSUS_REACHED, TIMEOUT, FAILED)
-- [x] Create `ConsensusPoller` class (`src/workflows/consensus_poller.py`): async poll(), configurable interval/timeout ✅ Implemented with create_poll(), start_poll(), _poll_agents()
-- [x] Integrate into orchestrator loop ✅ ConsensusPoller handles polling internally, orchestrator has callbacks
-
 #### Discord Features
-- [x] Periodic status embeds (progress, confidence) ✅ Implemented in _handle_consensus_state_change
-- [x] Slash commands: `/consensus_status`, `/poll_consensus` ✅ Added to Discord client with tree sync
 - [ ] Reactions for actions
-- [x] Create comprehensive Discord commands reference
-  - [x] Create dedicated #commands channel for command documentation
-  - [x] Implement `!commands` or `!help` command to display all available commands
-  - [x] Create pinned message with categorized command list (Workflows, Trading, Monitoring, Consensus, etc.)
-  - [x] Auto-update command list when new commands are added
-
-#### Reliability
-- [x] Persistence (JSON/Redis) ✅ JSON persistence implemented, Redis ready
-- [x] Metrics/alerts integration ✅ Added metrics tracking and alert manager integration
-- [x] Tests (unit/integration) ✅ Created comprehensive unit and integration tests
-
-#### Config/Docs
-- [x] Config entries ✅ Created consensus_config.yaml with polling, persistence, agents, discord, alerts, and metrics settings
-- [x] Update docs/workflows.md ✅ Added comprehensive Consensus Workflow Polling section with usage, features, and implementation details
 
 ### Code Quality Improvements
-- [x] Standardize Error Handling (Created custom exception hierarchy in `src/utils/exceptions.py` with ABCApplicationError and specific subclasses)
-- [x] Review and standardize exception handling patterns (Updated IBKR connector to use specific exception types)
-- [x] Create custom exception hierarchy (Implemented IBKRError, IBKRConnectionError, OrderError, MarketDataError, etc.)
 - [ ] Implement consistent error logging
-- [x] Update Component Documentation (Cleaned up architecture.md, added component descriptions, documented health monitoring, exceptions, alerts, consensus polling)
-- [x] Document IBKR implementation choices and usage (Added comprehensive IBKR integration section to architecture.md with implementation details, architecture choices, connection management, error handling, and security considerations)
 - [ ] Update API documentation for all components
-- [x] Create component interaction diagrams (Added detailed ASCII diagrams showing system components, agent communication flows, health monitoring, IBKR integration, consensus workflow, memory/learning architecture, error handling, data flow, and deployment architecture)
 - [ ] Add Integration Test Suite
 - [ ] Set up automated integration testing
 - [ ] Create test environments mirroring production
@@ -228,12 +169,6 @@
 
 ### Testing & Validation
 - [ ] Test paper trading integration with IBKR/TWS
-- [x] Fix Nautilus Bridge Tests (corrected attribute names: ib_connector → ibkr_connector)
-- [x] Implement proper test fixtures and cleanup (Fixed pytest.ini configuration, tests now run properly)
-- [x] Fix data analyzer recursion errors (Removed super().process_input() calls causing infinite recursion in InstitutionalDataAnalyzer, KalshiDataAnalyzer, EconomicDataAnalyzer, MarketDataAppDataAnalyzer)
-- [x] Fix trade alerts test mocking (Updated test fixtures to mock discord_handler instead of direct channel access)
-- [x] Fix test_place_order to properly mock all bridge dependencies
-- [x] Ensure all 12 tests pass with proper mocking and assertions
 - [ ] Add test coverage for error scenarios and edge cases
 
 ## Integration & Architecture Issues
@@ -244,35 +179,13 @@
 - [ ] Evaluate Bridge vs Direct Connector
 - [ ] Compare performance benchmarks between implementations
 - [ ] Assess maintenance overhead and complexity
-- [x] Evaluate Nautilus Trader integration benefits vs costs (completed evaluation in NAUTILUS_INTEGRATION_EVALUATION.md)
 - [ ] Make architectural decision with clear rationale documented
 
 ### Testing & Integration Gaps
 - [ ] Implement proper test fixtures and cleanup
-- [x] Fix test_place_order to properly mock all bridge dependencies
-- [x] Ensure all 12 tests pass with proper mocking and assertions
 - [ ] Add test coverage for error scenarios and edge cases
 
-### Component Dependencies & Compatibility
-- [x] Document Nautilus Trader Compatibility (v1.221.0 available, working)
-- [x] Investigate nautilus_trader installation issues (resolved - properly installed)
-- [x] Document current limitations and workarounds (IBKR adapter not available in current version)
-- [x] Plan migration path for full nautilus integration (documented in COMPATIBILITY_MATRIX.md)
-- [x] Create compatibility matrix for different environments (created COMPATIBILITY_MATRIX.md)
-- [x] Implement Full Nautilus RiskEngine and PositionSizer (integrated with proper initialization and fallback to enhanced implementation)
-- [x] Resolve Nautilus IBKR Adapter Compatibility (documented: not available in v1.221.0)
-- [x] Implement Proper Volatility Calculation (created VolatilityCalculator with multiple methods and historical data analysis)
-- [x] Validate AlertManager Integration (tested and working)
-- [x] Test alert delivery to Discord in various scenarios (confirmed working to #trade-alerts channel)
-- [x] Verify alert formatting and context information (embed format validated)
-- [x] Test alert queue management and overflow handling (tested with 5 rapid alerts)
-- [x] Validate alert filtering and routing logic (tested severity filtering, duplicate handling, component routing)
-- [x] Check Memory/Resource Usage (baseline established: ~76% memory, ~5% CPU)
-- [x] Implement memory profiling and monitoring (memory_profile.py created and tested)
-- [x] Test system performance under various loads (tested computational and memory load)
-- [x] Monitor resource usage during peak operations (completed - identified major bottleneck: 16s delays per IBKR operation due to inefficient retry logic)
-- [x] Optimize IBKR connection retry logic (COMPLETED - implemented circuit breaker pattern, adaptive retry parameters, and connection state awareness. Operations now complete in milliseconds instead of 16+ seconds)
-- [x] Identify and optimize memory leaks or bottlenecks (COMPLETED - investigated memory usage. 129MB per agent is normal for ML applications loading TensorFlow/transformers. No actual leaks detected - memory properly released on cleanup)
+
 
 ## Organizational & Practical Recommendations
 
@@ -333,9 +246,6 @@
 ## Priority & Implementation Timeline
 
 ### High Priority - Paper Trading Preparation
-- [x] Complete IBKR integration validation and documentation (Created IBKR_IMPLEMENTATION_GUIDE.md with architecture decisions, usage patterns, safety mechanisms, and troubleshooting)
-- [x] Implement integration test suite for critical trading paths (Data → Strategy → Risk → Execution) (Created test_critical_trading_path.py with comprehensive integration tests covering the complete trading workflow)
-- [x] Create paper trading test environment mirroring production (Created config/environments/paper_trading.yaml with IBKR paper trading settings, risk limits, and safeguards)
 - [ ] Validate circuit breaker and alert systems in failure scenarios
 - [ ] Document component interactions and create troubleshooting diagrams
 
