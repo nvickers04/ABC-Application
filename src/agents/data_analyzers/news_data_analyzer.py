@@ -15,7 +15,7 @@ import numpy as np
 from src.agents.data_analyzers.base_data_analyzer import BaseDataAnalyzer
 from src.utils.redis_cache import get_redis_cache_manager
 from src.utils.news_tools import NewsDataTool
-from src.utils.memory_manager import get_memory_manager  # Assume this exists
+from src.utils.advanced_memory import get_advanced_memory_manager
 # from src.utils.llm import get_llm  # Assume LLM initializer
 
 logger = logging.getLogger(__name__)
@@ -58,7 +58,7 @@ class NewsDataAnalyzer(BaseDataAnalyzer):
             "reuters": 6,
             "bloomberg": 5
         }
-        self.memory_manager = get_memory_manager()
+        self.memory_manager = get_advanced_memory_manager()
         self.news_tool = NewsDataTool()
         self.llm = None  # TODO: Initialize LLM
 
@@ -393,13 +393,31 @@ class NewsDataAnalyzer(BaseDataAnalyzer):
         return list(set(topics))  # Remove duplicates
 
     async def _analyze_news_sentiment(self, articles: List[NewsArticle]) -> Dict[str, Any]:
-        """Perform sentiment analysis on news articles."""
+        """Perform AI-powered sentiment analysis on news articles."""
+        if not self.llm:
+            raise RuntimeError("LLM is required for sentiment analysis - no AI fallbacks allowed")
+
         sentiments = []
         for article in articles:
-            # Simple fallback sentiment if vader not available
-            score = 0.0  # Neutral
-            article.sentiment = score
-            sentiments.append(score)
+            try:
+                prompt = f"""
+                Analyze the sentiment of this news article on a scale from -1 (very negative) to +1 (very positive).
+                Return only a single number representing the sentiment score.
+
+                Title: {article.title}
+                Content: {article.content[:2000]}
+                """
+
+                response = await self.llm.ainvoke(prompt)  # type: ignore
+                score_text = response.content if hasattr(response, 'content') else str(response)
+                score = float(score_text.strip())
+                score = max(-1.0, min(1.0, score))  # Clamp to valid range
+                article.sentiment = score
+                sentiments.append(score)
+            except Exception as e:
+                logger.error(f"Failed to analyze sentiment for article '{article.title}': {e}")
+                article.sentiment = 0.0  # Neutral fallback only for individual failures
+                sentiments.append(0.0)
 
         return {
             "average_sentiment": np.mean(sentiments) if sentiments else 0.0,
@@ -480,38 +498,16 @@ class NewsDataAnalyzer(BaseDataAnalyzer):
         Sources available: newsapi, currentsapi, financial_times, reuters, bloomberg.
         """
         
+        if not self.llm:
+            raise RuntimeError("LLM is required for news exploration planning - no AI fallbacks allowed")
+
         try:
-            if self.llm:
-                response = await self.llm.ainvoke(prompt)  # type: ignore
-                plan = self._parse_llm_response(response.content)
-                return plan
-            else:
-                logger.warning("LLM not available, using fallback plan")
-                return {
-                    "sources": ["newsapi", "currentsapi"],
-                    "priorities": {"newsapi": 9, "currentsapi": 8},
-                    "concurrent_groups": [["newsapi"], ["currentsapi"]],
-                    "search_parameters": {
-                        "language": "en",
-                        "limit": self.max_articles_per_query,
-                        "time_period": "last_24h"
-                    },
-                    "focus_areas": focus_areas,
-                    "symbols": symbols
-                }
+            response = await self.llm.ainvoke(prompt)  # type: ignore
+            plan = self._parse_llm_response(response.content)
+            return plan
         except Exception as e:
             logger.error(f"LLM news exploration plan failed: {e}")
-            return {
-                "sources": ["newsapi", "currentsapi"],
-                "priorities": {"newsapi": 9, "currentsapi": 8},
-                "concurrent_groups": [["newsapi"], ["currentsapi"]],
-                "search_parameters": {
-                    "language": "en",
-                    "limit": self.max_articles_per_query,
-                    "time_period": "last_24h"
-                },
-                "exploration_strategy": "source_priority"
-            }
+            raise RuntimeError(f"AI-powered news exploration failed: {e}")
 
     def _parse_llm_response(self, response: str) -> Dict:
         """
@@ -836,31 +832,24 @@ class NewsDataAnalyzer(BaseDataAnalyzer):
             # Truncate for LLM
             content = article_text[:5000]
             
-            # Analyze with LLM
-            if self.llm:
-                analysis_result = await self._analyze_shared_news_content(
-                    title, content, description, link
-                )
-                
-                # Store in shared memory for other agents
-                await self.store_shared_memory("shared_news", link, {
-                    "link": link,
-                    "title": title,
-                    "description": description,
-                    "analysis": analysis_result,
-                    "timestamp": datetime.now().isoformat()
-                })
-                
-                return analysis_result
-            else:
-                # Basic analysis without LLM
-                return {
-                    'success': True,
-                    'summary': f"News article: {title[:200]}",
-                    'sentiment': 'neutral',
-                    'key_entities': self._extract_basic_entities(content),
-                    'market_impact': 'medium'
-                }
+            # Analyze with LLM (required - no fallbacks)
+            if not self.llm:
+                raise RuntimeError("LLM is required for news analysis - no AI fallbacks allowed")
+
+            analysis_result = await self._analyze_shared_news_content(
+                title, content, description, link
+            )
+
+            # Store in shared memory for other agents
+            await self.store_shared_memory("shared_news", link, {
+                "link": link,
+                "title": title,
+                "description": description,
+                "analysis": analysis_result,
+                "timestamp": datetime.now().isoformat()
+            })
+
+            return analysis_result
                 
         except requests.exceptions.Timeout:
             logger.error(f"Timeout fetching {link}")
@@ -897,34 +886,30 @@ Provide your analysis as JSON:
 }}
 """
         
+        if not self.llm:
+            raise RuntimeError("LLM is required for news content analysis - no AI fallbacks allowed")
+
         try:
-            if self.llm:
-                llm_response = await self.llm.ainvoke(prompt)  # type: ignore
-                response_text = llm_response.content if hasattr(llm_response, 'content') else str(llm_response)
+            llm_response = await self.llm.ainvoke(prompt)  # type: ignore
+            response_text = llm_response.content if hasattr(llm_response, 'content') else str(llm_response)
 
-                # Extract JSON
-                json_match = re.search(r'\{[^{}]*\}', response_text, re.DOTALL)
-                if json_match:
-                    analysis = json.loads(json_match.group())
-                    return {
-                        'success': True,
-                        'summary': analysis.get('summary', f'News: {title[:100]}'),
-                        'sentiment': analysis.get('sentiment', 'neutral'),
-                        'key_entities': analysis.get('key_entities', []),
-                        'market_impact': analysis.get('market_impact', 'medium'),
-                        'trading_relevance': analysis.get('trading_relevance', '')
-                    }
+            # Extract JSON
+            json_match = re.search(r'\{[^{}]*\}', response_text, re.DOTALL)
+            if json_match:
+                analysis = json.loads(json_match.group())
+                return {
+                    'success': True,
+                    'summary': analysis.get('summary', f'News: {title[:100]}'),
+                    'sentiment': analysis.get('sentiment', 'neutral'),
+                    'key_entities': analysis.get('key_entities', []),
+                    'market_impact': analysis.get('market_impact', 'medium'),
+                    'trading_relevance': analysis.get('trading_relevance', '')
+                }
+            else:
+                raise ValueError("Failed to extract JSON from LLM response")
         except Exception as e:
-            logger.warning(f"LLM analysis failed: {e}")
-
-        # Fallback
-        return {
-            'success': True,
-            'summary': f"News article: {title[:200]}",
-            'sentiment': 'neutral',
-            'key_entities': [],
-            'market_impact': 'medium'
-        }
+            logger.error(f"LLM analysis failed: {e}")
+            raise RuntimeError(f"AI-powered news analysis failed: {str(e)[:100]}")
 
     def _extract_basic_entities(self, content: str) -> List[str]:
         """Extract basic entities from content without LLM."""

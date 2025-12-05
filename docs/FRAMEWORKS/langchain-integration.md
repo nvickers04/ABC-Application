@@ -276,4 +276,4 @@ The framework's flexibility and extensibility ensure that the system can evolve 
 
 ---
 
-*For detailed agent implementations, see AGENTS/. For setup instructions, see IMPLEMENTATION/setup.md.*
+*For detailed agent implementations, see AGENTS/. For setup instructions, see IMPLEMENTATION/setup-and-development.md.*

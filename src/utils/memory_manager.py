@@ -315,7 +315,7 @@ class DataFramePool:
             'utilization_percent': (total_frames / self.max_frames) * 100
         }
 
-class AdvancedMemoryManager:
+class MemoryPoolManager:
     """
     Advanced memory manager coordinating all memory optimization features.
     """
@@ -530,11 +530,11 @@ class AdvancedMemoryManager:
 # Global memory manager instance
 _memory_manager = None
 
-def get_memory_manager() -> AdvancedMemoryManager:
+def get_memory_pool_manager() -> MemoryPoolManager:
     """Get the global memory manager instance."""
     global _memory_manager
     if _memory_manager is None:
-        _memory_manager = AdvancedMemoryManager()
+        _memory_manager = MemoryPoolManager()
     return _memory_manager
 
 async def initialize_memory_management() -> None:

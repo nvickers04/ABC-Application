@@ -322,4 +322,4 @@ The protocol's flexibility and extensibility ensure it can evolve with the syste
 
 ---
 
-*For implementation details of specific agent interactions, see the individual agent documentation in AGENTS/. For setup instructions, see IMPLEMENTATION/setup.md.*
+*For implementation details of specific agent interactions, see the individual agent documentation in AGENTS/. For setup instructions, see IMPLEMENTATION/setup-and-development.md.*

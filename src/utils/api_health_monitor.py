@@ -18,10 +18,9 @@ from enum import Enum
 
 import pandas as pd
 import requests
-from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
+# Import centralized configuration
+from src.utils.config import get_api_key, get_grok_api_key
 
 # Logging configured centrally in logging_config.py
 logger = logging.getLogger(__name__)
@@ -172,7 +171,7 @@ class APIHealthMonitor:
 
     def _check_marketdataapp_api(self) -> bool:
         """Check MarketDataApp API health"""
-        api_key = os.getenv('MARKETDATAAPP_API_KEY')
+        api_key = get_api_key('marketdataapp')
         if not api_key:
             return False
 
@@ -192,8 +191,8 @@ class APIHealthMonitor:
 
     def _check_kalshi_api(self) -> bool:
         """Check Kalshi API health"""
-        api_key = os.getenv('KALSHI_API_KEY')
-        access_key_id = os.getenv('KALSHI_ACCESS_KEY_ID')
+        api_key = get_api_key('kalshi')
+        access_key_id = get_api_key('kalshi', 'KALSHI_ACCESS_KEY_ID')
         if not api_key or not access_key_id:
             return False
 
@@ -222,7 +221,7 @@ class APIHealthMonitor:
 
     def _check_news_api(self) -> bool:
         """Check NewsAPI health"""
-        api_key = os.getenv('NEWS_API_KEY')
+        api_key = get_api_key('news')
         if not api_key:
             return False
 
@@ -237,7 +236,7 @@ class APIHealthMonitor:
 
     def _check_economic_data(self) -> bool:
         """Check FRED API health"""
-        api_key = os.getenv('FRED_API_KEY')
+        api_key = get_api_key('fred')
         if not api_key:
             return False
 
@@ -257,7 +256,7 @@ class APIHealthMonitor:
 
     def _check_currents_news(self) -> bool:
         """Check Currents API health"""
-        api_key = os.getenv('CURRENTS_API_KEY')
+        api_key = get_api_key('currents')
         if not api_key:
             return False
 
@@ -272,7 +271,7 @@ class APIHealthMonitor:
 
     def _check_twitter_api(self) -> bool:
         """Check Twitter API health"""
-        bearer_token = os.getenv('TWITTER_BEARER_TOKEN')
+        bearer_token = get_api_key('twitter', 'TWITTER_BEARER_TOKEN')
         if not bearer_token:
             return False
 
@@ -287,7 +286,7 @@ class APIHealthMonitor:
 
     def _check_whale_wisdom(self) -> bool:
         """Check Whale Wisdom API health"""
-        api_key = os.getenv('WHALE_WISDOM_API_KEY')
+        api_key = get_api_key('whale_wisdom')
         if not api_key:
             return False
 
@@ -302,7 +301,7 @@ class APIHealthMonitor:
 
     def _check_grok_api(self) -> bool:
         """Check Grok API health"""
-        api_key = os.getenv('GROK_API_KEY')
+        api_key = get_grok_api_key()
         if not api_key:
             return False
 

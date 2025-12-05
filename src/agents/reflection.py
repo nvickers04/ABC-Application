@@ -159,7 +159,9 @@ class ReflectionAgent(BaseAgent):
             bonus_amount = 0
             bonus_rationale = ""
 
-            if self.llm:
+            # LLM analysis required - no fallbacks
+            if not self.llm:
+                raise RuntimeError("LLM is required for reflection analysis - no AI fallbacks allowed")
                 # Build foundation context for LLM
                 foundation_context = f"""
 FOUNDATION REFLECTION ANALYSIS:
@@ -218,38 +220,9 @@ Provide a clear AWARD/NO-AWARD recommendation with detailed rationale.
                             bonus_rationale = f"LLM Unclear, Below Threshold"
 
                 except Exception as e:
-                    logger.warning(f"Reflection Agent LLM reasoning failed, using foundation logic: {e}")
-                    # Foundation logic fallback
-                    if estimate > bonus_threshold:
-                        poll_question = f"Approve bonus for {estimate:.1f}% estimate on {symbol}? (Threshold: {bonus_threshold}%)"
-                        poll_result = audit_poll_tool.invoke({"question": poll_question})
-                        if isinstance(poll_result, dict) and poll_result.get('consensus', 'no') == 'yes' and poll_result.get('confidence', 0) >= 0.5:
-                            bonus_awarded = True
-                            bonus_amount = min(15, max(5, estimate / 10))
-                            self._award_bonus(symbol, bonus_amount, estimate)
-                            bonus_rationale = f"Foundation Poll Approved"
-                        else:
-                            bonus_awarded = False
-                            bonus_rationale = f"Foundation Poll Rejected"
-                    else:
-                        bonus_awarded = False
-                        bonus_rationale = f"Below Threshold"
-            else:
-                # Use foundation logic when LLM unavailable
-                if estimate > bonus_threshold:
-                    poll_question = f"Approve bonus for {estimate:.1f}% estimate on {symbol}? (Threshold: {bonus_threshold}%)"
-                    poll_result = audit_poll_tool.invoke({"question": poll_question})
-                    if isinstance(poll_result, dict) and poll_result.get('consensus', 'no') == 'yes' and poll_result.get('confidence', 0) >= 0.5:
-                        bonus_awarded = True
-                        bonus_amount = min(15, max(5, estimate / 10))
-                        self._award_bonus(symbol, bonus_amount, estimate)
-                        bonus_rationale = f"Foundation Poll Approved"
-                    else:
-                        bonus_awarded = False
-                        bonus_rationale = f"Foundation Poll Rejected"
-                else:
-                    bonus_awarded = False
-                    bonus_rationale = f"Below Threshold"            # Generate insights and recommendations
+                    logger.error(f"Reflection Agent LLM reasoning failed: {e}")
+                    raise RuntimeError(f"AI-powered reflection analysis failed: {str(e)[:100]}")
+            # Generate insights and recommendations
             insights = self._generate_insights(performance_entry, bonus_awarded)
 
             # Check for escalation triggers

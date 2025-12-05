@@ -36,15 +36,20 @@ class MarketDataAppDataAnalyzer(BaseDataAnalyzer):
         self.base_url = "https://api.marketdata.app/v1"
 
         # Available data endpoints for LLM exploration
+        # NOTE: Currently only 'quotes' endpoint is fully implemented
+        # Other endpoints are planned for future implementation
         self.available_endpoints = {
-            'quotes': 'Real-time and historical price quotes',
-            'trades': 'Detailed trade execution data with timestamps',
-            'orderbook': 'Level 2 order book depth and market microstructure',
-            'options': 'Options chain data and Greeks',
-            'darkpool': 'Dark pool trade detection and institutional flow',
-            'microstructure': 'Advanced market microstructure analysis',
-            'flow': 'Institutional order flow and positioning'
+            'quotes': 'Real-time and historical price quotes (IMPLEMENTED)',
+            'trades': 'Detailed trade execution data with timestamps (PLANNED)',
+            'orderbook': 'Level 2 order book depth and market microstructure (PLANNED)',
+            'options': 'Options chain data and Greeks (PLANNED)',
+            'darkpool': 'Dark pool trade detection and institutional flow (PLANNED)',
+            'microstructure': 'Advanced market microstructure analysis (PLANNED)',
+            'flow': 'Institutional order flow and positioning (PLANNED)'
         }
+
+        # Only include implemented endpoints for actual exploration
+        self.implemented_endpoints = ['quotes']
 
     def reflect(self, adjustments: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -137,30 +142,34 @@ You are an expert quantitative analyst planning premium market data exploration 
 
 CONTEXT:
 - Symbol: {symbol}
-- Available Data Endpoints: {self.available_endpoints}
+- IMPLEMENTED Data Endpoints: {self.implemented_endpoints}
+- Available Data Endpoints: {list(self.available_endpoints.keys())}
 - Analysis Goals: Maximize institutional-grade insights for trading strategy development
-- Risk Constraints: Focus on data that provides alpha signals while managing API costs
+- Current Limitation: Only 'quotes' endpoint is fully implemented
 
 TASK:
-Based on the symbol characteristics and available endpoints, determine which data sources to explore and prioritize them.
+Based on the symbol characteristics and IMPLEMENTED endpoints, determine which data sources to explore.
+IMPORTANT: Only suggest endpoints from the IMPLEMENTED list: {self.implemented_endpoints}
+
 Consider:
-1. Market microstructure signals (orderbook, trades, flow)
-2. Institutional activity (darkpool, options positioning)
-3. Real-time vs historical data needs
-4. Cost-benefit analysis of premium data sources
+1. Real-time price and fundamental data from quotes endpoint
+2. Future expansion to microstructure signals (when implemented)
+3. Cost-benefit analysis of available premium data sources
 
 Return a JSON object with:
-- "endpoints": Array of endpoint names to explore (from available_endpoints keys)
+- "endpoints": Array of endpoint names to explore (ONLY from implemented_endpoints)
 - "priorities": Object mapping endpoint names to priority scores (1-10, higher = more important)
 - "reasoning": Brief explanation of exploration strategy
 - "expected_insights": Array of expected alpha signals from this data
+- "future_endpoints": Array of planned endpoints for future implementation
 
 Example response:
 {{
-  "endpoints": ["quotes", "orderbook", "trades", "darkpool"],
-  "priorities": {{"orderbook": 9, "trades": 8, "darkpool": 7, "quotes": 6}},
-  "reasoning": "Focus on microstructure data for {symbol} as it's highly liquid with significant institutional activity",
-  "expected_insights": ["Order book imbalance signals", "Institutional accumulation patterns", "Dark pool positioning"]
+  "endpoints": ["quotes"],
+  "priorities": {{"quotes": 10}},
+  "reasoning": "Currently limited to quotes endpoint - provides essential price and fundamental data",
+  "expected_insights": ["Real-time pricing", "Volume analysis", "Fundamental metrics"],
+  "future_endpoints": ["orderbook", "trades", "darkpool"]
 }}
 """
 
@@ -194,6 +203,17 @@ Example response:
         """
         results = {}
         endpoints = plan.get('endpoints', ['quotes'])
+
+        # Validate that only implemented endpoints are used
+        invalid_endpoints = [ep for ep in endpoints if ep not in self.implemented_endpoints]
+        if invalid_endpoints:
+            logger.warning(f"LLM suggested unimplemented endpoints: {invalid_endpoints}. Using only implemented endpoints.")
+            endpoints = [ep for ep in endpoints if ep in self.implemented_endpoints]
+
+        # Ensure at least quotes endpoint is used as fallback
+        if not endpoints:
+            logger.warning("No valid endpoints suggested, defaulting to quotes")
+            endpoints = ['quotes']
 
         for endpoint in endpoints:
             try:

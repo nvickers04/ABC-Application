@@ -649,8 +649,9 @@ class StrategyAgent(BaseAgent):
         scored_proposals.sort(key=lambda x: x['risk_adjusted_score'], reverse=True)
         top_proposal = scored_proposals[0]
 
-        # Use comprehensive LLM reasoning for all strategy decisions (deep analysis and over-analysis)
-        if self.llm:
+        # Use comprehensive LLM reasoning for all strategy decisions (required - no fallbacks)
+        if not self.llm:
+            raise RuntimeError("LLM is required for strategy selection - no AI fallbacks allowed")
             # Build foundation context for LLM
             foundation_context = f"""
 FOUNDATION STRATEGY ANALYSIS:
@@ -692,30 +693,15 @@ Provide a clear recommendation with the selected strategy type and detailed rati
                         logger.info(f"Strategy Agent LLM comprehensive analysis: Selected {strategy_type} with deep reasoning")
                         return scored['proposal']
 
-                # If LLM doesn't clearly recommend, use foundation choice
-                logger.info("Strategy Agent: LLM response unclear, using foundation selection")
+                # If LLM doesn't clearly recommend a strategy, raise error
+                raise ValueError("LLM did not clearly recommend a valid strategy")
 
             except Exception as e:
-                logger.warning(f"Strategy Agent LLM reasoning failed, using foundation logic: {e}")
+                logger.error(f"Strategy Agent LLM reasoning failed: {e}")
+                raise RuntimeError(f"AI-powered strategy selection failed: {str(e)[:100]}")
 
-        # Use foundation logic (best score)
-        selected_proposal = top_proposal['proposal']
-
-        # ===== MULTI-AGENT VETO MECHANISM =====
-        # Require consensus from RiskAgent (drawdown <4%) and ExecutionAgent (slippage <0.5%)
-        veto_result = await self._apply_multi_agent_veto(selected_proposal)
-        if not veto_result['approved']:
-            logger.warning(f"Strategy proposal vetoed: {veto_result['reason']}")
-            # Return a minimal proposal indicating no trade should be made
-            return {
-                'strategy_type': 'vetoed',
-                'roi_estimate': 0.0,
-                'veto_reason': veto_result['reason'],
-                'veto_details': veto_result['details']
-            }
-
-        logger.info(f"Strategy proposal approved by multi-agent veto: {selected_proposal.get('strategy_type', 'unknown')}")
-        return selected_proposal
+        # This should never be reached since LLM is required
+        raise RuntimeError("Unexpected execution path - LLM requirement should have been enforced")
 
     async def _apply_multi_agent_veto(self, proposal: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -4167,3 +4153,77 @@ Be concise but thorough.
         except Exception as e:
             logger.error(f"Error generating strategy proposals: {e}")
             return [{'strategy': 'default', 'symbol': 'SPY', 'confidence': 0.5, 'type': 'default'}]
+
+    async def _generate_collaborative_insight(self, context: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """
+        Generate strategy-specific insights for collaborative analysis.
+
+        Args:
+            context: Analysis context
+
+        Returns:
+            Strategy insight for collaborative session
+        """
+        try:
+            symbols = context.get('symbols', ['SPY'])
+            market_conditions = context.get('market_conditions', {})
+
+            # Generate strategy insights based on current analysis capabilities
+            insights = []
+
+            # Check for volatility-based insights
+            if 'high_volatility' in str(market_conditions):
+                insights.append("High volatility environment favors options strategies over directional bets")
+
+            # Check for multi-asset scenarios
+            if len(symbols) > 1:
+                insights.append(f"Multi-asset scenario with {len(symbols)} symbols - consider correlation-based strategies")
+
+            # Generate market regime assessment
+            regime = self._assess_market_regime(context)
+            if regime:
+                insights.append(f"Market regime assessment: {regime}")
+
+            if insights:
+                return {
+                    'type': 'strategy_analysis',
+                    'summary': 'Strategic insights for collaborative analysis',
+                    'key_insights': insights,
+                    'confidence': 0.8,
+                    'recommended_approaches': ['options_strategies', 'risk_parity', 'momentum_filtering'],
+                    'timestamp': pd.Timestamp.now().isoformat(),
+                    'agent_role': self.role
+                }
+
+            return None
+
+        except Exception as e:
+            logger.error(f"Error generating collaborative insight for strategy agent: {e}")
+            return None
+
+    def _assess_market_regime(self, context: Dict[str, Any]) -> Optional[str]:
+        """
+        Assess current market regime for strategic insights.
+
+        Args:
+            context: Analysis context
+
+        Returns:
+            Market regime description
+        """
+        try:
+            # Simple regime assessment based on context
+            conditions = str(context.get('market_conditions', '')).lower()
+
+            if 'volatility' in conditions and 'high' in conditions:
+                return "High volatility regime - favor defined-risk strategies"
+            elif 'trending' in conditions:
+                return "Trending market - momentum strategies likely to perform"
+            elif 'range' in conditions:
+                return "Range-bound market - mean reversion strategies suitable"
+            else:
+                return "Neutral market regime - diversified approach recommended"
+
+        except Exception as e:
+            logger.debug(f"Error assessing market regime: {e}")
+            return None

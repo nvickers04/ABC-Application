@@ -84,31 +84,7 @@ def get_twitter_bearer_token() -> str:
     """Get Twitter Bearer Token"""
     return get_api_key("twitter", "TWITTER_BEARER_TOKEN")
 
-def load_yaml(file_path: str) -> dict:
-    """
-    Load configuration from a YAML file.
-    
-    Args:
-        file_path (str): Path to the YAML file
-        
-    Returns:
-        dict: Configuration dictionary
-        
-    Raises:
-        FileNotFoundError: If the file doesn't exist
-        yaml.YAMLError: If there's an error parsing the YAML
-    """
-    try:
-        with open(file_path, 'r') as file:
-            config = yaml.safe_load(file)
-            logger.info(f"Loaded configuration from {file_path}")
-            return config or {}
-    except FileNotFoundError:
-        logger.error(f"Configuration file not found: {file_path}")
-        raise
-    except yaml.YAMLError as e:
-        logger.error(f"Error parsing YAML file {file_path}: {e}")
-        raise
+
 
 # Example usage and testing
 if __name__ == "__main__":

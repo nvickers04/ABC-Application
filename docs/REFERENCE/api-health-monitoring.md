@@ -1150,4 +1150,4 @@ This comprehensive API health monitoring system ensures the ABC Application plat
 
 ---
 
-*For implementation details, see IMPLEMENTATION/setup.md. For testing procedures, see IMPLEMENTATION/testing.md.*
+*For implementation details, see IMPLEMENTATION/setup-and-development.md. For testing procedures, see IMPLEMENTATION/testing.md.*

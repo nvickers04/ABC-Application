@@ -947,4 +947,4 @@ This configuration management system provides a robust, flexible foundation for 
 
 ---
 
-*For implementation details, see IMPLEMENTATION/setup.md. For API health monitoring configuration, see REFERENCE/api-health-monitoring.md.*
+*For implementation details, see IMPLEMENTATION/setup-and-development.md. For API health monitoring configuration, see REFERENCE/api-health-monitoring.md.*

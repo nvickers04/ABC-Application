@@ -303,13 +303,16 @@ class IBKRDataAnalyzer(BaseDataAnalyzer):
         # Consolidate market data
         consolidated_data = self._consolidate_market_data(symbols, raw_data)
 
-        # Perform LLM analysis if available
-        if self.llm:
-            try:
-                llm_analysis = await self._analyze_market_data_llm(consolidated_data)
-                consolidated_data['llm_analysis'] = llm_analysis
-            except Exception as e:
-                logger.warning(f"LLM analysis failed: {e}")
+        # Perform LLM analysis (required - no fallbacks)
+        if not self.llm:
+            raise RuntimeError("LLM is required for IBKR data enhancement - no AI fallbacks allowed")
+
+        try:
+            llm_analysis = await self._analyze_market_data_llm(consolidated_data)
+            consolidated_data['llm_analysis'] = llm_analysis
+        except Exception as e:
+            logger.error(f"LLM analysis failed: {e}")
+            raise RuntimeError(f"AI-powered IBKR data analysis failed: {str(e)[:100]}")
 
         consolidated_data['symbols_processed'] = symbols
         consolidated_data['timestamp'] = datetime.now().isoformat()
@@ -425,10 +428,13 @@ class IBKRDataAnalyzer(BaseDataAnalyzer):
             results = await self._batch_process_symbols(symbols, data_types, time_horizon)
             consolidated = self._consolidate_optimized_results(results, symbols)
 
-            if self.llm:
-                exploration_plan = await self._plan_data_exploration(symbols, input_data or {})
-                consolidated["exploration_plan"] = exploration_plan
-                consolidated["llm_analysis"] = await self._analyze_market_data_llm(consolidated.get("consolidated_data", {}))
+            # LLM analysis required - no fallbacks
+            if not self.llm:
+                raise RuntimeError("LLM is required for IBKR data processing - no AI fallbacks allowed")
+
+            exploration_plan = await self._plan_data_exploration(symbols, input_data or {})
+            consolidated["exploration_plan"] = exploration_plan
+            consolidated["llm_analysis"] = await self._analyze_market_data_llm(consolidated.get("consolidated_data", {}))
 
             processing_time = time.time() - start_time
             logger.info(f"Optimized processing completed in {processing_time:.2f} seconds")

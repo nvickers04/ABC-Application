@@ -16,13 +16,12 @@ from typing import Dict, Any, List, Optional
 import sys
 from pathlib import Path
 import os
-from dotenv import load_dotenv
 import uuid
 import pandas as pd
 import asyncio
 
-# Load environment variables
-load_dotenv()
+# Import centralized configuration
+from src.utils.config import get_grok_api_key, get_api_key
 
 # Dynamic path setup removed - using __init__.py files for imports
 
@@ -50,7 +49,6 @@ except ImportError:
 # Lazy imports for heavy dependencies to avoid startup failures
 _langchain_core_tools = None
 _langchain_xai = None
-_langchain_openai = None
 _langchain_anthropic = None
 _langchain_google = None
 _api_health_monitor = None
@@ -93,16 +91,7 @@ def _get_langchain_xai():
             _langchain_xai = None
     return _langchain_xai
 
-def _get_langchain_openai():
-    global _langchain_openai
-    if _langchain_openai is None:
-        try:
-            from langchain_openai import ChatOpenAI
-            _langchain_openai = ChatOpenAI
-        except ImportError as e:
-            logger.warning(f"Failed to import langchain_openai: {e}")
-            _langchain_openai = None
-    return _langchain_openai
+
 
 def _get_langchain_anthropic():
     global _langchain_anthropic
@@ -184,7 +173,7 @@ class BaseAgent(abc.ABC):
         llm_config = self._get_agent_llm_config()
 
         # Only use xAI provider
-        api_key = os.getenv('GROK_API_KEY')
+        api_key = get_grok_api_key()
         if api_key:
             llm = LLMFactory.create_xai_llm(api_key, 'grok-beta', llm_config)
             if llm and await LLMFactory.test_llm_connection(llm):
@@ -457,7 +446,10 @@ class BaseAgent(abc.ABC):
         """
         self.role = role or "test_agent"
         self.a2a_protocol = a2a_protocol  # Store A2A protocol reference for monitored communication
-        
+
+        # Define project root for path resolution
+        project_root = Path(__file__).parent.parent.parent
+
         self.configs = {}
         if config_paths:
             for key, path in config_paths.items():
@@ -607,17 +599,16 @@ class BaseAgent(abc.ABC):
                 logger.warning(f"System health critical ({unhealthy_count} unhealthy APIs) - deferring LLM initialization")
                 return None
 
-        xai_api_key = os.getenv("GROK_API_KEY")
-        openai_api_key = os.getenv("OPENAI_API_KEY")
-        anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
-        google_api_key = os.getenv("GOOGLE_API_KEY")
+        xai_api_key = get_grok_api_key()
+        anthropic_api_key = get_api_key("anthropic")
+        google_api_key = get_api_key("google")
 
         # Check if any API keys are available
-        has_any_keys = bool(xai_api_key or openai_api_key or anthropic_api_key or google_api_key)
+        has_any_keys = bool(xai_api_key or anthropic_api_key or google_api_key)
 
         if not has_any_keys:
-            logger.warning("No LLM API keys found (GROK_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY, or GOOGLE_API_KEY). System will operate in limited mode.")
-            logger.warning("For full functionality, set environment variables: GROK_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY, and/or GOOGLE_API_KEY")
+            logger.warning("No LLM API keys found (GROK_API_KEY, ANTHROPIC_API_KEY, or GOOGLE_API_KEY). System will operate in limited mode.")
+            logger.warning("For full functionality, set environment variables: GROK_API_KEY, ANTHROPIC_API_KEY, and/or GOOGLE_API_KEY")
             # In development/testing mode, allow operation but log warnings
             dev_mode = os.getenv("DEV_MODE", "false").lower() == "true"
             if dev_mode:
@@ -1839,9 +1830,11 @@ Now go execute it.
             
             analysis_type = data.get('analysis_type', 'general')
             
-            # Use LLM for analysis if available
-            if self.llm:
-                context = f"""
+            # Use LLM for analysis (required - no fallbacks)
+            if not self.llm:
+                raise RuntimeError("LLM is required for agent analysis - no AI fallbacks allowed")
+
+            context = f"""
 AGENT ANALYSIS REQUEST:
 Role: {self.role}
 Analysis Type: {analysis_type}
@@ -1849,29 +1842,19 @@ Data Provided: {data}
 
 Please provide analysis based on your role and expertise.
 """
-                
-                question = data.get('question', data.get('query', f"What insights can you provide about this {analysis_type} data?"))
-                
-                llm_response = await self.reason_with_llm(context, question)
-                
-                analysis_result = {
-                    'agent_role': self.role,
-                    'analysis_type': analysis_type,
-                    'timestamp': pd.Timestamp.now().isoformat(),
-                    'llm_analysis': llm_response,
-                    'data_summary': self._summarize_analysis_data(data),
-                    'confidence_level': 'medium'  # Base confidence
-                }
-            else:
-                # Fallback analysis without LLM
-                analysis_result = {
-                    'agent_role': self.role,
-                    'analysis_type': analysis_type,
-                    'timestamp': pd.Timestamp.now().isoformat(),
-                    'fallback_analysis': f"Analysis of {analysis_type} data without LLM assistance",
-                    'data_summary': self._summarize_analysis_data(data),
-                    'confidence_level': 'low'
-                }
+
+            question = data.get('question', data.get('query', f"What insights can you provide about this {analysis_type} data?"))
+
+            llm_response = await self.reason_with_llm(context, question)
+
+            analysis_result = {
+                'agent_role': self.role,
+                'analysis_type': analysis_type,
+                'timestamp': pd.Timestamp.now().isoformat(),
+                'llm_analysis': llm_response,
+                'data_summary': self._summarize_analysis_data(data),
+                'confidence_level': 'medium'  # Base confidence
+            }
             
             # Store analysis in memory
             await self.store_advanced_memory('analysis_history', {
@@ -2562,3 +2545,122 @@ Please provide analysis based on your role and expertise.
         except Exception as e:
             logger.error(f"Failed to broadcast A2A status from {self.role}: {e}")
             return False
+
+    async def handle_collaborative_request(self, session_id: str, context: Dict[str, Any]) -> bool:
+        """
+        Handle a collaborative session contribution request.
+
+        Args:
+            session_id: Collaborative session ID
+            context: Analysis context
+
+        Returns:
+            True if contribution made successfully
+        """
+        if not self.shared_memory_coordinator:
+            logger.warning(f"Shared memory coordinator not available for {self.role}")
+            return False
+
+        try:
+            # Generate agent-specific insight based on role and context
+            insight = await self._generate_collaborative_insight(context)
+
+            if insight:
+                # Contribute to the collaborative session
+                success = await self.shared_memory_coordinator.contribute_to_session(
+                    session_id=session_id,
+                    agent_role=self.role,
+                    insight=insight
+                )
+
+                if success:
+                    logger.info(f"✅ {self.role} contributed to collaborative session {session_id}")
+                    return True
+                else:
+                    logger.warning(f"Failed to contribute to session {session_id}")
+                    return False
+            else:
+                logger.info(f"{self.role} has no insights to contribute for current context")
+                return True  # Not an error, just no contribution needed
+
+        except Exception as e:
+            logger.error(f"Error handling collaborative request for {self.role}: {e}")
+            return False
+
+    async def _generate_collaborative_insight(self, context: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """
+        Generate an insight for collaborative analysis based on agent role.
+
+        Args:
+            context: Analysis context
+
+        Returns:
+            Insight dictionary or None
+        """
+        # Base implementation - agents should override this
+        return {
+            'type': 'general_insight',
+            'summary': f'{self.role} acknowledges the analysis context',
+            'confidence': 0.5,
+            'timestamp': pd.Timestamp.now().isoformat(),
+            'agent_role': self.role
+        }
+
+    async def check_a2a_messages(self):
+        """
+        Check for and handle incoming A2A messages, including collaborative requests.
+        This should be called periodically by agents that want to handle messages.
+        """
+        if not self.a2a_protocol:
+            return
+
+        try:
+            # Check for messages (non-blocking)
+            message = await self.a2a_protocol.receive_message(self.role)
+            if message:
+                await self._handle_a2a_message(message)
+        except Exception as e:
+            logger.debug(f"No messages available for {self.role}: {e}")
+
+    async def _handle_a2a_message(self, message):
+        """
+        Handle an incoming A2A message.
+
+        Args:
+            message: A2A message object
+        """
+        try:
+            if message.type == 'collaboration_request':
+                # Handle collaborative session request
+                content = message.content
+                session_id = content.get('session_id')
+                context = content.get('context', {})
+
+                if session_id:
+                    await self.handle_collaborative_request(session_id, context)
+                else:
+                    logger.warning(f"Invalid collaboration request: missing session_id")
+
+            elif message.type == 'data_share':
+                # Handle data sharing
+                await self._handle_data_share(message)
+
+            elif message.type == 'status_broadcast':
+                # Handle status broadcasts
+                await self._handle_status_broadcast(message)
+
+            else:
+                logger.debug(f"{self.role} received unhandled message type: {message.type}")
+
+        except Exception as e:
+            logger.error(f"Error handling A2A message in {self.role}: {e}")
+
+    async def _handle_data_share(self, message):
+        """Handle incoming data share messages."""
+        # Base implementation - can be overridden by specific agents
+        logger.info(f"{self.role} received data share from {message.sender}")
+
+    async def _handle_status_broadcast(self, message):
+        """Handle incoming status broadcast messages."""
+        # Base implementation - can be overridden by specific agents
+        logger.info(f"{self.role} received status broadcast from {message.sender}")

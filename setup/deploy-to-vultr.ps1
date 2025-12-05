@@ -3,7 +3,7 @@
 #
 # Purpose: Automated deployment script for ABC Application to Vultr VPS
 # Dependencies: SSH, SCP, PowerShell 5.1+
-# Related: setup/deploy-vultr.sh, docs/IMPLEMENTATION/deployment.md
+# Related: setup/deploy-vultr.sh, docs/IMPLEMENTATION/setup-and-development.md
 #
 # ABC Application Deployment to Vultr VPS
 # Run this script from your local machine to deploy to Vultr

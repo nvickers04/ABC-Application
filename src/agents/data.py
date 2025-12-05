@@ -21,7 +21,8 @@ from datetime import datetime
 # Lazy imports for subagents
 from src.utils.redis_cache import cache_get, cache_set
 from src.utils.optimized_pipeline import OptimizedPipelineProcessor, PipelineConfig
-from src.utils.memory_manager import AdvancedMemoryManager
+from src.utils.memory_manager import MemoryPoolManager
+from src.utils.advanced_memory import AdvancedMemoryManager
 
 # Import FinanceDatabase for symbol management
 logger = logging.getLogger(__name__)
@@ -218,7 +219,7 @@ class DataAgent(BaseAgent):
             logger.warning("FinanceDatabase not available for symbol management")
 
         # Initialize advanced memory manager
-        self.memory_manager = AdvancedMemoryManager()
+        self.memory_manager = MemoryPoolManager()
         logger.info("Advanced memory manager initialized")
 
     def get_symbols_by_criteria(self, criteria: Dict[str, Any]) -> List[str]:
@@ -1076,21 +1077,22 @@ VERIFIED DATA QUALITY ASSESSMENT:
                 Return JSON: {{"direction": "bullish/bearish/neutral", "trend": "up/down/sideways", "regime": "bullish/bearish/volatile/neutral", "confidence": 0.0-1.0, "key_levels": "support/resistance"}}
                 """
             
-            # Use LLM with timeout protection
+            # Use LLM (required - no fallbacks)
+            if self.llm is None:
+                raise RuntimeError("LLM is required for predictive analytics - no AI fallbacks allowed")
+
             try:
-                if self.llm is None:
-                    raise Exception("LLM not available")
                 llm_response = await asyncio.wait_for(
-                    self.llm.ainvoke(predictive_prompt), 
+                    self.llm.ainvoke(predictive_prompt),
                     timeout=30  # 30 second timeout for LLM
                 )
                 predictive_analysis = str(llm_response.content) if hasattr(llm_response, 'content') else str(llm_response)  # type: ignore
             except asyncio.TimeoutError:
-                logger.warning(f"LLM timeout for {symbol}, using fallback predictions")
-                predictive_analysis = '{"direction": "neutral", "trend": "sideways", "regime": "neutral", "confidence": 0.3}'
+                logger.error(f"LLM timeout for {symbol}")
+                raise RuntimeError(f"AI-powered predictive analytics timed out for {symbol}")
             except Exception as e:
-                logger.warning(f"LLM error for {symbol}: {e}, using fallback predictions")
-                predictive_analysis = '{"direction": "neutral", "trend": "sideways", "regime": "neutral", "confidence": 0.3}'
+                logger.error(f"LLM error for {symbol}: {e}")
+                raise RuntimeError(f"AI-powered predictive analytics failed for {symbol}: {str(e)[:100]}")
             
             # Parse and structure the predictive insights
             predictive_insights = self._parse_predictive_response_optimized(predictive_analysis, symbol)
@@ -1738,12 +1740,12 @@ Based on this cross-verification analysis, provide insights on:
 Focus on actionable insights for data quality assessment and cross-verification.
 """
 
-            # Perform LLM analysis
-            if self.llm:
-                llm_response = await self.llm.ainvoke(analysis_prompt)
-                analysis_text = str(llm_response.content) if hasattr(llm_response, 'content') else str(llm_response)
-            else:
-                analysis_text = "LLM not available for cross-verification analysis"
+            # Perform LLM analysis (required - no fallbacks)
+            if not self.llm:
+                raise RuntimeError("LLM is required for cross-verification analysis - no AI fallbacks allowed")
+
+            llm_response = await self.llm.ainvoke(analysis_prompt)
+            analysis_text = str(llm_response.content) if hasattr(llm_response, 'content') else str(llm_response)
 
             return {
                 'llm_analysis': analysis_text,
@@ -2936,42 +2938,6 @@ Focus on actionable insights for data quality assessment and cross-verification.
             logger.error(f"Error fetching market data for {symbol}: {e}")
             return {'symbol': symbol, 'error': str(e)}
 
-    def validate_data_quality(self, data: Any) -> bool:
-        """
-        Validate the quality of data.
-
-        Args:
-            data: Data to validate
-
-        Returns:
-            True if data quality is acceptable, False otherwise
-        """
-        try:
-            # Basic validation - check if data exists and has expected structure
-            if data is None:
-                return False
-
-            if isinstance(data, pd.DataFrame):
-                if data.empty:
-                    return False
-                # Check for required columns
-                required_cols = ['Close']
-                if not any(col in data.columns for col in required_cols):
-                    return False
-                # Check for minimum data points
-                if len(data) < 5:
-                    return False
-
-            elif isinstance(data, dict):
-                # Check if dict has expected keys
-                if not data:
-                    return False
-
-            return True
-
-        except Exception as e:
-            logger.warning(f"Data quality validation failed: {e}")
-            return False
 
     async def enrich_with_subagents(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """

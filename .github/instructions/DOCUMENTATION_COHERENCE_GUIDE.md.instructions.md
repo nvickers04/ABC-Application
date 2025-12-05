@@ -84,7 +84,7 @@ docs/
 │   ├── memory-systems.md
 │   └── workflows/        # Workflow documentation
 ├── IMPLEMENTATION/        # Setup, configuration, deployment
-│   ├── setup.md
+│   ├── setup-and-development.md
 │   ├── configuration.md
 │   ├── discord-setup.md
 │   ├── ibkr-deployment.md
@@ -252,7 +252,7 @@ python tools/verify_coherence.py
 2. **Implement code**: Create `src/agents/new_agent.py`
 3. **Update architecture**: Add to `docs/architecture.md`
 4. **Add tests**: Create `unit-tests/test_new_agent.py`
-5. **Update setup**: Add to `docs/IMPLEMENTATION/setup.md`
+5. **Update setup**: Add to `docs/IMPLEMENTATION/setup-and-development.md`
 
 ### Modifying Existing Agent
 1. **Check docs**: Read current documentation

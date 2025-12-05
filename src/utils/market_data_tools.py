@@ -13,6 +13,8 @@ from datetime import datetime, timedelta
 import websockets
 import requests
 
+from src.utils.constants import DEFAULT_API_TIMEOUT, ERROR_API_KEY_NOT_FOUND, ERROR_INVALID_RESPONSE, ERROR_NO_DATA_FOUND
+
 from langchain_core.tools import BaseTool, tool
 from pydantic import BaseModel, Field
 from .validation import circuit_breaker, DataValidator
@@ -28,7 +30,7 @@ class MarketDataAppAPIToolInput(BaseModel):
 
 class MarketDataAppAPITool(BaseTool):
     name: str = "marketdataapp_api_tool"
-    description: str = "Fetch market data from MarketDataApp API."
+    description: str = "Fetch market data from MarketDataApp API. Supports 'quotes' for real-time data and 'historical' for historical price data."
     args_schema: type = MarketDataAppAPIToolInput
 
     def _run(self, symbol: str, data_type: str = "quotes") -> Dict[str, Any]:
@@ -43,7 +45,7 @@ class MarketDataAppAPITool(BaseTool):
         try:
             api_key = get_vault_secret('MARKETDATAAPP_API_KEY')
         except ValueError:
-            return {"error": "MarketDataApp API key not found in Vault or environment variables."}
+            return {"error": ERROR_API_KEY_NOT_FOUND}
 
         try:
             base_url = "https://api.marketdataapp.com/v1"
@@ -67,13 +69,13 @@ class MarketDataAppAPITool(BaseTool):
             else:
                 return {"error": f"Unsupported data type: {data_type}"}
 
-            response = requests.get(url, params=params, timeout=30)
+            response = requests.get(url, params=params, timeout=DEFAULT_API_TIMEOUT)
             response.raise_for_status()
 
             data = response.json()
 
             if not data or not isinstance(data, dict):
-                return {"error": "Invalid response from MarketDataApp API"}
+                return {"error": ERROR_INVALID_RESPONSE}
 
             # Process and validate data
             if symbol in data:
@@ -111,7 +113,7 @@ class MarketDataAppAPITool(BaseTool):
                         "data_type": "historical"
                     }
 
-            return {"error": f"No data found for symbol {symbol}"}
+            return {"error": f"{ERROR_NO_DATA_FOUND} for symbol {symbol}"}
 
         except (requests.RequestException, json.JSONDecodeError, ValueError, KeyError) as e:
             return {"error": f"MarketDataApp API failed: {str(e)}"}
@@ -143,7 +145,7 @@ class MarketDataAppWebSocketTool(BaseTool):
         """
         api_key = get_vault_secret('MARKETDATAAPP_API_KEY')
         if not api_key:
-            return {"error": "MarketDataApp API key not found in Vault."}
+            return {"error": ERROR_API_KEY_NOT_FOUND}
 
         async def collect_data():
             """Async function to collect WebSocket data."""
@@ -221,7 +223,7 @@ def alpha_vantage_tool(symbol: str, function: str = "TIME_SERIES_DAILY") -> Dict
     """
     api_key = get_vault_secret('ALPHA_VANTAGE_API_KEY')
     if not api_key:
-        return {"error": "Alpha Vantage API key not found in Vault."}
+        return {"error": ERROR_API_KEY_NOT_FOUND}
 
     try:
         url = "https://www.alphavantage.co/query"
@@ -232,7 +234,7 @@ def alpha_vantage_tool(symbol: str, function: str = "TIME_SERIES_DAILY") -> Dict
             "outputsize": "compact"
         }
 
-        response = requests.get(url, params=params, timeout=30)
+        response = requests.get(url, params=params, timeout=DEFAULT_API_TIMEOUT)
         response.raise_for_status()
 
         data = response.json()
@@ -286,7 +288,7 @@ def financial_modeling_prep_tool(symbol: str, data_type: str = "quote") -> Dict[
     """
     api_key = get_vault_secret('FINANCIALMODELINGPREP_API_KEY')
     if not api_key:
-        return {"error": "Financial Modeling Prep API key not found in Vault."}
+        return {"error": ERROR_API_KEY_NOT_FOUND}
 
     try:
         base_url = "https://financialmodelingprep.com/api/v3"
@@ -302,7 +304,7 @@ def financial_modeling_prep_tool(symbol: str, data_type: str = "quote") -> Dict[
 
         params = {"apikey": api_key}
 
-        response = requests.get(url, params=params, timeout=30)
+        response = requests.get(url, params=params, timeout=DEFAULT_API_TIMEOUT)
         response.raise_for_status()
 
         data = response.json()
@@ -483,7 +485,7 @@ def marketdataapp_data_tool(symbol: str) -> Dict[str, Any]:
     """
     api_key = get_vault_secret('MARKETDATAAPP_API_KEY')
     if not api_key:
-        return {"error": "MarketDataApp API key not found in Vault."}
+        return {"error": ERROR_API_KEY_NOT_FOUND}
 
     try:
         base_url = "https://api.marketdataapp.com/v1"
@@ -505,7 +507,7 @@ def marketdataapp_data_tool(symbol: str) -> Dict[str, Any]:
                 "source": "marketdataapp_api"
             }
         else:
-            return {"error": f"No data found for symbol {symbol}"}
+            return {"error": f"{ERROR_NO_DATA_FOUND} for symbol {symbol}"}
 
     except Exception as e:
         logger.error(f"Error fetching MarketDataApp data for {symbol}: {e}")

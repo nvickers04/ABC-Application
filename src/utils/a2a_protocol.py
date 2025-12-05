@@ -126,15 +126,17 @@ class A2AProtocol:
         self.graph.add_node("execution", self._run_execution_agent)
         self.graph.add_node("reflection", self._run_reflection_agent)
         self.graph.add_node("learning", self._run_learning_agent)
-        
-        # Edges: Macro -> Data -> Strategy -> Risk -> Execution -> Reflection -> Learning -> End
+        self.graph.add_node("memory", self._run_memory_agent)
+
+        # Edges: Macro -> Data -> Strategy -> Risk -> Execution -> Reflection -> Learning -> Memory -> End
         self.graph.add_edge("macro", "data")
         self.graph.add_edge("data", "strategy")
         self.graph.add_edge("strategy", "risk")
         self.graph.add_edge("risk", "execution")
         self.graph.add_edge("execution", "reflection")
         self.graph.add_edge("reflection", "learning")
-        self.graph.add_edge("learning", END)  # End after learning
+        self.graph.add_edge("learning", "memory")  # Add edge to memory
+        self.graph.add_edge("memory", END)  # Memory is the final step
         
         # Conditional edges
         self.graph.add_conditional_edges("risk", self._check_risk_approval, {True: "execution", False: "reflection"})
@@ -468,6 +470,48 @@ class A2AProtocol:
             if learning_directives:
                 state.data['learning_directives'] = learning_directives
                 self.logger.info(f"Extracted {len(learning_directives)} learning directives for next cycle")
+        return state
+
+    async def _run_memory_agent(self, state: AgentState) -> AgentState:
+        """
+        Run the memory agent to consolidate and share insights from the workflow.
+        """
+        if "memory" in self.agents:
+            agent = self.agents["memory"]
+
+            # Prepare memory consolidation request
+            memory_request = {
+                'operation': 'consolidate_workflow',
+                'workflow_state': state.data,
+                'symbols': state.data.get('symbols', ['SPY']),
+                'session_id': state.data.get('session_id', f"workflow_{datetime.datetime.now().timestamp()}")
+            }
+
+            if hasattr(agent, 'langchain_agent') and agent.langchain_agent:
+                # Use LangChain agent
+                result = await self._run_langchain_agent(agent.langchain_agent, memory_request)
+            else:
+                # Use regular agent
+                result = await agent._process_input(memory_request)
+
+            # Update state with memory results
+            state.data['memory_consolidation'] = result
+
+            # Log to Discord if enabled
+            await self.log_to_discord(
+                title="🧠 Memory Consolidation Complete",
+                description=f"Workflow insights consolidated for {len(state.data.get('symbols', []))} symbols",
+                color=0x9b59b6,
+                fields=[
+                    {"name": "Symbols", "value": ", ".join(state.data.get('symbols', [])), "inline": True},
+                    {"name": "Session ID", "value": memory_request['session_id'], "inline": True}
+                ],
+                footer="Step 8/8: Memory → Workflow Complete"
+            )
+
+            return state
+
+        # If no memory agent, just pass through
         return state
 
     def register_agent(self, role: str, agent_instance: Any = None, callback: Optional[Callable] = None, langchain_agent: Any = None) -> bool:

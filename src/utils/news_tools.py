@@ -12,6 +12,7 @@ import requests
 import pandas as pd
 
 from .validation import circuit_breaker, DataValidator
+from .constants import DEFAULT_API_TIMEOUT, ERROR_API_KEY_NOT_FOUND, ERROR_NO_DATA_FOUND
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 
@@ -54,7 +55,7 @@ class NewsDataTool(BaseTool):
                     "apiKey": news_api_key
                 }
 
-                response = requests.get(url, params=params, timeout=30)
+                response = requests.get(url, params=params, timeout=DEFAULT_API_TIMEOUT)
                 response.raise_for_status()
 
                 data = response.json()
@@ -104,7 +105,7 @@ class NewsDataTool(BaseTool):
                     "apiKey": currents_key
                 }
 
-                response = requests.get(url, params=params, timeout=30)
+                response = requests.get(url, params=params, timeout=DEFAULT_API_TIMEOUT)
                 response.raise_for_status()
 
                 data = response.json()
@@ -152,7 +153,7 @@ class NewsDataTool(BaseTool):
                     "apikey": newsdata_key
                 }
 
-                response = requests.get(url, params=params, timeout=30)
+                response = requests.get(url, params=params, timeout=DEFAULT_API_TIMEOUT)
                 response.raise_for_status()
 
                 data = response.json()
@@ -226,7 +227,7 @@ class EconomicDataTool(BaseTool):
 
             fred_key = os.getenv('FRED_API_KEY')
             if not fred_key:
-                return {"error": "FRED API key not found. Please set FRED_API_KEY in environment variables."}
+                return {"error": ERROR_API_KEY_NOT_FOUND}
 
             fred = Fred(api_key=fred_key)
 
@@ -246,7 +247,7 @@ class EconomicDataTool(BaseTool):
                             "count": len(data_dict)
                         }
                     else:
-                        results[series_id] = {"error": f"No data found for series {series_id}"}
+                        results[series_id] = {"error": f"{ERROR_NO_DATA_FOUND} for series {series_id}"}
 
                 except Exception as e:
                     results[series_id] = {"error": f"Failed to fetch {series_id}: {str(e)}"}
@@ -292,7 +293,7 @@ class CurrentsNewsTool(BaseTool):
         currents_key = os.getenv('CURRENTS_API_KEY')
         if not currents_key:
             return {
-                "error": "Currents API key not found",
+                "error": ERROR_API_KEY_NOT_FOUND,
                 "setup": "Add CURRENTS_API_KEY=your_key_here to .env file"
             }
 
@@ -304,13 +305,13 @@ class CurrentsNewsTool(BaseTool):
                 "apiKey": currents_key
             }
 
-            response = requests.get(url, params=params, timeout=30)
+            response = requests.get(url, params=params, timeout=DEFAULT_API_TIMEOUT)
             response.raise_for_status()
 
             data = response.json()
 
             if not data.get("news"):
-                return {"error": "No news found", "query": query}
+                return {"error": ERROR_NO_DATA_FOUND, "query": query}
 
             articles = data["news"][:page_size]
 

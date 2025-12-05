@@ -361,7 +361,7 @@ Apply labels to:
 - `docs/macro-micro-analysis-framework.md` - Analysis methodology
 - `docs/AGENTS/index.md` - Agent documentation index
 - `docs/FRAMEWORKS/a2a-protocol.md` - Communication protocol
-- `docs/IMPLEMENTATION/setup.md` - Setup and deployment
+- `docs/IMPLEMENTATION/setup-and-development.md` - Setup and deployment
 
 #### Phase 3: Supporting Files ✅ COMPLETED
 Apply to:
@@ -393,7 +393,7 @@ Apply to:
 - `docs/macro-micro-analysis-framework.md` - [LABEL:DOC:framework] [LABEL:DOC:topic:macro_micro] [LABEL:DOC:audience:developer]
 - `docs/production_readiness_checklist.md` - [LABEL:DOC:deployment] [LABEL:DOC:topic:production] [LABEL:DOC:audience:architect]
 - `docs/security_hardening_guide.md` - [LABEL:DOC:security] [LABEL:DOC:topic:security] [LABEL:DOC:audience:administrator]
-- `docs/IMPLEMENTATION/setup.md` - [LABEL:DOC:implementation] [LABEL:DOC:topic:deployment] [LABEL:DOC:audience:administrator]
+- `docs/IMPLEMENTATION/setup-and-development.md` - [LABEL:DOC:implementation] [LABEL:DOC:topic:deployment] [LABEL:DOC:audience:administrator]
 
 **Tool Scripts Labeled:**
 - `tools/continuous_trading.py` - [LABEL:TOOL:trading] [LABEL:TOOL:continuous] [LABEL:FRAMEWORK:asyncio]

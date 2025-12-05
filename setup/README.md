@@ -3,7 +3,7 @@
 #
 # Purpose: Documentation for system setup, installation, and deployment
 # Dependencies: Python 3.11+, system administration access
-# Related: config/.env.template, docs/IMPLEMENTATION/setup.md
+# Related: config/.env.template, docs/IMPLEMENTATION/setup-and-development.md
 #
 # Setup Folder
 

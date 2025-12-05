@@ -56,7 +56,6 @@ cover/
 *.pot
 
 # Django stuff:
-*.log
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
@@ -217,13 +216,10 @@ __marimo__/
 # ABC Application specific exclusions
 # Result files and logs
 results/
-*.log
 api_health_metrics.json
 # Temporary files
 *.tmp
 *.bak
-# Continuous trading logs
-continuous_trading.log
 # Vault large files
 tools/vault/vault.exe
 tools/vault/vault.zip

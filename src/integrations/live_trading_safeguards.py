@@ -20,6 +20,15 @@ import json
 import os
 from pathlib import Path
 
+# Try to import yfinance for market data
+try:
+    import yfinance as yf
+    YFINANCE_AVAILABLE = True
+except ImportError:
+    YFINANCE_AVAILABLE = False
+    yf = None
+    logger.warning("yfinance not available for market data integration")
+
 logger = logging.getLogger(__name__)
 
 
@@ -225,8 +234,34 @@ class LiveTradingSafeguards:
         if not (9 <= current_hour <= 16):  # Basic market hours check
             risk_analysis['warnings'].append('outside_market_hours')
 
-        # 7. Volatility check (placeholder - would need market data)
-        # This would check recent volatility and reject orders in high volatility periods
+        # 7. Volatility check - check recent market volatility
+        try:
+            if YFINANCE_AVAILABLE:
+                # Check VIX level as market volatility indicator
+                vix = yf.Ticker("^VIX")
+                vix_data = vix.history(period="1d")
+
+                if not vix_data.empty:
+                    current_vix = vix_data['Close'].iloc[-1]
+
+                    # High volatility thresholds
+                    if current_vix > 30:  # VIX above 30 indicates high volatility
+                        risk_analysis['warnings'].append(f'high_market_volatility_vix_{current_vix:.1f}')
+                        risk_analysis['risk_level'] = RiskLevel.HIGH.value
+                    elif current_vix > 20:  # VIX above 20 indicates elevated volatility
+                        risk_analysis['warnings'].append(f'elevated_market_volatility_vix_{current_vix:.1f}')
+                        if risk_analysis['risk_level'] == RiskLevel.LOW.value:
+                            risk_analysis['risk_level'] = RiskLevel.MEDIUM.value
+
+                    logger.info(f"Market volatility check: VIX={current_vix:.1f}")
+                else:
+                    logger.warning("Could not retrieve VIX data for volatility check")
+            else:
+                logger.warning("yfinance not available for volatility checking")
+
+        except Exception as e:
+            logger.warning(f"Error checking market volatility: {e}")
+            # Continue without volatility check rather than failing
 
         # Update risk level based on warnings
         if risk_analysis['warnings']:

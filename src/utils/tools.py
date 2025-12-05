@@ -23,16 +23,20 @@ from .api_health_monitor import get_api_health_summary, check_api_health_now, st
 try:
     from langchain_text_splitters import RecursiveCharacterTextSplitter
     from langchain_community.vectorstores import FAISS
-    from langchain_openai import OpenAIEmbeddings
+    try:
+        from langchain_huggingface import HuggingFaceEmbeddings
+    except ImportError:
+        # Fallback to deprecated version if new package not available
+        from langchain_community.embeddings import HuggingFaceEmbeddings
     from langchain_core.documents import Document
-    from langchain.chains import LLMChain, SequentialChain
-    from langchain.prompts import PromptTemplate
+    from langchain_core.prompts import PromptTemplate
     LANGCHAIN_RAG_AVAILABLE = True
-    LANGCHAIN_CHAINS_AVAILABLE = True
-except ImportError:
+    LANGCHAIN_CHAINS_AVAILABLE = False  # Chains moved to langchain-experimental
+    logging.info("LangChain RAG components available - using modern LangChain architecture")
+except ImportError as e:
     LANGCHAIN_RAG_AVAILABLE = False
     LANGCHAIN_CHAINS_AVAILABLE = False
-    logging.warning("LangChain RAG and chain components not available - advanced features disabled")
+    logging.warning(f"LangChain RAG components not available: {e} - basic functionality will work")
 
 # Import from specialized modules
 from .validation import (
@@ -689,10 +693,13 @@ class TradingKnowledgeRAG:
 
         if LANGCHAIN_RAG_AVAILABLE:
             try:
-                self.embeddings = OpenAIEmbeddings()
+                # Use local HuggingFace embeddings instead of OpenAI
+                self.embeddings = HuggingFaceEmbeddings(
+                    model_name="sentence-transformers/all-MiniLM-L6-v2"
+                )
                 self._initialize_knowledge_base()
                 self.initialized = True
-                logging.info("Trading Knowledge RAG system initialized")
+                logging.info("Trading Knowledge RAG system initialized with local embeddings")
             except Exception as e:
                 logging.warning(f"Failed to initialize RAG system: {e}")
         else:

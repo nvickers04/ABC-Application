@@ -8,8 +8,9 @@ langchain-core>=1.0.0,<2.0  # Compatible with langchain 1.x
 langgraph>=0.2.28,<2.0  # Adjusted to current stable; cap at <2.0
 langgraph-checkpoint>=1.0.12,<4.0  # Matches langgraph; cap at <4.0
 langgraph-sdk>=0.2.9,<1.0  # Minimum from original; cap at <1.0 for stability; latest is 0.2.9
-langchain-openai>=1.0.0,<2.0  # For xAI API integration; latest stable is 0.2.0
+
 langchain-xai>=1.0.0,<2.0  # For xAI/Grok API integration through LangChain; latest stable is 1.0.0
+langchain-huggingface>=1.0.0,<2.0  # For local HuggingFace embeddings; latest stable
 yfinance>=0.2.44,<1.0  # Minimum from original; cap at <1.0; latest is 0.2.44
 backtrader>=1.9.78.123,<2.0  # Minimum from original; cap at <2.0 (no major updates expected); latest is 1.9.78.123
 pyfolio-reloaded>=0.9.9,<1.0  # Minimum from original; cap at <1.0; latest is 0.9.9

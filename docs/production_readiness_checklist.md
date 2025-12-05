@@ -3,7 +3,7 @@
 #
 # Purpose: Comprehensive production readiness assessment and deployment checklist
 # Dependencies: All system components, security measures, infrastructure
-# Related: docs/IMPLEMENTATION/setup.md, docs/security_hardening_guide.md
+# Related: docs/IMPLEMENTATION/setup-and-development.md, docs/security_hardening_guide.md
 #
 # 🚀 ABC Application Production Readiness Assessment (Updated 2025-11-11)
 

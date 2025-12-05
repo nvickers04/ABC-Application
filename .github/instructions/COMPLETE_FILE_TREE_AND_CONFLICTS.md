@@ -73,7 +73,7 @@ ABC-Application/
 │   │   ├── configuration.md
 │   │   ├── DISCORD_SETUP_INSTRUCTIONS.md
 │   │   ├── IBKR_PAPER_TRADING_DEPLOYMENT.md
-│   │   ├── setup.md
+│   │   ├── setup-and-development.md
 │   │   ├── testing.md
 │   │   └── VULTR_DEPLOYMENT_GUIDE.md
 │   ├── macro-micro-analysis-framework.md

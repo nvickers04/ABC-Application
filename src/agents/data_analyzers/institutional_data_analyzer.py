@@ -262,38 +262,30 @@ class InstitutionalDataAnalyzer(BaseDataAnalyzer):
         }
 
     async def _plan_institutional_exploration(self, symbol: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """Use LLM to plan intelligent exploration of institutional holdings data, with fallback."""
-        if self.llm:
-            context_str = f"""
-            Symbol: {symbol}
-            Market Context: {context or 'General market analysis'}
-            Current Holdings Data: {self.fetch_institutional_holdings(symbol)}
-            """
+        """Use LLM to plan intelligent exploration of institutional holdings data (required - no fallbacks)."""
+        if not self.llm:
+            raise RuntimeError("LLM is required for institutional exploration planning - no AI fallbacks allowed")
 
-            question = f"""
-            Plan a comprehensive exploration strategy for institutional holdings of {symbol}.
-            Consider:
-            1. Key institutional investors to analyze (top holders, activist investors, index funds)
-            2. Recent 13F filing changes and trends
-            3. Ownership concentration and positioning insights
-            4. Risk assessment based on institutional ownership patterns
-            5. Market intelligence from institutional behavior
+        context_str = f"""
+        Symbol: {symbol}
+        Market Context: {context or 'General market analysis'}
+        Current Holdings Data: {self.fetch_institutional_holdings(symbol)}
+        """
 
-            Provide a structured plan with priorities and data sources to explore.
-            """
+        question = f"""
+        Plan a comprehensive exploration strategy for institutional holdings of {symbol}.
+        Consider:
+        1. Key institutional investors to analyze (top holders, activist investors, index funds)
+        2. Recent 13F filing changes and trends
+        3. Ownership concentration and positioning insights
+        4. Risk assessment based on institutional ownership patterns
+        5. Market intelligence from institutional behavior
 
-            plan_response = await self.reason_with_llm(context_str, question)
-            return {"plan": plan_response, "symbol": symbol, "timestamp": pd.Timestamp.now().isoformat()}
-        else:
-            # Fallback plan without LLM
-            logger.warning("LLM not available, using fallback institutional exploration plan")
-            return {
-                "plan": "Fallback institutional exploration plan",
-                "symbol": symbol,
-                "sources": ["whale_wisdom", "sec_edgar", "institutional_db"],
-                "strategy": "multi_source_fetch",
-                "timestamp": pd.Timestamp.now().isoformat()
-            }
+        Provide a structured plan with priorities and data sources to explore.
+        """
+
+        plan_response = await self.reason_with_llm(context_str, question)
+        return {"plan": plan_response, "symbol": symbol, "timestamp": pd.Timestamp.now().isoformat()}
 
     async def _fetch_institutional_sources_concurrent(self, symbol: str, plan: Dict[str, Any]) -> Dict[str, Any]:
         """Fetch institutional data from multiple sources concurrently."""
@@ -437,62 +429,44 @@ class InstitutionalDataAnalyzer(BaseDataAnalyzer):
             return "Small Holder"
 
     async def _analyze_institutional_data_llm(self, consolidated_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Use LLM for risk assessment and positioning insights from institutional data, with fallback."""
-        if self.llm:
-            context_str = f"""
-            Institutional Data Analysis for {consolidated_data.get('symbol', 'Unknown')}:
+        """Use LLM for risk assessment and positioning insights from institutional data (required - no fallbacks)."""
+        if not self.llm:
+            raise RuntimeError("LLM is required for institutional data analysis - no AI fallbacks allowed")
 
-            Summary Statistics:
-            {consolidated_data.get('summary', {})}
+        context_str = f"""
+        Institutional Data Analysis for {consolidated_data.get('symbol', 'Unknown')}:
 
-            Holdings Data:
-            {consolidated_data.get('holdings_df', [])}
+        Summary Statistics:
+        {consolidated_data.get('summary', {})}
 
-            Filings Trends:
-            {consolidated_data.get('filings_df', [])}
+        Holdings Data:
+        {consolidated_data.get('holdings_df', [])}
 
-            Ownership Trends:
-            {consolidated_data.get('trends_df', [])}
-            """
+        Filings Trends:
+        {consolidated_data.get('filings_df', [])}
 
-            question = """
-            Analyze this institutional ownership data and provide insights on:
-            1. Risk assessment based on ownership concentration and changes
-            2. Institutional positioning insights (bullish/bearish signals)
-            3. Key institutional investors and their potential impact
-            4. Market intelligence from institutional behavior patterns
-            5. Recommendations for portfolio positioning based on institutional activity
+        Ownership Trends:
+        {consolidated_data.get('trends_df', [])}
+        """
 
-            Focus on risk management and alignment with our goals (<5% drawdown, 10-20% monthly ROI).
-            """
+        question = """
+        Analyze this institutional ownership data and provide insights on:
+        1. Risk assessment based on ownership concentration and changes
+        2. Institutional positioning insights (bullish/bearish signals)
+        3. Key institutional investors and their potential impact
+        4. Market intelligence from institutional behavior patterns
+        5. Recommendations for portfolio positioning based on institutional activity
 
-            analysis_response = await self.reason_with_llm(context_str, question)
-            return {
-                "llm_analysis": analysis_response,
-                "risk_assessment": self._extract_risk_from_llm(analysis_response),
-                "positioning_insights": self._extract_insights_from_llm(analysis_response),
-                "timestamp": pd.Timestamp.now().isoformat()
-            }
-        else:
-            # Fallback analysis without LLM
-            logger.warning("LLM not available, using fallback institutional analysis")
-            summary = consolidated_data.get('summary', {})
-            total_ownership = summary.get('total_institutional_ownership', 0)
+        Focus on risk management and alignment with our goals (<5% drawdown, 10-20% monthly ROI).
+        """
 
-            # Simple risk assessment based on ownership concentration
-            if total_ownership > 0.8:
-                risk = "High Risk - Highly Concentrated Ownership"
-            elif total_ownership > 0.6:
-                risk = "Moderate Risk - Significant Institutional Ownership"
-            else:
-                risk = "Low Risk - Diversified Ownership"
-
-            return {
-                "llm_analysis": "Fallback analysis without LLM",
-                "risk_assessment": risk,
-                "positioning_insights": ["Unable to determine without LLM"],
-                "timestamp": pd.Timestamp.now().isoformat()
-            }
+        analysis_response = await self.reason_with_llm(context_str, question)
+        return {
+            "llm_analysis": analysis_response,
+            "risk_assessment": self._extract_risk_from_llm(analysis_response),
+            "positioning_insights": self._extract_insights_from_llm(analysis_response),
+            "timestamp": pd.Timestamp.now().isoformat()
+        }
 
     def _extract_risk_from_llm(self, llm_response: str) -> str:
         """Extract risk assessment from LLM response."""

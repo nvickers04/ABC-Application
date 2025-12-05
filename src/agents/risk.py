@@ -1100,8 +1100,9 @@ Focus on immediate actions to reduce risk while maintaining alpha potential.
         base_approved = simulated_pop >= pop_floor
         base_rationale = f"POP {simulated_pop:.3f} vs floor {pop_floor}"
 
-        # Use comprehensive LLM reasoning for all risk decisions (deep analysis and over-analysis)
-        if self.llm:
+        # Use comprehensive LLM reasoning for all risk decisions (required - no fallbacks)
+        if not self.llm:
+            raise RuntimeError("LLM is required for risk analysis - no AI fallbacks allowed")
             # Build foundation context for LLM
             cost_info = ""
             if trading_costs:
@@ -1149,18 +1150,9 @@ Provide a clear APPROVE/REJECT recommendation with detailed rationale.
                     rationale = f"LLM Unclear, Using Foundation: {base_rationale}"
 
             except Exception as e:
-                logger.warning(f"LLM reasoning failed, using foundation logic: {e}")
-                approved = base_approved
-                rationale = base_rationale
-        else:
-            # Use foundation logic when LLM unavailable
-            approved = base_approved
-            rationale = base_rationale
+                logger.error(f"LLM reasoning failed: {e}")
+                raise RuntimeError(f"AI-powered risk analysis failed: {str(e)[:100]}")
 
-            # Allow foundation override for high-confidence proposals
-            if not approved and proposal.get('confidence', 0) > 0.8:
-                approved = True
-                rationale += "; Foundation Override: High confidence justifies risk"
 
         return {'approved': approved, 'rationale': rationale}
 
@@ -1289,10 +1281,12 @@ Provide a clear APPROVE/REJECT recommendation with detailed rationale.
                 'portfolio_characteristics': self._analyze_portfolio_characteristics(simulation_results)
             }
 
-            # Use LLM for sophisticated risk interpretation if available
-            if self.llm:
-                llm_insights = await self._generate_llm_risk_insights(risk_report, simulation_results)
-                risk_report['agent_analysis']['llm_insights'] = llm_insights
+            # Use LLM for sophisticated risk interpretation (required - no fallbacks)
+            if not self.llm:
+                raise RuntimeError("LLM is required for risk report enhancement - no AI fallbacks allowed")
+
+            llm_insights = await self._generate_llm_risk_insights(risk_report, simulation_results)
+            risk_report['agent_analysis']['llm_insights'] = llm_insights
 
             # Add risk management recommendations specific to historical analysis
             historical_recommendations = self._generate_historical_risk_recommendations(risk_report)
@@ -4854,3 +4848,122 @@ Provide actionable insights that would help improve future risk management and s
                 'sharpe_ratio': 0.5,
                 'risk_score': 0.9
             }
+
+    async def _generate_collaborative_insight(self, context: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """
+        Generate risk-specific insights for collaborative analysis.
+
+        Args:
+            context: Analysis context
+
+        Returns:
+            Risk insight for collaborative session
+        """
+        try:
+            symbols = context.get('symbols', ['SPY'])
+            market_conditions = context.get('market_conditions', {})
+
+            # Generate risk insights based on current conditions
+            risk_concerns = []
+
+            # Check for high volatility risk
+            if 'high_volatility' in str(market_conditions):
+                risk_concerns.append("Elevated volatility increases VaR and CVaR estimates")
+                risk_concerns.append("Recommend reducing position sizes by 20-30%")
+
+            # Check for multi-asset diversification benefits/risks
+            if len(symbols) > 1:
+                risk_concerns.append(f"Multi-asset exposure ({len(symbols)} symbols) provides diversification but increases complexity")
+            else:
+                risk_concerns.append("Single asset exposure - consider diversification to reduce idiosyncratic risk")
+
+            # Assess correlation risks
+            correlation_risks = self._assess_correlation_risks(symbols, context)
+            if correlation_risks:
+                risk_concerns.extend(correlation_risks)
+
+            # Generate risk metrics assessment
+            risk_metrics = self._generate_risk_metrics(context)
+
+            if risk_concerns or risk_metrics:
+                return {
+                    'type': 'risk_analysis',
+                    'summary': 'Risk assessment insights for collaborative analysis',
+                    'risk_concerns': risk_concerns,
+                    'risk_metrics': risk_metrics,
+                    'confidence': 0.85,
+                    'recommendations': [
+                        'Implement position size limits based on VaR constraints',
+                        'Monitor correlation changes for diversification effectiveness',
+                        'Consider stop-loss levels for volatility management'
+                    ],
+                    'timestamp': pd.Timestamp.now().isoformat(),
+                    'agent_role': self.role
+                }
+
+            return None
+
+        except Exception as e:
+            logger.error(f"Error generating collaborative insight for risk agent: {e}")
+            return None
+
+    def _assess_correlation_risks(self, symbols: List[str], context: Dict[str, Any]) -> List[str]:
+        """
+        Assess correlation-related risks for the symbol set.
+
+        Args:
+            symbols: List of symbols
+            context: Analysis context
+
+        Returns:
+            List of correlation risk insights
+        """
+        risks = []
+
+        try:
+            if len(symbols) > 2:
+                risks.append("High symbol count increases correlation estimation uncertainty")
+            elif len(symbols) == 2:
+                risks.append("Two-asset portfolio - monitor pairwise correlation closely")
+
+            # Check for market regime correlation changes
+            regime = str(context.get('market_conditions', '')).lower()
+            if 'crisis' in regime or 'high_volatility' in regime:
+                risks.append("Correlation tends to increase during market stress - diversification benefits may diminish")
+
+        except Exception as e:
+            logger.debug(f"Error assessing correlation risks: {e}")
+
+        return risks
+
+    def _generate_risk_metrics(self, context: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Generate risk metrics assessment for current conditions.
+
+        Args:
+            context: Analysis context
+
+        Returns:
+            Risk metrics assessment
+        """
+        try:
+            base_metrics = {
+                'var_estimate': 0.05,  # 5% VaR
+                'expected_shortfall': 0.08,  # 8% CVaR
+                'max_drawdown_limit': 0.15,  # 15% max drawdown
+                'concentration_limit': 0.20  # 20% max concentration
+            }
+
+            # Adjust metrics based on conditions
+            conditions = str(context.get('market_conditions', '')).lower()
+
+            if 'high_volatility' in conditions:
+                base_metrics['var_estimate'] *= 1.5  # Increase VaR estimate
+                base_metrics['expected_shortfall'] *= 1.3
+                base_metrics['max_drawdown_limit'] *= 1.2
+
+            return base_metrics
+
+        except Exception as e:
+            logger.debug(f"Error generating risk metrics: {e}")
+            return {}

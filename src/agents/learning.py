@@ -1109,10 +1109,14 @@ class LearningAgent(BaseAgent):
         """
         sd_variance = self.memory.get('last_sd_variance', 0.8)
 
-        # Use comprehensive LLM reasoning for all learning decisions (deep analysis and over-analysis)
-        if self.llm:
-            # Build foundation context for LLM
-            foundation_context = f"""
+        # Use comprehensive LLM reasoning for all learning decisions (required - no fallbacks)
+        if not self.llm:
+            raise RuntimeError("LLM is required for learning agent analysis - no AI fallbacks allowed")
+
+        directives = []  # Initialize to avoid undefined variable
+
+        # Build foundation context for LLM
+        foundation_context = f"""
 FOUNDATION LEARNING ANALYSIS:
 - Current SD Variance: {sd_variance:.3f}
 - Convergence Status: {'CONVERGED' if convergence.get('converged', False) else 'NOT CONVERGED'}
@@ -1125,19 +1129,19 @@ FOUNDATION LEARNING ANALYSIS:
 - Pyramiding Records: {len(self.memory.get('pyramiding_performance', []))}
 """
 
-            # Add pyramiding performance summary if available
-            pyramiding_data = self.memory.get('pyramiding_performance', [])
-            if pyramiding_data:
-                recent_pyramiding = pyramiding_data[-10:]  # Last 10 records
-                avg_efficiency = np.mean([r.get('efficiency_score', 1.0) for r in recent_pyramiding])
-                success_rate = np.mean([r.get('success', False) for r in recent_pyramiding])
-                foundation_context += f"""
+        # Add pyramiding performance summary if available
+        pyramiding_data = self.memory.get('pyramiding_performance', [])
+        if pyramiding_data:
+            recent_pyramiding = pyramiding_data[-10:]  # Last 10 records
+            avg_efficiency = np.mean([r.get('efficiency_score', 1.0) for r in recent_pyramiding])
+            success_rate = np.mean([r.get('success', False) for r in recent_pyramiding])
+            foundation_context += f"""
 - Pyramiding Average Efficiency: {avg_efficiency:.3f}
 - Pyramiding Success Rate: {success_rate:.1%}
 - Recent Pyramiding Records: {len(recent_pyramiding)}
 """
 
-            llm_question = """
+        llm_question = """
 Based on the foundation learning analysis above, what system-wide directives should be generated?
 
 IMPORTANT: This is for LIVE TRADING with CURRENT MARKET DATA. All analysis and recommendations must be based on real-time market conditions, not historical simulations. Do not include any disclaimers about data being historical, illustrative, or not live.
@@ -1153,26 +1157,16 @@ Consider:
 Provide specific directive recommendations with values and detailed rationale for live trading execution.
 """
 
-            try:
-                llm_response = await self.reason_with_llm(foundation_context, llm_question)
+        try:
+            llm_response = await self.reason_with_llm(foundation_context, llm_question)
 
-                # Parse LLM response to extract directives
-                directives = self._parse_llm_directives(llm_response, sd_variance, convergence, fade_weight)
-                logger.info(f"Learning Agent LLM comprehensive analysis: Generated {len(directives)} directives")
+            # Parse LLM response to extract directives
+            directives = self._parse_llm_directives(llm_response, sd_variance, convergence, fade_weight)
+            logger.info(f"Learning Agent LLM comprehensive analysis: Generated {len(directives)} directives")
 
-            except Exception as e:
-                logger.warning(f"Learning Agent LLM reasoning failed, using foundation logic: {e}")
-                # Fall back to foundation logic
-                general_directives = self._generate_general_directives(sd_variance, convergence, fade_weight)
-                pyramiding_directives = self._generate_pyramiding_directives()
-                directives = general_directives.to_dict('records') if not general_directives.empty else []
-                directives.extend(pyramiding_directives)
-        else:
-            # Use foundation logic when LLM unavailable
-            general_directives = self._generate_general_directives(sd_variance, convergence, fade_weight)
-            pyramiding_directives = self._generate_pyramiding_directives()
-            directives = general_directives.to_dict('records') if not general_directives.empty else []
-            directives.extend(pyramiding_directives)
+        except Exception as e:
+            logger.error(f"Learning Agent LLM reasoning failed: {e}")
+            raise RuntimeError(f"AI-powered learning analysis failed: {str(e)[:100]}")
 
         # Store converged strategies as SOPs in Acontext (non-blocking background task)
         if convergence.get('converged', False) and directives:
@@ -2437,31 +2431,214 @@ Provide specific directive recommendations with values and detailed rationale fo
             
         return triggers
 
-    def _update_volatility_model(self, features: Dict[str, Any]) -> Dict[str, Any]:
+    async def _update_volatility_model(self, features: Dict[str, Any]) -> Dict[str, Any]:
         """
         Update volatility model with real-time data.
-        
+
         Args:
             features: Current feature values
-            
+
         Returns:
             Dict with update results
         """
-        # Placeholder for volatility model updates
-        return {'status': 'not_implemented', 'message': 'Volatility model updates coming soon'}
+        try:
+            # Extract volatility-related features
+            volatility = features.get('volatility', 0.2)
+            returns = features.get('returns', [])
+            volume = features.get('volume', 0)
+            market_regime = features.get('market_regime', 'normal')
 
-    def _update_regime_classifier(self, features: Dict[str, Any]) -> Dict[str, Any]:
+            # Initialize volatility model if not exists
+            if not hasattr(self, 'volatility_model'):
+                self.volatility_model = {
+                    'ewma_volatility': 0.2,  # Exponentially weighted moving average
+                    'garch_params': {'alpha': 0.1, 'beta': 0.8},  # GARCH(1,1) parameters
+                    'regime_volatilities': {'low': 0.1, 'normal': 0.2, 'high': 0.4},
+                    'last_update': None,
+                    'update_count': 0
+                }
+
+            # Update EWMA volatility
+            lambda_decay = 0.94  # Standard decay factor for daily data
+            if returns:
+                returns_vol = np.std(returns) if len(returns) > 1 else abs(returns[0]) if returns else 0
+                self.volatility_model['ewma_volatility'] = (
+                    lambda_decay * self.volatility_model['ewma_volatility'] +
+                    (1 - lambda_decay) * returns_vol
+                )
+
+            # Update regime-specific volatility
+            if market_regime in self.volatility_model['regime_volatilities']:
+                current_regime_vol = self.volatility_model['regime_volatilities'][market_regime]
+                # Adaptive update based on observed volatility
+                alpha = 0.1  # Learning rate
+                self.volatility_model['regime_volatilities'][market_regime] = (
+                    (1 - alpha) * current_regime_vol + alpha * volatility
+                )
+
+            # Update GARCH parameters (simplified online learning)
+            if returns and len(returns) > 1:
+                # Simple parameter update based on recent volatility
+                recent_vol = np.std(returns[-20:]) if len(returns) >= 20 else np.std(returns)
+                if recent_vol > self.volatility_model['ewma_volatility']:
+                    # Increase alpha (shock response) when volatility spikes
+                    self.volatility_model['garch_params']['alpha'] = min(
+                        0.3, self.volatility_model['garch_params']['alpha'] + 0.01
+                    )
+
+            # Update metadata
+            self.volatility_model['last_update'] = datetime.now()
+            self.volatility_model['update_count'] += 1
+
+            logger.info(f"Volatility model updated: EWMA={self.volatility_model['ewma_volatility']:.4f}, "
+                       f"Regime={market_regime}, Updates={self.volatility_model['update_count']}")
+
+            return {
+                'status': 'success',
+                'ewma_volatility': self.volatility_model['ewma_volatility'],
+                'regime_volatilities': self.volatility_model['regime_volatilities'].copy(),
+                'garch_params': self.volatility_model['garch_params'].copy(),
+                'update_count': self.volatility_model['update_count']
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to update volatility model: {e}")
+            return {
+                'status': 'error',
+                'message': f'Volatility model update failed: {str(e)}'
+            }
+
+    async def _update_regime_classifier(self, features: Dict[str, Any]) -> Dict[str, Any]:
         """
         Update market regime classifier with real-time data.
-        
+
         Args:
             features: Current feature values
-            
+
         Returns:
             Dict with update results
         """
-        # Placeholder for regime classifier updates
-        return {'status': 'not_implemented', 'message': 'Regime classifier updates coming soon'}
+        try:
+            # Extract regime-related features
+            volatility = features.get('volatility', 0.2)
+            trend_strength = features.get('trend_strength', 0.0)
+            volume_trend = features.get('volume_trend', 0.0)
+            returns = features.get('returns', [])
+            market_regime = features.get('market_regime', 'normal')
+
+            # Initialize regime classifier if not exists
+            if not hasattr(self, 'regime_classifier'):
+                self.regime_classifier = {
+                    'regime_counts': {'bull': 0, 'bear': 0, 'sideways': 0, 'volatile': 0},
+                    'regime_features': {
+                        'bull': {'volatility_range': [0.05, 0.15], 'trend_threshold': 0.02},
+                        'bear': {'volatility_range': [0.08, 0.25], 'trend_threshold': -0.02},
+                        'sideways': {'volatility_range': [0.03, 0.12], 'trend_threshold': 0.01},
+                        'volatile': {'volatility_range': [0.20, 0.50], 'trend_threshold': 0.05}
+                    },
+                    'transition_matrix': {
+                        'bull': {'bull': 0.7, 'bear': 0.2, 'sideways': 0.05, 'volatile': 0.05},
+                        'bear': {'bear': 0.7, 'bull': 0.1, 'sideways': 0.1, 'volatile': 0.1},
+                        'sideways': {'sideways': 0.6, 'bull': 0.2, 'bear': 0.15, 'volatile': 0.05},
+                        'volatile': {'volatile': 0.5, 'bull': 0.15, 'bear': 0.2, 'sideways': 0.15}
+                    },
+                    'last_regime': 'normal',
+                    'last_update': None,
+                    'update_count': 0
+                }
+
+            # Classify current regime based on features
+            current_regime = self._classify_regime(volatility, trend_strength, volume_trend)
+
+            # Update regime counts
+            self.regime_classifier['regime_counts'][current_regime] += 1
+
+            # Update transition probabilities (online learning)
+            if self.regime_classifier['last_regime'] != 'normal':
+                last_regime = self.regime_classifier['last_regime']
+                # Simple online update of transition matrix
+                learning_rate = 0.01
+                old_prob = self.regime_classifier['transition_matrix'][last_regime][current_regime]
+                new_prob = old_prob + learning_rate * (1 - old_prob)
+                # Normalize row to ensure probabilities sum to 1
+                row_sum = sum(self.regime_classifier['transition_matrix'][last_regime].values())
+                for regime in self.regime_classifier['transition_matrix'][last_regime]:
+                    self.regime_classifier['transition_matrix'][last_regime][regime] /= row_sum
+
+            # Update regime feature thresholds based on observed data
+            if returns and len(returns) > 10:
+                recent_volatility = np.std(returns[-10:])
+                recent_trend = np.mean(returns[-10:])
+
+                # Adaptive threshold updates
+                alpha = 0.05  # Slow learning rate for stability
+                regime_features = self.regime_classifier['regime_features'][current_regime]
+
+                # Update volatility range
+                if recent_volatility < regime_features['volatility_range'][0]:
+                    regime_features['volatility_range'][0] = (
+                        (1 - alpha) * regime_features['volatility_range'][0] + alpha * recent_volatility
+                    )
+                elif recent_volatility > regime_features['volatility_range'][1]:
+                    regime_features['volatility_range'][1] = (
+                        (1 - alpha) * regime_features['volatility_range'][1] + alpha * recent_volatility
+                    )
+
+                # Update trend threshold
+                regime_features['trend_threshold'] = (
+                    (1 - alpha) * regime_features['trend_threshold'] + alpha * abs(recent_trend)
+                )
+
+            # Update metadata
+            self.regime_classifier['last_regime'] = current_regime
+            self.regime_classifier['last_update'] = datetime.now()
+            self.regime_classifier['update_count'] += 1
+
+            logger.info(f"Regime classifier updated: Current={current_regime}, "
+                       f"Last={self.regime_classifier['last_regime']}, "
+                       f"Updates={self.regime_classifier['update_count']}")
+
+            return {
+                'status': 'success',
+                'current_regime': current_regime,
+                'regime_counts': self.regime_classifier['regime_counts'].copy(),
+                'transition_matrix': self.regime_classifier['transition_matrix'].copy(),
+                'update_count': self.regime_classifier['update_count']
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to update regime classifier: {e}")
+            return {
+                'status': 'error',
+                'message': f'Regime classifier update failed: {str(e)}'
+            }
+
+    def _classify_regime(self, volatility: float, trend_strength: float, volume_trend: float) -> str:
+        """
+        Classify market regime based on volatility and trend features.
+
+        Args:
+            volatility: Current volatility level
+            trend_strength: Strength of current trend
+            volume_trend: Volume trend indicator
+
+        Returns:
+            str: Classified regime ('bull', 'bear', 'sideways', 'volatile')
+        """
+        # High volatility regime
+        if volatility > 0.25:
+            return 'volatile'
+
+        # Trend-based classification
+        if abs(trend_strength) > 0.03:
+            return 'bull' if trend_strength > 0 else 'bear'
+
+        # Sideways/low volatility regime
+        if volatility < 0.12 and abs(trend_strength) < 0.015:
+            return 'sideways'
+
+        # Default to bull for moderate positive trends
+        return 'bull' if trend_strength > 0 else 'bear'
 
     # ===== SAFETY MECHANISMS FOR REAL-TIME LEARNING =====
 

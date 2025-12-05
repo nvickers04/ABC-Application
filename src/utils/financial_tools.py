@@ -11,6 +11,7 @@ import pandas as pd
 import requests
 
 from .validation import circuit_breaker, DataValidator
+from .constants import DEFAULT_API_TIMEOUT, ERROR_NO_DATA_FOUND
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 
@@ -48,7 +49,7 @@ class YFinanceDataTool(BaseTool):
             data = stock.history(period=period)
 
             if data.empty:
-                return {"error": f"No data found for symbol: {symbol}"}
+                return {"error": f"{ERROR_NO_DATA_FOUND} for symbol: {symbol}"}
 
             # Format response
             latest = data.iloc[-1] if not data.empty else None
@@ -62,7 +63,7 @@ class YFinanceDataTool(BaseTool):
                 }
                 return response
             else:
-                return {"error": "No data available"}
+                return {"error": ERROR_NO_DATA_FOUND}
 
         except Exception as e:
             logger.error(f"Error fetching yfinance data: {e}")
@@ -121,7 +122,7 @@ class SentimentAnalysisTool(BaseTool):
                         'https://api.x.ai/v1/chat/completions',
                         headers=headers,
                         json=payload,
-                        timeout=30
+                        timeout=DEFAULT_API_TIMEOUT
                     )
 
                     if response.status_code == 200:

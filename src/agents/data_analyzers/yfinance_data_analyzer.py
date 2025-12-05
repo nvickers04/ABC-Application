@@ -88,12 +88,7 @@ class YfinanceDataAnalyzer(BaseDataAnalyzer):
                 "data_quality": 0.0
             }
 
-    def validate_data_quality(self, data):
-        return self._validate_data_quality(data)
 
-    def _validate_data_quality(self, data):
-        # Validate data quality and return validated data
-        return data
 
     async def _get_data_exploration_plan(self, symbols: List[str], data_types: List[str]) -> Dict[str, Any]:
         """

@@ -32,10 +32,10 @@ class MemoryAgent(BaseAgent):
     Handles short-term, long-term, and multi-agent memory sharing with advanced position tracking.
     """
 
-    def __init__(self):
+    def __init__(self, a2a_protocol=None):
         config_paths = {'risk': 'config/risk-constraints.yaml', 'profit': 'config/profitability-targets.yaml'}  # Relative to root.
         prompt_paths = {'base': 'config/base_prompt.txt', 'role': 'docs/AGENTS/main-agents/memory-agent.md'}  # Relative to root.
-        super().__init__(role='memory', config_paths=config_paths, prompt_paths=prompt_paths)
+        super().__init__(role='memory', config_paths=config_paths, prompt_paths=prompt_paths, a2a_protocol=a2a_protocol)
 
         # Initialize memory management components
         self.advanced_memory_manager = get_advanced_memory_manager()
@@ -53,10 +53,38 @@ class MemoryAgent(BaseAgent):
             'decay_operations': 0,
             'sharing_operations': 0,
             'last_maintenance': datetime.now(),
-            'performance_stats': {}
+            'performance_stats': {},
+            'operation_timings': [],  # List of operation execution times
+            'operation_successes': 0,  # Count of successful operations
+            'operation_failures': 0,  # Count of failed operations
+            'timing_window_size': 1000  # Keep last 1000 operation timings
         }
 
         logger.info("Memory Agent initialized with comprehensive memory management capabilities")
+
+    def _track_operation(self, operation_type: str, success: bool, execution_time: Optional[float] = None) -> None:
+        """
+        Track operation success/failure and timing for performance metrics.
+
+        Args:
+            operation_type: Type of operation ('store', 'retrieve', 'search', etc.)
+            success: Whether the operation succeeded
+            execution_time: Time taken for the operation in seconds
+        """
+        try:
+            if success:
+                self.memory_metrics['operation_successes'] += 1
+            else:
+                self.memory_metrics['operation_failures'] += 1
+
+            if execution_time is not None:
+                self.memory_metrics['operation_timings'].append(execution_time)
+                # Maintain window size
+                if len(self.memory_metrics['operation_timings']) > self.memory_metrics['timing_window_size']:
+                    self.memory_metrics['operation_timings'] = self.memory_metrics['operation_timings'][-self.memory_metrics['timing_window_size']:]
+
+        except Exception as e:
+            logger.warning(f"Failed to track operation metrics: {e}")
 
     def _initialize_memory_structures(self):
         """
@@ -142,10 +170,16 @@ class MemoryAgent(BaseAgent):
     async def _process_input(self, memory_request: Dict[str, Any]) -> Dict[str, Any]:
         """
         Process memory operations: store, retrieve, share, or maintain memory.
+        Also handles incoming A2A messages.
         Args:
-            memory_request: Dict containing memory operation details
+            memory_request: Dict containing memory operation details or A2A message
         Returns: Dict with operation results
         """
+        # Check if this is an A2A message
+        if isinstance(memory_request, dict) and 'type' in memory_request and memory_request.get('type', '').startswith('memory'):
+            logger.info(f"Memory Agent processing A2A message: {memory_request.get('type')}")
+            return await self.handle_memory_message(memory_request)
+
         logger.info(f"Memory Agent processing request: {memory_request.get('operation', 'unknown')}")
 
         operation = memory_request.get('operation', 'retrieve')
@@ -180,6 +214,9 @@ class MemoryAgent(BaseAgent):
         """
         Store memory in appropriate structure based on type and scope.
         """
+        import time
+        start_time = time.time()
+
         try:
             memory_type = request.get('memory_type', 'episodic')
             scope = request.get('scope', 'long_term')
@@ -203,6 +240,8 @@ class MemoryAgent(BaseAgent):
             elif scope == 'agent':
                 result = await self._store_agent_memory(namespace, memory_type, content, metadata)
             else:
+                execution_time = time.time() - start_time
+                self._track_operation('store', False, execution_time)
                 return {'error': f'Unknown scope: {scope}'}
 
             # Update metadata
@@ -215,6 +254,9 @@ class MemoryAgent(BaseAgent):
             # Update metrics
             self.memory_metrics['total_memories'] += 1
 
+            execution_time = time.time() - start_time
+            self._track_operation('store', True, execution_time)
+
             return {
                 'stored': True,
                 'memory_id': result.get('memory_id'),
@@ -224,6 +266,8 @@ class MemoryAgent(BaseAgent):
             }
 
         except Exception as e:
+            execution_time = time.time() - start_time
+            self._track_operation('store', False, execution_time)
             logger.error(f"Error storing memory: {e}")
             return {'error': str(e), 'stored': False}
 
@@ -488,7 +532,7 @@ class MemoryAgent(BaseAgent):
         Share memory between agents via A2A protocol.
         """
         try:
-            source_agent = request.get('source_agent', 'unknown')
+            source_agent = request.get('source_agent', 'memory')
             target_agents = request.get('target_agents', [])
             memory_content = request.get('memory_content', {})
             priority = request.get('priority', 'normal')
@@ -503,13 +547,31 @@ class MemoryAgent(BaseAgent):
             }
 
             # Store in shared memory space
+            if 'shared' not in self.agent_memory_spaces:
+                self.agent_memory_spaces['shared'] = {}
             self.agent_memory_spaces['shared'][shared_memory['shared_id']] = shared_memory
 
-            # Distribute to target agents
+            # Use A2A protocol to distribute to target agents
             distribution_results = []
             for target_agent in target_agents:
-                result = await self._distribute_memory_to_agent(target_agent, shared_memory)
-                distribution_results.append(result)
+                # Send via A2A protocol instead of local storage
+                message_data = {
+                    'type': 'memory_share',
+                    'shared_memory': shared_memory,
+                    'priority': priority
+                }
+
+                message_id = await self.send_a2a_message(
+                    message_type='memory_share',
+                    receiver=target_agent,
+                    data=message_data
+                )
+
+                distribution_results.append({
+                    'agent': target_agent,
+                    'message_id': message_id,
+                    'sent': message_id is not None
+                })
 
             # Update metrics
             self.memory_metrics['sharing_operations'] += 1
@@ -528,27 +590,25 @@ class MemoryAgent(BaseAgent):
 
     async def _distribute_memory_to_agent(self, agent_name: str, memory: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Distribute shared memory to specific agent.
+        Distribute shared memory to specific agent via A2A protocol.
         """
         try:
-            # In a real implementation, this would use A2A protocol
-            # For now, simulate distribution by storing in agent's memory space
+            # Send via A2A protocol
+            message_data = {
+                'type': 'memory_distribution',
+                'shared_memory': memory
+            }
 
-            if agent_name not in self.agent_memory_spaces:
-                self.agent_memory_spaces[agent_name] = {}
-
-            if 'received_shared' not in self.agent_memory_spaces[agent_name]:
-                self.agent_memory_spaces[agent_name]['received_shared'] = []
-
-            self.agent_memory_spaces[agent_name]['received_shared'].append(memory)
-
-            # Keep only last 50 shared memories per agent
-            if len(self.agent_memory_spaces[agent_name]['received_shared']) > 50:
-                self.agent_memory_spaces[agent_name]['received_shared'] = self.agent_memory_spaces[agent_name]['received_shared'][-50:]
+            message_id = await self.send_a2a_message(
+                message_type='memory_distribution',
+                receiver=agent_name,
+                data=message_data
+            )
 
             return {
                 'agent': agent_name,
-                'distributed': True,
+                'distributed': message_id is not None,
+                'message_id': message_id,
                 'timestamp': datetime.now().isoformat()
             }
 
@@ -597,26 +657,25 @@ class MemoryAgent(BaseAgent):
         Perform semantic search across memory using LLM understanding.
         """
         try:
-            # Use LLM to understand query intent and find relevant memories
-            if self.llm:
-                search_context = f"""
-                Search the memory system for information related to: {query}
+            # Use LLM to understand query intent and find relevant memories (required - no fallbacks)
+            if not self.llm:
+                raise RuntimeError("LLM is required for semantic memory search - no AI fallbacks allowed")
 
-                Available memory scopes: {scope}
-                Consider semantic meaning, context, and relevance to the query.
-                Return the most relevant memory entries.
-                """
+            search_context = f"""
+            Search the memory system for information related to: {query}
 
-                # Get all memories in scope
-                all_memories = await self._get_memories_in_scope(scope)
+            Available memory scopes: {scope}
+            Consider semantic meaning, context, and relevance to the query.
+            Return the most relevant memory entries.
+            """
 
-                # Use LLM to rank and filter memories
-                relevant_memories = await self._llm_rank_memories(search_context, all_memories, limit)
+            # Get all memories in scope
+            all_memories = await self._get_memories_in_scope(scope)
 
-                return relevant_memories
-            else:
-                # Fallback to keyword search
-                return await self._keyword_memory_search(query, scope, limit)
+            # Use LLM to rank and filter memories
+            relevant_memories = await self._llm_rank_memories(search_context, all_memories, limit)
+
+            return relevant_memories
 
         except Exception as e:
             logger.error(f"Error in semantic memory search: {e}")
@@ -627,22 +686,74 @@ class MemoryAgent(BaseAgent):
         Perform vector similarity search across memory.
         """
         try:
-            # This would use vector embeddings for similarity search
-            # For now, return placeholder implementation
+            # Get memories in scope first to filter by scope
             all_memories = await self._get_memories_in_scope(scope)
 
-            # Simple text similarity (placeholder for vector search)
+            # Try advanced memory manager search first (includes vector search if available)
+            if hasattr(self.advanced_memory_manager, 'search_memories') and callable(self.advanced_memory_manager.search_memories):
+                try:
+                    # Perform vector/semantic search using advanced memory manager
+                    vector_results = await self.advanced_memory_manager.search_memories(
+                        query=query,
+                        limit=limit * 2  # Get more results for filtering
+                    )
+
+                    # Convert vector results to memory format and filter by scope
+                    scored_memories = []
+                    for result in vector_results:
+                        # Check if this result matches our scope-filtered memories
+                        result_content = result.get('data', '')
+                        for memory in all_memories:
+                            memory_content = str(memory.get('content', ''))
+                            # Simple content matching (could be improved with better similarity)
+                            if (result_content in memory_content or
+                                memory_content in result_content or
+                                self._calculate_text_similarity(result_content, memory_content) > 0.7):
+                                memory_copy = memory.copy()
+                                memory_copy['similarity_score'] = result.get('relevance', 0.0)
+                                memory_copy['search_type'] = 'vector'
+                                scored_memories.append(memory_copy)
+                                break
+
+                    if scored_memories:
+                        # Sort by similarity and limit results
+                        scored_memories.sort(key=lambda x: x['similarity_score'], reverse=True)
+                        return scored_memories[:limit]
+
+                except Exception as e:
+                    logger.warning(f"Vector search failed, falling back to text similarity: {e}")
+
+            # Fallback to improved text similarity if vector search not available or failed
+            # Enhanced text similarity with TF-IDF style weighting
             query_words = set(query.lower().split())
             scored_memories = []
 
             for memory in all_memories:
                 content_text = str(memory.get('content', '')).lower()
                 content_words = set(content_text.split())
-                similarity = len(query_words.intersection(content_words)) / len(query_words.union(content_words))
 
-                if similarity > 0:
-                    memory['similarity_score'] = similarity
-                    scored_memories.append(memory)
+                if not content_words:
+                    continue
+
+                # Jaccard similarity
+                intersection = query_words.intersection(content_words)
+                union = query_words.union(content_words)
+                jaccard_sim = len(intersection) / len(union) if union else 0
+
+                # Term frequency bonus for exact matches
+                tf_bonus = sum(1 for word in query_words if word in content_text.split())
+
+                # Length normalization (shorter documents get slight preference)
+                length_penalty = min(1.0, len(content_words) / 100)
+
+                # Combined similarity score
+                similarity = (jaccard_sim * 0.7) + (tf_bonus * 0.2) + ((1 - length_penalty) * 0.1)
+
+                if similarity > 0.05:  # Minimum threshold
+                    memory_copy = memory.copy()
+                    memory_copy['similarity_score'] = similarity
+                    memory_copy['search_type'] = 'text_fallback'
+                    scored_memories.append(memory_copy)
 
             # Sort by similarity and limit results
             scored_memories.sort(key=lambda x: x['similarity_score'], reverse=True)
@@ -651,6 +762,24 @@ class MemoryAgent(BaseAgent):
         except Exception as e:
             logger.error(f"Error in vector memory search: {e}")
             return []
+
+    def _calculate_text_similarity(self, text1: str, text2: str) -> float:
+        """
+        Calculate text similarity between two strings.
+        """
+        try:
+            words1 = set(text1.lower().split())
+            words2 = set(text2.lower().split())
+
+            if not words1 or not words2:
+                return 0.0
+
+            intersection = words1.intersection(words2)
+            union = words1.union(words2)
+
+            return len(intersection) / len(union) if union else 0.0
+        except Exception:
+            return 0.0
 
     async def _keyword_memory_search(self, query: str, scope: str, limit: int) -> List[Dict[str, Any]]:
         """
@@ -1261,9 +1390,23 @@ class MemoryAgent(BaseAgent):
 
             # Calculate memory efficiency metrics
             total_operations = stats['memory_operations'] + stats['sharing_operations']
-            if total_operations > 0:
-                stats['operation_success_rate'] = 0.99  # Placeholder - would track actual success
-                stats['average_operation_time'] = 0.05  # Placeholder - would measure actual times
+            total_successes = self.memory_metrics['operation_successes']
+            total_failures = self.memory_metrics['operation_failures']
+            total_attempts = total_successes + total_failures
+
+            if total_attempts > 0:
+                stats['operation_success_rate'] = total_successes / total_attempts
+            else:
+                stats['operation_success_rate'] = 1.0  # No operations yet, assume perfect
+
+            # Calculate average operation time from recent timings
+            operation_timings = self.memory_metrics['operation_timings']
+            if operation_timings:
+                # Use recent timings (last 100 operations) for more current average
+                recent_timings = operation_timings[-100:] if len(operation_timings) > 100 else operation_timings
+                stats['average_operation_time'] = sum(recent_timings) / len(recent_timings)
+            else:
+                stats['average_operation_time'] = 0.0  # No operations timed yet
 
             return stats
 
@@ -1433,3 +1576,66 @@ class MemoryAgent(BaseAgent):
         except Exception as e:
             logger.error(f"Error getting memory status: {e}")
             return {'error': str(e), 'memory_agent_active': False}
+
+    async def handle_memory_message(self, message: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Handle incoming memory-related messages from other agents.
+        """
+        try:
+            message_type = message.get('type', 'unknown')
+
+            if message_type == 'memory_share':
+                # Handle shared memory from another agent
+                shared_memory = message.get('shared_memory', {})
+                return await self._store_shared_memory(shared_memory)
+
+            elif message_type == 'memory_request':
+                # Handle memory request from another agent
+                query = message.get('query', {})
+                return await self._retrieve_memory(query)
+
+            elif message_type == 'memory_distribution':
+                # Handle distributed memory
+                shared_memory = message.get('shared_memory', {})
+                return await self._store_shared_memory(shared_memory)
+
+            else:
+                return {'error': f'Unknown memory message type: {message_type}'}
+
+        except Exception as e:
+            logger.error(f"Error handling memory message: {e}")
+            return {'error': str(e), 'handled': False}
+
+    async def _store_shared_memory(self, shared_memory: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Store shared memory received from another agent.
+        """
+        try:
+            source_agent = shared_memory.get('source_agent', 'unknown')
+
+            # Store in the source agent's memory space
+            if source_agent not in self.agent_memory_spaces:
+                self.agent_memory_spaces[source_agent] = {}
+
+            if 'received_shared' not in self.agent_memory_spaces[source_agent]:
+                self.agent_memory_spaces[source_agent]['received_shared'] = []
+
+            self.agent_memory_spaces[source_agent]['received_shared'].append(shared_memory)
+
+            # Keep only last 50 shared memories per agent
+            if len(self.agent_memory_spaces[source_agent]['received_shared']) > 50:
+                self.agent_memory_spaces[source_agent]['received_shared'] = self.agent_memory_spaces[source_agent]['received_shared'][-50:]
+
+            # Update metrics
+            self.memory_metrics['sharing_operations'] += 1
+
+            return {
+                'stored': True,
+                'source_agent': source_agent,
+                'shared_id': shared_memory.get('shared_id'),
+                'timestamp': datetime.now().isoformat()
+            }
+
+        except Exception as e:
+            logger.error(f"Error storing shared memory: {e}")
+            return {'error': str(e), 'stored': False}

@@ -1,0 +1,36 @@
+2025-12-04 10:21:42,829 - asyncio - ERROR - Unclosed connector
+connections: ['deque([(<aiohttp.client_proto.ResponseHandler object at 0x000001689988AF20>, 186499.796)])']
+connector: <aiohttp.connector.TCPConnector object at 0x00000168998C6DD0>
+2025-12-04 10:21:42,829 - asyncio - ERROR - Unclosed connector
+connections: ['deque([(<aiohttp.client_proto.ResponseHandler object at 0x000001689988B930>, 186501.109)])']
+connector: <aiohttp.connector.TCPConnector object at 0x00000168998E8610>
+2025-12-04 10:21:42,829 - asyncio - ERROR - Unclosed connector
+connections: ['deque([(<aiohttp.client_proto.ResponseHandler object at 0x00000168998C8FA0>, 186502.859)])']
+connector: <aiohttp.connector.TCPConnector object at 0x00000168998F2ED0>
+2025-12-04 10:22:16,406 - asyncio - ERROR - Unclosed connector
+connections: ['deque([(<aiohttp.client_proto.ResponseHandler object at 0x000001D31978C9F0>, 186533.64)])']
+connector: <aiohttp.connector.TCPConnector object at 0x000001D3197D0CD0>
+2025-12-04 10:22:16,489 - asyncio - ERROR - Unclosed connector
+connections: ['deque([(<aiohttp.client_proto.ResponseHandler object at 0x000001D3197BCBB0>, 186534.875)])']
+connector: <aiohttp.connector.TCPConnector object at 0x000001D3197EDF90>
+2025-12-04 10:22:52,885 - asyncio - ERROR - Unclosed connector
+connections: ['deque([(<aiohttp.client_proto.ResponseHandler object at 0x00000225998FF850>, 186570.109)])']
+connector: <aiohttp.connector.TCPConnector object at 0x0000022599942490>
+2025-12-04 10:22:52,888 - asyncio - ERROR - Unclosed connector
+connections: ['deque([(<aiohttp.client_proto.ResponseHandler object at 0x00000225998B5240>, 186570.984)])']
+connector: <aiohttp.connector.TCPConnector object at 0x0000022599947290>
+2025-12-04 10:22:52,890 - asyncio - ERROR - Unclosed connector
+connections: ['deque([(<aiohttp.client_proto.ResponseHandler object at 0x000002259993D240>, 186572.281)])']
+connector: <aiohttp.connector.TCPConnector object at 0x0000022599966050>
+2025-12-04 10:25:16,863 - asyncio - ERROR - Unclosed connector
+connections: ['deque([(<aiohttp.client_proto.ResponseHandler object at 0x000001FA197CC280>, 186714.546)])']
+connector: <aiohttp.connector.TCPConnector object at 0x000001FA198C2D10>
+2025-12-04 10:25:16,867 - asyncio - ERROR - Unclosed connector
+connections: ['deque([(<aiohttp.client_proto.ResponseHandler object at 0x000001FA198B4D00>, 186715.828)])']
+connector: <aiohttp.connector.TCPConnector object at 0x000001FA198CAC10>
+2025-12-04 10:25:52,326 - asyncio - ERROR - Unclosed connector
+connections: ['deque([(<aiohttp.client_proto.ResponseHandler object at 0x0000029C18FC0280>, 186749.984)])']
+connector: <aiohttp.connector.TCPConnector object at 0x0000029B3457B550>
+2025-12-04 10:25:52,329 - asyncio - ERROR - Unclosed connector
+connections: ['deque([(<aiohttp.client_proto.ResponseHandler object at 0x0000029C197F4D00>, 186751.25)])']
+connector: <aiohttp.connector.TCPConnector object at 0x0000029C19819810>

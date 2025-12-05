@@ -90,11 +90,13 @@ class RedisCacheManager:
             return True
 
         except redis.ConnectionError as e:
-            logger.error(f"Failed to connect to Redis: {e}")
+            logger.debug(f"Redis connection failed (expected if Redis not running): {e}")
+            logger.info("Redis not available - using in-memory fallback cache")
             self.redis_client = None
             return False
         except Exception as e:
-            logger.error(f"Redis initialization error: {e}")
+            logger.debug(f"Redis initialization error: {e}")
+            logger.info("Redis unavailable - using in-memory fallback cache")
             self.redis_client = None
             return False
 

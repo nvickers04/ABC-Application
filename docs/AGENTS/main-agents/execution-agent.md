@@ -480,4 +480,4 @@ The pyramiding framework allows the system to capitalize on strong trends while 
 
 ---
 
-*For IBKR setup instructions, see IMPLEMENTATION/setup.md.*
+*For IBKR setup instructions, see IMPLEMENTATION/setup-and-development.md.*

@@ -11,6 +11,8 @@ import logging
 from typing import Optional, Any, Dict
 from langchain_core.tools import BaseTool
 
+from .constants import DEFAULT_API_TIMEOUT
+
 logger = logging.getLogger(__name__)
 
 class LLMFactory:
@@ -28,27 +30,13 @@ class LLMFactory:
                 model=model,
                 temperature=config.get('temperature', 0.1),
                 max_tokens=config.get('max_tokens', 32768),
-                timeout=config.get('timeout_seconds', 30)
+                timeout=config.get('timeout_seconds', DEFAULT_API_TIMEOUT)
             )
         except Exception as e:
             logger.debug(f"XAI {model} initialization failed: {e}")
             return None
 
-    @staticmethod
-    def create_openai_llm(api_key: str, model: str, config: Dict[str, Any]) -> Optional[Any]:
-        """Create OpenAI Chat model."""
-        try:
-            from langchain_openai import ChatOpenAI
-            return ChatOpenAI(
-                api_key=api_key,
-                model=model,
-                temperature=config.get('temperature', 0.1),
-                max_tokens=config.get('max_tokens', 32768),
-                timeout=config.get('timeout_seconds', 30)
-            )
-        except Exception as e:
-            logger.debug(f"OpenAI {model} initialization failed: {e}")
-            return None
+
 
     @staticmethod
     def create_anthropic_llm(api_key: str, model: str, config: Dict[str, Any]) -> Optional[Any]:
@@ -60,7 +48,7 @@ class LLMFactory:
                 model=model,
                 temperature=config.get('temperature', 0.1),
                 max_tokens=config.get('max_tokens', 32768),
-                timeout=config.get('timeout_seconds', 30)
+                timeout=config.get('timeout_seconds', DEFAULT_API_TIMEOUT)
             )
         except Exception as e:
             logger.debug(f"Anthropic {model} initialization failed: {e}")
@@ -76,14 +64,14 @@ class LLMFactory:
                 model=model,
                 temperature=config.get('temperature', 0.1),
                 max_tokens=config.get('max_tokens', 32768),
-                timeout=config.get('timeout_seconds', 30)
+                timeout=config.get('timeout_seconds', DEFAULT_API_TIMEOUT)
             )
         except Exception as e:
             logger.debug(f"Google {model} initialization failed: {e}")
             return None
 
     @staticmethod
-    async def test_llm_connection(llm, timeout: int = 30) -> bool:
+    async def test_llm_connection(llm, timeout: int = DEFAULT_API_TIMEOUT) -> bool:
         """Test LLM connectivity."""
         try:
             test_prompt = "Respond with 'OK' if you can understand this message."

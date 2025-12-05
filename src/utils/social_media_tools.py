@@ -12,6 +12,7 @@ import requests
 from langchain_core.tools import tool
 
 from .validation import circuit_breaker, DataValidator
+from .constants import DEFAULT_API_TIMEOUT, ERROR_API_KEY_NOT_FOUND, ERROR_NO_DATA_FOUND
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,7 @@ def twitter_sentiment_tool(query: str, max_tweets: int = 100) -> Dict[str, Any]:
     bearer_token = os.getenv('TWITTER_BEARER_TOKEN')
     if not bearer_token:
         return {
-            "error": "Twitter API credentials not found",
+            "error": ERROR_API_KEY_NOT_FOUND,
             "step_1": "Go to https://developer.twitter.com/",
             "step_2": "Create a Twitter Developer account",
             "step_3": "Create a new app and get Bearer Token",
@@ -51,7 +52,7 @@ def twitter_sentiment_tool(query: str, max_tweets: int = 100) -> Dict[str, Any]:
             "tweet.fields": "created_at,public_metrics,text,author_id"
         }
 
-        response = requests.get(url, headers=headers, params=params, timeout=30)
+        response = requests.get(url, headers=headers, params=params, timeout=DEFAULT_API_TIMEOUT)
         response.raise_for_status()
 
         data = response.json()
@@ -206,7 +207,7 @@ def social_media_monitor_tool(queries: list, platforms: list = None) -> Dict[str
             }
 
     return {
-        "error": "No social media data could be collected",
+        "error": ERROR_NO_DATA_FOUND,
         "platforms_attempted": platforms,
         "queries": queries
     }

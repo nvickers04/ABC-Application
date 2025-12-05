@@ -50,153 +50,15 @@ from src.utils.memory_security import get_secure_memory_manager
 
 logger = logging.getLogger(__name__)
 
-# Load environment variables
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-    logger.info("Environment variables loaded from .env file")
-except ImportError:
-    logger.warning("python-dotenv not available, environment variables may not be loaded")
+# Import centralized configuration
+from src.utils.config import get_api_key
+from src.utils.json_utils import sanitize_for_json
 from src.utils.embeddings import get_embedding_manager
 from src.utils.memory_security import get_secure_memory_manager
 
 logger = logging.getLogger(__name__)
 
-def sanitize_for_json(data: Any, max_depth: int = 3, current_depth: int = 0, seen_objects: set = None) -> Any:
-    """
-    Recursively sanitize data for JSON serialization by converting complex objects
-    to simple serializable types, handling circular references and deep nesting.
 
-    Args:
-        data: Data to sanitize
-        max_depth: Maximum recursion depth to prevent infinite loops
-        current_depth: Current recursion depth
-        seen_objects: Set of object IDs already processed to detect circular references
-
-    Returns:
-        JSON-serializable version of the data
-    """
-    if seen_objects is None:
-        seen_objects = set()
-
-    # Check for circular references
-    if id(data) in seen_objects:
-        return "<circular_reference>"
-
-    if current_depth >= max_depth:
-        return str(data)
-
-    # Handle None
-    if data is None:
-        return None
-
-    # Handle basic types
-    if isinstance(data, (int, float, str, bool)):
-        return data
-
-    # Handle datetime objects
-    if isinstance(data, datetime):
-        return data.isoformat()
-
-    # Handle numpy types
-    try:
-        import numpy as np
-        if isinstance(data, (np.integer, np.floating, np.bool_)):
-            return data.item()
-        if isinstance(data, np.ndarray):
-            return {
-                "type": "ndarray",
-                "shape": data.shape,
-                "dtype": str(data.dtype),
-                "data": data.flatten()[:10].tolist() if data.size > 0 else [],
-                "size": int(data.size)
-            }
-    except ImportError:
-        pass
-
-    # Handle pandas DataFrames and Series
-    try:
-        import pandas as pd
-        if isinstance(data, pd.DataFrame):
-            return {
-                "type": "DataFrame",
-                "columns": list(data.columns),
-                "shape": data.shape,
-                "data": data.head(5).to_dict('records') if len(data) > 0 else [],
-                "summary": str(data.describe()) if len(data) > 0 else "Empty DataFrame"
-            }
-        elif isinstance(data, pd.Series):
-            return {
-                "type": "Series",
-                "name": str(data.name),
-                "data": data.head(5).tolist() if len(data) > 0 else [],
-                "length": len(data),
-                "summary": str(data.describe()) if len(data) > 0 else "Empty Series"
-            }
-    except ImportError:
-        pass
-
-    # Handle lists and tuples
-    if isinstance(data, (list, tuple)):
-        seen_objects.add(id(data))
-        try:
-            result = []
-            for item in data:
-                if current_depth < max_depth - 1:
-                    result.append(sanitize_for_json(item, max_depth, current_depth + 1, seen_objects))
-                else:
-                    result.append(str(item))
-            return result
-        except RecursionError:
-            return [str(item) for item in data]
-        finally:
-            seen_objects.discard(id(data))
-
-    # Handle dictionaries
-    if isinstance(data, dict):
-        seen_objects.add(id(data))
-        try:
-            result = {}
-            for k, v in data.items():
-                key_str = str(k)
-                if current_depth < max_depth - 1:
-                    result[key_str] = sanitize_for_json(v, max_depth, current_depth + 1, seen_objects)
-                else:
-                    result[key_str] = str(v)
-            return result
-        except RecursionError:
-            return {str(k): str(v) for k, v in data.items()}
-        finally:
-            seen_objects.discard(id(data))
-
-    # Handle any other object - convert to string representation
-    try:
-        # Check if it's a complex object that might cause issues
-        if hasattr(data, '__dict__'):
-            seen_objects.add(id(data))
-            try:
-                # For objects with __dict__, create a safe representation
-                obj_dict = {}
-                for k, v in data.__dict__.items():
-                    if not k.startswith('_'):  # Skip private attributes
-                        try:
-                            if current_depth < max_depth - 1:
-                                obj_dict[k] = sanitize_for_json(v, max_depth, current_depth + 1, seen_objects)
-                            else:
-                                obj_dict[k] = str(v)
-                        except:
-                            obj_dict[k] = str(v)
-                return {
-                    "type": data.__class__.__name__,
-                    "attributes": obj_dict
-                }
-            finally:
-                seen_objects.discard(id(data))
-        else:
-            return str(data)
-    except:
-        # Fallback to string representation
-        return str(data)
 
 class MemoryBackend:
     """Base class for memory storage backends."""
@@ -419,7 +281,7 @@ class Mem0Backend(MemoryBackend):
         if not MEM0_AVAILABLE:
             raise ImportError("Mem0 not available. Install with: pip install mem0ai")
 
-        self.api_key = api_key or os.getenv("MEM0_API_KEY")
+        self.api_key = api_key or get_api_key("mem0")
         if not self.api_key:
             raise ValueError("Mem0 API key required")
 
@@ -662,7 +524,7 @@ class AdvancedMemoryManager:
         # TODO: Re-enable when Mem0 fixes gpt-4o-mini model access
         if False and MEM0_AVAILABLE:  # Temporarily disabled
             try:
-                mem0_key = os.getenv("MEM0_API_KEY")
+                mem0_key = get_api_key("mem0")
                 if mem0_key:
                     backends["mem0"] = Mem0Backend(api_key=mem0_key)
                     logger.info("Mem0 backend initialized successfully")

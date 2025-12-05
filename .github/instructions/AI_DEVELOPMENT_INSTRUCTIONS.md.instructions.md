@@ -102,7 +102,7 @@ docs/
 │   ├── memory-systems.md
 │   └── workflows/        # Workflow documentation
 ├── IMPLEMENTATION/        # Implementation guides
-│   ├── setup.md
+│   ├── setup-and-development.md
 │   ├── configuration.md
 │   ├── discord-setup.md
 │   ├── ibkr-deployment.md

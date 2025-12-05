@@ -616,8 +616,9 @@ class MultiInstrumentStrategyAnalyzer(BaseAgent):
             if not strategies:
                 return {'strategy_type': 'none', 'roi_estimate': 0.0}
 
-            # Use LLM for comprehensive strategy selection
-            if self.llm:
+            # Use LLM for comprehensive strategy selection (required - no fallbacks)
+            if not self.llm:
+                raise RuntimeError("LLM is required for multi-instrument strategy selection - no AI fallbacks allowed")
                 strategy_comparison = """
 MULTI-INSTRUMENT STRATEGY ANALYSIS:
 
@@ -648,23 +649,22 @@ Consider:
 Provide your recommendation with detailed rationale focusing on which strategy offers the best risk-adjusted opportunity.
 """
 
-                try:
-                    llm_response = await self.reason_with_llm(strategy_comparison, selection_prompt)
+            try:
+                llm_response = await self.reason_with_llm(strategy_comparison, selection_prompt)
 
-                    # Parse LLM response to find recommended strategy
-                    for strategy in strategies:
-                        strategy_type = strategy['strategy_type'].upper()
-                        if strategy_type in llm_response.upper():
-                            logger.info(f"MultiInstrumentStrategyAnalyzer LLM selected: {strategy_type}")
-                            return strategy
+                # Parse LLM response to find recommended strategy
+                for strategy in strategies:
+                    strategy_type = strategy['strategy_type'].upper()
+                    if strategy_type in llm_response.upper():
+                        logger.info(f"MultiInstrumentStrategyAnalyzer LLM selected: {strategy_type}")
+                        return strategy
 
-                except Exception as e:
-                    logger.warning(f"LLM strategy selection failed: {e}")
+                # If no strategy found in response, raise error
+                raise ValueError("LLM did not recommend a valid strategy")
 
-            # Fallback: Select strategy with best risk-adjusted ROI
-            best_strategy = max(strategies, key=lambda x: x['risk_adjusted_roi'])
-            logger.info(f"MultiInstrumentStrategyAnalyzer fallback selection: {best_strategy['strategy_type']}")
-            return best_strategy
+            except Exception as e:
+                logger.error(f"LLM strategy selection failed: {e}")
+                raise RuntimeError(f"AI-powered strategy selection failed: {str(e)[:100]}")
 
         except Exception as e:
             logger.error(f"Error selecting best multi-instrument strategy: {e}")

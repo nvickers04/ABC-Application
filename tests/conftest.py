@@ -17,9 +17,9 @@ sys.path.insert(0, str(project_root / 'src'))
 sys.path.insert(0, str(project_root / 'tests'))
 
 # Import all fixture modules
-from tests.fixtures.market_data import *
-from tests.fixtures.trading_config import *
-from tests.fixtures.mock_agents import *
+from fixtures.market_data import *
+from fixtures.trading_config import *
+from fixtures.mock_agents import *
 
 # Configure pytest-asyncio
 pytestmark = pytest.mark.asyncio
