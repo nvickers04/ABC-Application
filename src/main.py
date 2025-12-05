@@ -79,11 +79,11 @@ async def main_continuous_workflow() -> None:
     health_status = get_api_health_summary()
     logger.info(f"📊 Initial API health status: {health_status['summary']}")
 
-    # Initialize the Unified Workflow Orchestrator (paper trading ready)
+    # Initialize the Unified Workflow Orchestrator (full operational mode)
     logger.info("🎯 Initializing Unified Workflow Orchestrator...")
     orchestrator = UnifiedWorkflowOrchestrator(
         mode=WorkflowMode.HYBRID,
-        enable_discord=False,  # Disable Discord for paper trading
+        enable_discord=True,  # Enable Discord for full functionality
         enable_health_monitoring=True
     )
 

@@ -774,8 +774,15 @@ class TradingKnowledgeRAG:
             logging.error(f"RAG retrieval failed: {e}")
             return [f"RAG retrieval error: {e}"]
 
-# Global RAG instance
-trading_rag = TradingKnowledgeRAG()
+# Lazy-loaded RAG instance to avoid initialization during import
+_trading_rag_instance = None
+
+def get_trading_rag():
+    """Get the trading RAG instance, initializing it lazily."""
+    global _trading_rag_instance
+    if _trading_rag_instance is None:
+        _trading_rag_instance = TradingKnowledgeRAG()
+    return _trading_rag_instance
 
 
 
