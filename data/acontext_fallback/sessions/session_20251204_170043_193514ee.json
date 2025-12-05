@@ -1,0 +1,22 @@
+{
+  "type": "learning_session",
+  "agent": "learning",
+  "log_count": 3,
+  "timestamp": "2025-12-04T17:00:43.335179",
+  "session_context": {
+    "sd_variance": 0,
+    "batch_count": 0,
+    "pyramiding_records": 0,
+    "model_trained": false
+  },
+  "log_summary": {
+    "total_logs": 3,
+    "has_sharpe_data": false,
+    "has_pyramiding_data": false,
+    "has_return_data": false
+  },
+  "market_context": {
+    "timestamp": "2025-12-04T17:00:43.335179"
+  },
+  "session_id": "session_20251204_170043_193514ee"
+}

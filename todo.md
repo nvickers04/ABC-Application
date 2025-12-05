@@ -347,3 +347,28 @@
 - [ ] Add monitoring: In `src/utils/alert_manager.py`, alert on Acontext errors (e.g., ping fail); track metrics in learning (`self.memory['acontext_metrics']['hit_rate']`). Integrate with reflection for post-apply eval. (**Effort**: 1hr; **Deps**: Phase 2; **Success**: Alerts fire on mock failure.)
 - [ ] Initial rollout test: Paper trading mode; monitor 1-2 days (SOP creation rate, propagation success). (**Effort**: 2hr + monitoring; **Deps**: Deploy; **Success**: No regressions; >50% hit rate.)
 - [ ] Iteration: Weekly review logs/Dashboard; refine (e.g., add multi-modal if needed). (Ongoing; **Success**: Sustained improvements, e.g., 10% better directives.)
+
+## Hierarchical Agent Architecture (Future Implementation - On Hold)
+
+### Phase 1: Base Infrastructure Setup (2-3 hours)
+- [ ] Add `HIERARCHICAL` mode to `WorkflowMode` enum in `src/agents/unified_workflow_orchestrator.py` with proposal-based workflow. (**Effort**: 30min; **Deps**: None; **Success**: New mode selectable without breaking existing modes.)
+- [ ] Create `src/agents/hierarchical_base.py` with `ProposalManager` class for specialist-to-leader proposal routing and `ConfigManager` for leader config modifications. (**Effort**: 1hr; **Deps**: None; **Success**: Classes import without errors; basic proposal routing works.)
+- [ ] Extend A2A protocol message types in `src/utils/a2a_protocol.py` with `trade_proposal`, `config_update`, and `performance_feedback` messages. (**Effort**: 45min; **Deps**: None; **Success**: New message types handled by protocol without breaking existing communication.)
+
+### Phase 2: Domain and Leader Group Implementation (3-4 hours)
+- [ ] Create `src/agents/domain_groups.py` with base `DomainGroup` class managing 5 sector groups (tech, healthcare, commodities, finance, energy) using existing agent classes. (**Effort**: 1.5hr; **Deps**: Phase 1; **Success**: Domain groups initialize with existing agents; sector-specific data filtering works.)
+- [ ] Add `src/agents/leader_group.py` with `LeaderGroup` class managing 4 leader agents with config modification capabilities. (**Effort**: 1.5hr; **Deps**: Phase 1; **Success**: Leader group initializes; config modification methods work without affecting core configs.)
+
+### Phase 3: Configuration and Performance Tracking (2-3 hours)
+- [ ] Create `config/hierarchical_config.yaml` with sector definitions, minimum allocations (5%), and performance tracking settings. (**Effort**: 45min; **Deps**: None; **Success**: Config loads properly; validation passes.)
+- [ ] Add `performance_history` field to track experiential learning for future specialization. (**Effort**: 30min; **Deps**: Phase 2; **Success**: Performance data stored and retrievable.)
+- [ ] Implement proposal-based communication flow (specialists propose → leaders review → approval/rejection). (**Effort**: 1hr; **Deps**: Phase 1; **Success**: Proposals route correctly through hierarchy.)
+
+### Phase 4: Testing and Validation (2-3 hours)
+- [ ] Add simple proposal testing in `integration-tests/test_hierarchical_proposals.py` validating proposal submission and leader review without full execution. (**Effort**: 1hr; **Deps**: Phase 3; **Success**: Proposal flow tests pass; no conflicts with existing system.)
+- [ ] Validate no conflicts with current unified workflow orchestrator and agent scopes. (**Effort**: 45min; **Deps**: All phases; **Success**: Existing workflows continue functioning; hierarchical mode isolated.)
+- [ ] Test config management isolation (leader modifications don't affect core system configs). (**Effort**: 45min; **Deps**: Phase 2; **Success**: Config changes contained to hierarchical components.)
+
+### Phase 5: Rollout Preparation (1-2 hours - On Hold)
+- [ ] Document hierarchical architecture integration points and extension patterns. (**Effort**: 45min; **Deps**: All phases; **Success**: Clear documentation for future implementation.)
+- [ ] Create migration path from current unified orchestrator to hierarchical system. (**Effort**: 45min; **Deps**: All phases; **Success**: Clear upgrade strategy documented.)

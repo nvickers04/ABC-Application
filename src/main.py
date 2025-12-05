@@ -27,7 +27,7 @@ from src.agents.execution import ExecutionAgent
 from src.agents.reflection import ReflectionAgent
 from src.agents.learning import LearningAgent
 from src.agents.macro import MacroAgent
-from src.agents.live_workflow_orchestrator import LiveWorkflowOrchestrator
+from src.agents.unified_workflow_orchestrator import UnifiedWorkflowOrchestrator, WorkflowMode
 
 # Setup centralized logging for traceability (full-cycle audits)
 from src.utils.logging_config import get_logger
@@ -48,25 +48,30 @@ async def main_continuous_workflow() -> None:
     health_status = get_api_health_summary()
     logger.info(f"Initial API health status: {health_status['summary']}")
 
-    # Initialize the Live Workflow Orchestrator (includes A2A protocol internally)
-    logger.info("Initializing Live Workflow Orchestrator...")
-    orchestrator = LiveWorkflowOrchestrator()
+    # Initialize the Unified Workflow Orchestrator (paper trading ready)
+    logger.info("Initializing Unified Workflow Orchestrator...")
+    orchestrator = UnifiedWorkflowOrchestrator(
+        mode=WorkflowMode.HYBRID,
+        enable_discord=False,  # Disable Discord for paper trading
+        enable_health_monitoring=True
+    )
 
-    # Initialize agents asynchronously
-    await orchestrator.initialize_agents_async()
+    # Initialize the orchestrator
+    success = await orchestrator.initialize()
+    if not success:
+        logger.error("Failed to initialize orchestrator")
+        return
 
-    # Start Discord client and workflow
-    logger.info("Starting Discord integration and workflow...")
+    # Start the workflow
+    logger.info("Starting paper trading workflow...")
     try:
-        await orchestrator.run_orchestrator()
+        await orchestrator.start()
     except KeyboardInterrupt:
         logger.info("Received shutdown signal, stopping orchestrator...")
-        if orchestrator.client:
-            await orchestrator.client.close()
+        await orchestrator.stop()
     except Exception as e:
         logger.error(f"Orchestrator error: {e}")
-        if orchestrator.client:
-            await orchestrator.client.close()
+        await orchestrator.stop()
     finally:
         logger.info("AI Portfolio Manager workflow completed")# Legacy function for backward compatibility (simple one-time run)
 async def main_loop() -> Dict[str, Any]:

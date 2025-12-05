@@ -29,11 +29,13 @@ from langgraph.graph import add_messages
 
 # Langfuse tracing integration
 try:
-    from src.utils.langfuse_client import get_langfuse_client
+    from src.utils.langfuse_client import get_langfuse_client, is_langfuse_enabled, trace_function
     LANGFUSE_AVAILABLE = True
 except ImportError:
     LANGFUSE_AVAILABLE = False
     get_langfuse_client = None
+    is_langfuse_enabled = None
+    trace_function = None
 
 # Logging configured centrally in logging_config.py
 logger = logging.getLogger(__name__)
@@ -540,18 +542,14 @@ class A2AProtocol:
                 message.timestamp = datetime.datetime.now().isoformat()
             
             # Create Langfuse trace for A2A message
-            if langfuse_client and langfuse_client.is_enabled:
+            if LANGFUSE_AVAILABLE and is_langfuse_enabled():
                 try:
-                    trace_id = langfuse_client.create_trace(
+                    # Use decorator-based tracing for A2A messages
+                    @trace_function(
                         name="a2a_send_message",
                         user_id=message.sender,
                         session_id=f"a2a_{message.type}",
-                        input_data={
-                            'message_type': message.type,
-                            'sender': message.sender,
-                            'receiver': message.receiver,
-                            'data_preview': str(message.data)[:200] if message.data else None
-                        },
+                        tags=['a2a', 'send_message', message.type, message.sender],
                         metadata={
                             'message_id': message.id,
                             'message_type': message.type,
@@ -559,9 +557,17 @@ class A2AProtocol:
                             'receiver': str(message.receiver),
                             'data_size': len(str(message.data)) if message.data else 0,
                             'reply_to': message.reply_to
-                        },
-                        tags=['a2a', 'send_message', message.type, message.sender]
+                        }
                     )
+                    def _trace_a2a_send():
+                        return {
+                            'message_type': message.type,
+                            'sender': message.sender,
+                            'receiver': message.receiver,
+                            'data_preview': str(message.data)[:200] if message.data else None
+                        }
+
+                    _trace_a2a_send()
                 except Exception as e:
                     logger.debug(f"Langfuse trace creation failed: {e}")
             
