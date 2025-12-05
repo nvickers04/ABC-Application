@@ -24,12 +24,11 @@ import asyncio
 # Load environment variables
 load_dotenv()
 
-# Dynamic path setup for robust imports (works from any subdir)
-project_root = Path(__file__).parent.parent.parent  # From src/agents/base.py -> project root
-sys.path.insert(0, str(project_root))
+# Dynamic path setup removed - using __init__.py files for imports
 
 from src.utils.utils import load_yaml, load_prompt_template  # Absolute from src/utils.py (now discoverable).
 from src.utils.alert_manager import get_alert_manager
+from src.utils.llm_factory import LLMFactory
 
 # Langfuse tracing integration
 try:
@@ -179,120 +178,29 @@ class BaseAgent(abc.ABC):
     Abstract base class for agents.
     Reasoning: Provides init with prompt/YAML loading; abstract process_input for role-specific logic (e.g., Risk vets proposals).
     """
-    def _try_initialize_xai(self, api_key: str, model: str) -> Optional[Any]:
-        """Try to initialize XAI Chat model."""
-        try:
-            ChatXAI = _get_langchain_xai()
-            if not ChatXAI:
-                return None
+    async def _initialize_llm(self) -> Optional[Any]:
+        """Initialize LLM using factory."""
+        # Get LLM configuration
+        llm_config = self._get_agent_llm_config()
 
-            # Get LLM configuration - agent-specific first, then global fallback
-            llm_config = self._get_agent_llm_config()
-            max_tokens = llm_config.get('max_tokens', 32768)
-            temperature = llm_config.get('temperature', 0.1)
-            timeout = llm_config.get('timeout_seconds', 30)  # Reduced from 300 to 30 seconds
+        # Only use xAI provider
+        api_key = os.getenv('GROK_API_KEY')
+        if api_key:
+            llm = LLMFactory.create_xai_llm(api_key, 'grok-beta', llm_config)
+            if llm and await LLMFactory.test_llm_connection(llm):
+                logger.info(f"Initialized XAI LLM for {self.role}")
+                return llm
 
-            return ChatXAI(
-                api_key=api_key,
-                model=model,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                timeout=timeout
-            )
-        except Exception as e:
-            logger.debug(f"XAI {model} initialization failed: {e}")
-            return None
+        logger.warning(f"Failed to initialize xAI LLM for {self.role}")
+        return None
 
-    def _try_initialize_openai(self, api_key: str, model: str) -> Optional[Any]:
-        """Try to initialize OpenAI Chat model."""
-        try:
-            ChatOpenAI = _get_langchain_openai()
-            if not ChatOpenAI:
-                return None
 
-            # Get LLM configuration - agent-specific first, then global fallback
-            llm_config = self._get_agent_llm_config()
-            max_tokens = llm_config.get('max_tokens', 32768)
-            temperature = llm_config.get('temperature', 0.1)
-            timeout = llm_config.get('timeout_seconds', 30)  # Reduced from 300 to 30 seconds
 
-            return ChatOpenAI(
-                api_key=api_key,
-                model=model,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                timeout=timeout
-            )
-        except Exception as e:
-            logger.debug(f"OpenAI {model} initialization failed: {e}")
-            return None
 
-    def _try_initialize_anthropic(self, api_key: str, model: str) -> Optional[Any]:
-        """Try to initialize Anthropic Claude Chat model."""
-        try:
-            ChatAnthropic = _get_langchain_anthropic()
-            if not ChatAnthropic:
-                return None
 
-            # Get LLM configuration - agent-specific first, then global fallback
-            llm_config = self._get_agent_llm_config()
-            max_tokens = llm_config.get('max_tokens', 32768)
-            temperature = llm_config.get('temperature', 0.1)
-            timeout = llm_config.get('timeout_seconds', 30)  # Reduced from 300 to 30 seconds
 
-            return ChatAnthropic(
-                api_key=api_key,
-                model=model,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                timeout=timeout
-            )
-        except Exception as e:
-            logger.debug(f"Anthropic {model} initialization failed: {e}")
-            return None
 
-    def _try_initialize_google(self, api_key: str, model: str) -> Optional[Any]:
-        """Try to initialize Google Gemini Chat model."""
-        try:
-            ChatGoogleGenerativeAI = _get_langchain_google()
-            if not ChatGoogleGenerativeAI:
-                return None
 
-            # Get LLM configuration - agent-specific first, then global fallback
-            llm_config = self._get_agent_llm_config()
-            max_tokens = llm_config.get('max_tokens', 32768)
-            temperature = llm_config.get('temperature', 0.1)
-            timeout = llm_config.get('timeout_seconds', 30)  # Reduced from 300 to 30 seconds
-
-            return ChatGoogleGenerativeAI(
-                api_key=api_key,
-                model=model,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                timeout=timeout
-            )
-        except Exception as e:
-            logger.debug(f"Google {model} initialization failed: {e}")
-            return None
-
-    async def _test_llm_connection(self, llm) -> bool:
-        """Test LLM connectivity with a simple query."""
-        try:
-            # Get LLM configuration from system config
-            llm_config = self.configs.get('system', {}).get('llm', {})
-            timeout = llm_config.get('timeout_seconds', 30)  # Reduced from 300 to 30 seconds
-
-            test_prompt = "Respond with 'OK' if you can understand this message."
-            response = await asyncio.wait_for(
-                llm.ainvoke(test_prompt),
-                timeout=timeout
-            )
-            if response and hasattr(response, 'content') and 'OK' in str(response.content).upper():
-                return True
-            return False
-        except Exception as e:
-            logger.debug(f"LLM connectivity test failed: {e}")
-            return False
 
     def _check_system_health_for_operation(self, operation_name: str) -> bool:
         """
@@ -656,7 +564,7 @@ class BaseAgent(abc.ABC):
             logger.info(f"Starting async LLM initialization for {self.role} agent")
             # Add timeout to prevent hanging on LLM initialization
             self.llm = await asyncio.wait_for(
-                self._initialize_llm_with_resilience_async(),
+                self._initialize_llm(),
                 timeout=60.0  # 60 second timeout for LLM setup
             )
             if self.llm:
@@ -741,45 +649,21 @@ class BaseAgent(abc.ABC):
                     logger.info("XAI API healthy or not yet tested - proceeding with XAI strategies")
 
             if xai_healthy:
-                strategies.append(("ChatXAI_primary", lambda: self._try_initialize_xai(xai_api_key, primary_model)))
+                strategies.append(("ChatXAI_primary", lambda: LLMFactory.create_xai_llm(xai_api_key, primary_model, llm_config)))
 
-        # Add fallback models based on configuration (if any)
+        # Only use xAI for fallback models
         if fallback_models:
             for fallback in fallback_models:
-                provider = fallback.get('provider', '').lower()
-                model = fallback.get('model', '')
+                if fallback.get('provider', '').lower() == 'xai' and xai_api_key:
+                    model = fallback.get('model', '')
+                    strategies.append((f"ChatXAI_{model.replace('-', '_')}", lambda m=model: LLMFactory.create_xai_llm(xai_api_key, m, llm_config)))
 
-                if provider == 'openai' and openai_api_key:
-                    strategies.append((f"OpenAI_{model.replace('-', '_')}", lambda m=model: self._try_initialize_openai(openai_api_key, m)))
-                elif provider == 'anthropic' and anthropic_api_key:
-                    strategies.append((f"Anthropic_{model.replace('-', '_')}", lambda m=model: self._try_initialize_anthropic(anthropic_api_key, m)))
-                elif provider == 'google' and google_api_key:
-                    strategies.append((f"Google_{model.replace('-', '_')}", lambda m=model: self._try_initialize_google(google_api_key, m)))
-
-        # If no strategies from config, fall back to hardcoded defaults
+        # If no strategies from config, fall back to hardcoded xAI defaults
         if not strategies:
-            logger.warning("No LLM strategies configured, using fallback defaults")
+            logger.warning("No LLM strategies configured, using xAI fallback defaults")
             if xai_api_key:
                 strategies.extend([
-                    ("ChatXAI_grok4", lambda: self._try_initialize_xai(xai_api_key, "grok-4-1-fast-reasoning")),
-                ])
-
-            if openai_api_key:
-                strategies.extend([
-                    ("OpenAI_gpt4", lambda: self._try_initialize_openai(openai_api_key, "gpt-4")),
-                    ("OpenAI_gpt35", lambda: self._try_initialize_openai(openai_api_key, "gpt-3.5-turbo")),
-                ])
-
-            if anthropic_api_key:
-                strategies.extend([
-                    ("Anthropic_claude3", lambda: self._try_initialize_anthropic(anthropic_api_key, "claude-3-sonnet-20240229")),
-                    ("Anthropic_claude2", lambda: self._try_initialize_anthropic(anthropic_api_key, "claude-2.1")),
-                ])
-
-            if google_api_key:
-                strategies.extend([
-                    ("Google_gemini_pro", lambda: self._try_initialize_google(google_api_key, "gemini-pro")),
-                    ("Google_gemini_1", lambda: self._try_initialize_google(google_api_key, "gemini-1.5-flash")),
+                    ("ChatXAI_grok4", lambda: LLMFactory.create_xai_llm(xai_api_key, "grok-4-1-fast-reasoning", llm_config)),
                 ])
 
         # Try each strategy with exponential backoff
@@ -793,8 +677,7 @@ class BaseAgent(abc.ABC):
                         # Test the LLM with a simple query
                         test_success = False
                         try:
-                            test_response = await self._test_llm_connection(llm)
-                            test_success = test_response
+                            test_success = await LLMFactory.test_llm_connection(llm)
                         except asyncio.CancelledError:
                             logger.warning(f"LLM test cancelled for {strategy_name}, proceeding without test")
                             test_success = True  # Assume it's working if we got this far

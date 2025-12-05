@@ -46,6 +46,12 @@ The ABC Application system's fundamental breakthrough is its **8-agent collabora
 - **Micro Phase**: Deep analysis of selected opportunities using full data pipeline
 - **Hierarchical Intelligence**: Combines broad market perspective with detailed security analysis
 
+### LLM Initialization and Health Monitoring
+
+- **LLMFactory**: Centralized factory class (`src/utils/llm_factory.py`) for consistent LLM provider initialization, supporting xAI (Grok) models exclusively
+- **Health Checks**: Consolidated health monitoring in `BaseAgent` with checks for LLM availability, memory systems, API health, and system status
+- **Provider Restriction**: System configured to use only xAI models for all LLM operations, ensuring consistency and cost optimization
+
 ### Collaborative Reasoning Process
 
 **Enhanced 7-Phase Alpha Discovery Framework:**

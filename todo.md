@@ -1,5 +1,15 @@
 # ABC-Application Project TODO List
 
+## ✅ Completed Codebase Cleanup and Refactoring (December 4, 2025)
+- [x] Remove redundant/irrelevant tests (40+ files deleted, focusing on non-A2A collaboration paths)
+- [x] Clean dependencies in requirements.txt (removed commented-out packages like tensorflow, faiss-cpu, chromadb)
+- [x] Eliminate legacy code (removed main_loop() from main.py, merged orchestration logic)
+- [x] Refactor BaseAgent (extracted LLMFactory, consolidated health checks, maintained A2A/memory features)
+- [x] Simplify imports (removed dynamic sys.path inserts, rely on __init__.py files)
+- [x] Restrict LLM providers to xAI only (updated initialization logic)
+- [x] Add critical unit tests for refactored components (LLMFactory and BaseAgent tests)
+- [x] Update documentation (architecture.md reflects LLMFactory and health check consolidation)
+
 ## Stability Assessment for Paper Trading (December 2025)
 
 ### ✅ Completed Infrastructure Improvements

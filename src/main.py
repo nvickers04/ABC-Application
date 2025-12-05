@@ -12,11 +12,17 @@
 import asyncio
 import logging
 from typing import Dict, Any
-import pandas as pd  # For DataFrames in handoffs.
 import sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))  # Dynamic root path for imports from src/.
-sys.path.insert(0, str(Path(__file__).parent))  # Add src to path for utils imports.
+
+# Add project root to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+try:
+    import pandas as pd  # For DataFrames in handoffs.
+except ImportError as e:
+    logging.warning(f"Pandas import failed (likely Windows long path issue): {e}. DataFrame functionality may be limited.")
+    pd = None
 
 from src.utils.a2a_protocol import A2AProtocol, BaseMessage  # From src/utils/a2a_protocol.py.
 from src.utils.api_health_monitor import start_health_monitoring, get_api_health_summary
@@ -26,7 +32,6 @@ from src.agents.risk import RiskAgent
 from src.agents.execution import ExecutionAgent
 from src.agents.reflection import ReflectionAgent
 from src.agents.learning import LearningAgent
-from src.agents.macro import MacroAgent
 from src.agents.unified_workflow_orchestrator import UnifiedWorkflowOrchestrator, WorkflowMode
 
 # Setup centralized logging for traceability (full-cycle audits)
@@ -73,49 +78,7 @@ async def main_continuous_workflow() -> None:
         logger.error(f"Orchestrator error: {e}")
         await orchestrator.stop()
     finally:
-        logger.info("AI Portfolio Manager workflow completed")# Legacy function for backward compatibility (simple one-time run)
-async def main_loop() -> Dict[str, Any]:
-    """
-    Legacy function - runs a simple one-time StateGraph orchestration.
-    Use main_continuous_workflow() for the full system.
-    """
-    logger.warning("Using legacy main_loop() - consider using main_continuous_workflow() for full functionality")
-
-    # Start API health monitoring
-    logger.info("Starting API health monitoring...")
-    start_health_monitoring(check_interval=300)  # Check every 5 minutes
-
-    # Get initial health status
-    health_status = get_api_health_summary()
-    logger.info(f"Initial API health status: {health_status['summary']}")
-
-    # Initialize A2A with StateGraph
-    a2a = A2AProtocol(max_agents=50)
-
-    # Initialize agents
-    macro_agent = MacroAgent()
-    data_agent = DataAgent()
-    strategy_agent = StrategyAgent()
-    risk_agent = RiskAgent()
-    execution_agent = ExecutionAgent()
-    reflection_agent = ReflectionAgent()
-    learning_agent = LearningAgent()
-
-    # Register agents with instances
-    a2a.register_agent("macro", macro_agent)
-    a2a.register_agent("data", data_agent)
-    a2a.register_agent("strategy", strategy_agent)
-    a2a.register_agent("risk", risk_agent)
-    a2a.register_agent("execution", execution_agent)
-    a2a.register_agent("reflection", reflection_agent)
-    a2a.register_agent("learning", learning_agent)
-
-    # Run orchestration once
-    initial_data = {'symbols': ['SPY']}
-    result = await a2a.run_orchestration(initial_data)
-
-    logger.info(f"Legacy orchestration completed: {result}")
-    return result
+        logger.info("AI Portfolio Manager workflow completed")
 
 # Entry point for tests (run python src/main.py)
 if __name__ == "__main__":
